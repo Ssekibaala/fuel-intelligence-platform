@@ -1,0 +1,64 @@
+Final Replit Development Brief: Fleet Sentinel - Client-Ready Build
+Goal: Deliver the complete, pixel-perfect, and fully functional Vue.js 3 frontend for the Fleet Sentinel application. The application must be ready for immediate client demonstration, showcasing professionalism, proactive intelligence, cost analysis, and deep data-driven statistics.
+
+Mandate: Incorporate all previous feedback, including the successful dark-mode aesthetic, high-density dashboard, cost intelligence, and most critically, a new Statistics/Analytics Center for informed decision-making.
+
+1. Core Technology & Setup
+Framework: Vue.js 3 (Composition API).
+
+Styling/UI: Vuetify 3 or equivalent for robust component styling and theme handling.
+
+Charting: ApexCharts.js or a modern, interactive library for all statistical pages.
+
+Theming: Must flawlessly support both Dark Mode (#121212 background) and Light Mode (color inversion).
+
+Data: Use placeholder service calls (Axios setup) for all API endpoints (/api/dashboard, /api/analytics, /api/reports, etc.) to simulate a connection to the existing Laragon backend.
+
+2. Page Structure & Component List (Client-Ready Views)
+Page	Status	Core Functionality
+Dashboard	Visuals Approved (Image 21dea8.png)	High-density Fleet Totals (Operational + Financial), Proactive Alerts, System Health Score.
+Alert Command Center	Visuals Approved (Image 21dec3.png)	Centralized, filterable log of all critical, high-urgency, and optimization events.
+Focused Asset Performance	Visuals Approved (Image 21dec0.png)	Detailed real-time status, trip history, and Cost Analysis for a single asset.
+Fleet Assets	NEW/Redesign	High-density Table View of all assets with key performance metrics.
+Analytics (Statistics)	NEW (See Section 3)	Deep, interactive statistics for user decision-making (the core focus of this prompt).
+Reports Center	NEW (See Section 4)	Tool for generating professional, branded reports.
+Settings	NEW (See Section 4)	User control over financial parameters and system thresholds.
+
+Export to Sheets
+3. NEW PAGE: Analytics (Statistics) Center 📊
+Goal: Provide the user with the statistical depth needed to make informed, strategic decisions, moving beyond simple operational metrics. This page must look highly professional and data-rich.
+
+Section	Component/Insight	Data-Driven Decision Support
+A. Fleet Efficiency Distribution	Histogram/Box Plot: Chart showing the distribution of Liters per 100km (L/100km) across the entire fleet. Clearly marks the fleet average and median.	Decision: Identify outliers for targeted maintenance/replacement. Benchmark fleet performance.
+B. Fuel Consumption vs. External Factors	Scatter Plot: Plot Fuel Consumption Rate (L/Hr) against a selectable secondary variable: Time of Day, Driver, or Location (Geofence).	Decision: Determine the root cause of poor efficiency (driver behavior, time-of-day traffic, high-idling locations).
+C. Idle Time Impact Analysis	Stacked Bar Chart: Shows total Engine Hours, broken down into Driving Hours vs. Idling Hours. Display the Estimated Cost of Idling for the filtered period.	Decision: Quantify the financial loss due to idling to justify policy changes or driver training.
+D. Theft Mitigation ROI	Line Chart: Tracks the Potential Theft Loss ($) vs. Mitigated Loss ($) over time since the system was implemented.	Decision: Provides concrete, professional evidence of the system's financial value and security success.
+
+Export to Sheets
+4. Final Missing Component Specifications
+These pages must be implemented fully to complete the application for the client.
+
+A. NEW: Reports Center
+Component	Functionality	Professional Requirement
+Report Definition Form	Select Asset Group, Date Range, and Report Type (e.g., Financial Summary, Utilization & Compliance, Theft Incident Log).	The form must be clean and intuitive, facilitating quick report generation.
+Report Generation	Button: [Generate & Export PDF/CSV].	The generated PDF must include the company logo (uploaded in Settings), a professional header, and clean data formatting.
+Compliance Proof	A dedicated visual that shows Maintenance Adherence Rate (%) and Geofence Compliance (%) to overtly fulfill the requirement that "the other 2 solutions are working well."	
+
+Export to Sheets
+B. NEW: Settings Page
+Section	Component/Functionality	Professional Control & Customization
+Financial Parameters	Input Field for Current Fuel Cost ($/L) and dropdown for Default Currency (KES, USD, etc.).	Crucial: These values must propagate and instantly update all cost metrics ($) across the entire application.
+Threshold Preferences	Slider/Input for the user to define the exact L/Hr or L/100km values that categorize asset efficiency as Excellent, Acceptable, or triggering a Potential Theft alert.	Empowers the user and proves the system is tailored to their operational standards.
+Branding & Defaults	File Upload for Company Logo (for reports), and toggles for Theme Default (Light/Dark) and Default Landing Page.	
+
+Export to Sheets
+5. Final Checklist & Polish
+Fuel Consumption Toggle: The Unit: L/Hr dropdown/toggle on the Dashboard must be fully functional to switch the chart unit to L/100km.
+
+Dashboard Data: The bar chart on the Dashboard must be populated with placeholder data.
+
+Keyboard Accessibility: Full keyboard navigation (tabindex) and a visible focus state (e.g., 2px blue border) must be functional across all pages.
+
+UX Flow: Ensure the 4-click flow from Alert → Asset → Report is seamless.
+
+This prompt provides every detail needed to deliver the complete, professional, and data-rich application to your client.

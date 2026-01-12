@@ -1,0 +1,110 @@
+Fleet Sentinel - Comprehensive UI/UX Enhancement Directive
+Project Vision: To elevate the Fleet Sentinel platform into a world-class fleet intelligence tool. The user interface will be redesigned for exceptional clarity, intuitive interaction, and uncompromising professionalism. We will move from a simple data display to a sophisticated, responsive, and data-aware system that empowers users with actionable insights. Every element and interaction will be intentional, reflecting the quality and precision of a top-tier technology product.
+
+Part I: Global Design System & Core Principles
+This system is the foundation for all UI components. It will be applied universally for a cohesive and premium feel.
+
+1.1. The Card & Surface System: Materiality & Depth
+All interactive panels, cards, and pop-ups are considered "surfaces."
+
+Foundation: The application background will feature a subtle radial gradient (dark mode: near-black #121217 to a slightly lighter center; light mode: off-white #F7F7F9 with a soft inset shadow).
+
+Material: Card backgrounds will have a subtle top-to-bottom linear gradient to create a gentle sheen and avoid flatness.
+
+Edges: Define card edges with a 1px semi-transparent border and a 1px inverse inner box-shadow to simulate a precision "machined edge" effect.
+
+Elevation: Use a sophisticated, multi-layered box-shadow to simulate a soft, realistic elevation from a single top-left light source.
+
+Example CSS: box-shadow: 0px 0.8px 2px rgba(0,0,0,0.032), 0px 2.7px 6.7px rgba(0,0,0,0.048), 0px 12px 30px rgba(0,0,0,0.08);
+
+1.2. Motion & Interaction Language
+Interactions must feel physical, responsive, and natural.
+
+Hover State ("Lift"): On hover, surfaces will gently lift towards the user. This is a combination of transform: translateY(-3px); and an expansion of the box-shadow to be more diffused.
+
+Active State ("Press"): On mouse-down, surfaces will provide tactile feedback by pressing into the canvas via transform: translateY(0px) scale(0.99); with the box-shadow shrinking slightly.
+
+Transition Physics: All motion (transform, box-shadow) must use a unified transition timing to feel deliberate and smooth.
+
+Example CSS: transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+
+1.3. Data-Aware Micro-interactions
+The UI will subtly communicate the state of the data it contains.
+
+Ambient Glow: For status-driven elements, integrate a faint, diffused color into the box-shadow. Example: a soft green ambient glow on a card indicating "Excellent" reliability.
+
+Data Update Pulse: When a critical KPI updates (e.g., a new theft event), the relevant card will perform a single, soft "pulse" of its ambient color that fades in and out over ~1 second to draw the eye without being jarring.
+
+1.4. Dynamic Data Display
+
+KPI Count-Up: All primary numerical KPIs will animate with a "count-up" effect on page load or filter change, providing a dynamic entry point for the data.
+
+Part II: Page-Specific Directives
+2.1. Master Directive: The Main Dashboard
+
+Header Controls: Implement a global filter bar containing:
+
+Vehicle Selector: Multi-select dropdown.
+
+Date Range Picker: Standardized component with presets ("Today," "Week to Date," etc.) and a custom range option.
+
+KPI Card Deck: A single row of six primary KPI cards, all styled according to the Card & Surface System.
+
+Total Engine Hours
+
+Total Distance
+
+Total Fuel Used
+
+System Reliability (utilizing data-aware ambient glow)
+
+New: Total Refills (with "Total Volume: X L" sub-text)
+
+New: Fuel Thefts (with "Total Volume: X L" sub-text)
+
+Visualization Grid: A three-column layout below the KPI deck.
+
+Column 1: Bar Chart: "Daily Fuel Consumption (L)".
+
+Column 2: Bar Chart: "Daily Performance" with a toggle to switch between "Distance (Km)" and "Engine Hours (Hr)".
+
+Column 3: Resized Line Chart: "Fleet Fuel Consumption Rate (L/Hr)".
+
+2.2. Master Directive: Focused Asset Performance Page
+
+This page will be redesigned to tell a clear, narrative story of a single asset's performance.
+
+Unification: The page will be controlled exclusively by the global header filters.
+
+Remove: The entire top "Asset Performance Metrics" row, the three cards below the graph ("Avg. Daily Usage," etc.), and any conflicting time frame labels ("This month," "Last 7 Days").
+
+New Information Architecture:
+
+Section 1: Hero Overview (Two-Column Layout)
+
+Left (70% width): The "Fuel Levels Over Time" graph, enlarged and visually enhanced.
+
+Right (30% width): Two stacked summary cards:
+
+"Current Status" (Vehicle, Driver, Fuel Level with visual bar).
+
+"Cost & Efficiency Analysis" (Fuel Cost, Theft Loss, Efficiency vs Fleet Avg).
+
+Section 2: Daily Performance Breakdown (Full-Width)
+
+The grouped bar chart showing daily Fuel, Distance, and Trip Count.
+
+Section 3: Interactive Trip Log (Full-Width)
+
+A vertical list of trip cards, each styled with our Card & Surface System.
+
+Card Design: Header with route/date/status tag, body with key metrics, and an expandable section for granular details like refill info or anomaly explanations.
+
+Part III: Data & Localization Mandates
+3.1. Global Filter Adherence:
+All data on all pages (excluding "Reports" and "Settings") must dynamically and accurately reflect the selections in the global Vehicle and Date Range filters. Static labels are prohibited.
+
+3.2. Currency System:
+The platform must support both Kenyan Shillings (KES) and Ugandan Shillings (UGX). All monetary values must be displayed in the user's selected currency, managed via User Settings.
+
+This directive outlines the complete vision for a best-in-class user interface. The focus is on creating a cohesive, intuitive, and aesthetically superior system that instills confidence and provides unparalleled clarity to the user.

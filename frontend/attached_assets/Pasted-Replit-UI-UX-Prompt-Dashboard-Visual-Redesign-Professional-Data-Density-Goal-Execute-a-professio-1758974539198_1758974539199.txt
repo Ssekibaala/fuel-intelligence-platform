@@ -1,0 +1,56 @@
+Replit UI/UX Prompt: Dashboard Visual Redesign & Professional Data Density
+Goal: Execute a professional visual and structural redesign of the main Dashboard page, focusing on high data density, clear hierarchy, and proactive presentation. The design must be robust enough to look premium and professional in both Light and Dark Themes, requiring only color palette inversion, not layout changes.
+
+Design Principle: High-Density, Proactive Cockpit View.
+
+1. Global Theme and Color Strategy
+The application must support both themes, ensuring professionalism is maintained in both.
+
+Element	Dark Theme Specs	Light Theme Specs	Rationale
+Background	#121212 (Sophisticated Black)	#F5F7FA (Clean Off-White)	Ensures high contrast and a modern feel in both modes.
+Card/Surface	#1E1E1E (Slightly lighter than background)	#FFFFFF (Pure White)	Provides depth and separation for data cards.
+Primary Action	#007BFF (Vibrant Blue)	#007BFF (Vibrant Blue)	Consistent, trustworthy accent color for focus and links.
+Success/Proactive	#28A745 (Vibrant Green)	#198754 (Deep Green)	Clear visual for system success and good ratings.
+
+Export to Sheets
+2. Dashboard Layout & Hierarchy Redesign
+The dashboard will be restructured into distinct rows to establish a clear hierarchy, prioritizing Fleet Totals first.
+
+A. Row 1: Fleet Totals & Financial KPIs (The Header Strip)
+This row should be a dense strip of smaller, concise Insight Cards, clearly labeled as "Fleet Totals" and reflecting the current filters.
+
+KPI (InsightCard)	Required Data & Structure	Visual Priority
+Total Engine Hours (Hr)	Value (Big), Estimated Total Operating Cost ($) (Small, Secondary).	High. Must be easily legible.
+Total Distance (Km)	Value (Big), Small line graph showing 7-day trend (Subtle).	High. Essential operational data.
+Total Fuel Used (L)	Value (Big), Total Fuel Cost ($) (Small, Secondary).	High. Core cost intelligence.
+System Reliability	Value (Big, %), Uptime Status (Text: Excellent/Good).	High. Directly addresses the need to show systems are "working well."
+
+Export to Sheets
+B. Row 2: Fleet Health & Efficiency Visuals
+This row is dedicated to the core health score and high-impact visual data.
+
+Component	Visual Redesign Requirement	Professional Data Display
+Fleet Health Score	Gauge/Dial: Make the dial smaller and integrate the "Excellent/Good" text directly within it. The Confidence Index (e.g., Confidence Index: 98.7%) should be a small text label beneath the gauge.	Professional, high-impact visual that immediately conveys the system's success.
+Fleet Fuel Consumption Rate (L/Hr)	A professional Bar Chart showing the Average Daily L/Hr for the filtered period. MUST INCLUDE: A prominent toggle button allowing the user to switch the graph to display Liters per 100km (L/100km) for standardization.	Critical for analytical professionalism and international efficiency comparisons.
+
+Export to Sheets
+C. Row 3: Proactive Intelligence and Action Queue
+This row utilizes vertical, scrollable panels for detailed, actionable data, replacing the current large, static card layout.
+
+Panel Title	Redesign Requirement	Proactive Professional Tone
+Optimization Opportunities	Vertical, high-density scrollable list. Each item (e.g., Excessive Idling) must clearly show the Asset ID, the Issue, and the Expected Financial Savings ($) for resolution.	Focuses on future profitability and clear action steps.
+Fuel Notifications (Live Feed)	Vertical, high-density scrollable feed. Mandatory visual distinction between Potential Theft (Warning color) and Predictive Refill Alert (Primary/Action color).	Clear, organized, and time-sensitive action queue.
+System Diagnostics & Predictive Actions	Clean, stacked status indicators. The "All Systems Operational" success message must be the largest and clearest indicator. Any suggested Corrective Action must be paired with the AI Confidence Level to build trust.	Highlights system reliability and intelligent, trustworthy recommendations.
+
+Export to Sheets
+D. Row 4: Financial and Mitigation Summary
+Component	Redesign Requirement	Professional Value
+Theft Mitigation Savings	Keep the horizontal stacked bar chart. Redesign the colors to use the official Warning (loss), Dark/Neutral (cost), and Success (savings) colors based on the current theme. Prominently display the calculated ROI of the system (e.g., System ROI: 15%).	Ties the system's success directly to financial return and efficiency.
+
+Export to Sheets
+3. Implementation Notes for Replit
+Responsiveness: All rows must reflow cleanly on smaller screens. Row 1 KPIs should stack 2 or 3 per row on mobile.
+
+Toggle Implementation: The L/Hr graph toggle to L/100km is a required component that elevates the dashboard's professionalism.
+
+Theming: Use CSS variables or a theming library (like Vuetify/Tailwind) to ensure a single component structure serves both the Light and Dark color palettes seamlessly.

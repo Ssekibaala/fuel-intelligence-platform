@@ -1,0 +1,82 @@
+Master Directive: The 'Report Hub' Redesign
+Project Vision: To transform the "Reports" page from a simple form into a dynamic and user-centric "Report Hub." This redesign will guide users toward insightful reporting, streamline the generation process, and provide clear feedback on their requests. The hub will feel less like a utility page and more like an intelligence center, fully aligned with our premium design philosophy.
+
+Part I: Core Philosophy & Layout Redesign
+The fundamental flaw of the current design is that it requires users to know exactly what they want. We will shift to a model of guided discovery.
+
+Decommission the "Compliance Proof" Module:
+
+Remove the "Compliance Proof" dashboard from this page. While the data is valuable, this is not the right context.
+
+Action: These high-level metrics (Maintenance Adherence, Geofence Compliance) should be integrated directly into the new "Safety & Compliance Report" (see Part III) and considered for a summary widget on the main application dashboard, where they serve as a system-wide health indicator.
+
+A New, Action-Oriented Layout:
+
+The page will be organized into two main, full-width horizontal sections, creating a clear top-to-bottom workflow.
+
+Top Section: Report Template Library
+
+Bottom Section: Report History & Queue
+
+Part II: Key Component Directives
+2.1. The Report Template Library
+This is the new centerpiece of the page, replacing the old form. It's a browsable library of predefined report types.
+
+Layout: Display report templates as a grid of interactive cards, each styled using our Card & Surface System.
+
+Card Content: Each template card must clearly communicate its purpose:
+
+Report Title: e.g., "Fleet Fuel & Cost Analysis"
+
+Description: A concise, one-sentence explanation. (e.g., "Summarizes all fuel-related expenses and analyzes vehicle efficiency.")
+
+Key Metrics: A list of 3-4 primary data points included in the report (e.g., Total Fuel Cost, Avg. L/100km, Theft Loss).
+
+Action Button: A button labeled "Generate".
+
+2.2. The Smart Generation Modal
+Clicking "Generate" on a template card will not instantly create a report. Instead, it will open a sleek, centered modal window containing the generation form.
+
+Pre-filled Form: The "Report Type" will be pre-selected and locked.
+
+Streamlined Options: The user only needs to select the Asset Group and the Date Range. The "Include company logo" option should be a persistent setting in the main application settings, not a per-report choice.
+
+Clear Call to Action: A primary button "Generate & Export Report" and a secondary "Cancel" button.
+
+2.3. The Report History & Queue
+This section at the bottom of the page replaces the "Recent Reports" list and provides better user feedback.
+
+Title: "Report History"
+
+Layout: A clean, vertically stacked list. Each item represents a generated report.
+
+Status Indicator: Each list item must have a status.
+
+Processing: A subtle animated indicator showing the report is being generated.
+
+Complete: The title becomes a clickable link, and a "Download" icon appears.
+
+Failed: An error icon and a brief explanation.
+
+Information: Show the Report Title, Date Range covered, File Size, and Generation Date.
+
+Part III: Content - Report Definitions
+We will launch with three powerful, data-driven report templates. Remove any other report types that are not supported by our core data.
+
+Fleet Fuel & Cost Analysis Report
+
+Purpose: Provides a comprehensive financial overview of all fuel-related activities to control costs.
+
+Key Metrics: Total Fuel Cost, Total Volume Consumed, Cost per Km/Mile, Overall Fleet Efficiency (L/100km), Incidents of Theft (Count & Volume), Total Refill Volume.
+
+Asset Utilization & Performance Report
+
+Purpose: Analyzes how effectively vehicles are being used to maximize operational productivity.
+
+Key Metrics: Total Distance Traveled, Total Engine Hours, Idle Time vs. Drive Time Ratio, Number of Trips, Average Trip Duration, Percentage of Working Days Active.
+
+Safety & Compliance Report
+
+Purpose: Consolidates all safety and policy-related events into a single document for auditing and risk management.
+
+Key Metrics: Maintenance Adherence Score, Geofence Compliance Score, Number of Geofence Breaches, Speeding Incidents (if applicable), and a log of all critical alerts for the period.

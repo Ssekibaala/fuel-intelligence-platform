@@ -1,0 +1,123 @@
+Project Goal: To significantly enhance the Fleet Sentinel dashboard's user experience by improving data visualization, interactivity, and professional presentation. This is an evolution, not a rewrite. The key objectives are to provide more actionable insights at a glance, introduce robust filtering capabilities, and refine the interface to be more dynamic and intuitive.
+
+Part 1: Global UI Enhancements & Interactivity
+These changes should apply across the dashboard to create a more modern and responsive feel.
+
+Dynamic KPI Loading:
+
+Implement a "count-up" animation for all primary numerical values in the top KPI cards (e.g., Total Engine Hours, Total Distance, etc.).
+
+The animation should trigger on initial page load and whenever the data is refreshed after applying a filter. This provides a dynamic and engaging user experience.
+
+Interactive Card Elements:
+
+Apply a subtle, professional hover effect to all main dashboard cards (KPI cards and visualization panels).
+
+On Hover: The card should slightly elevate and increase in scale (e.g., transform: scale(1.02);) and gain a soft, diffused box-shadow to indicate it's interactive. Avoid jarring "shake" animations in favor of this smoother, more professional effect.
+
+Part 2: Dashboard Page Redesign (Fleet Sentinel Dashboard)
+This section focuses on restructuring the main dashboard for clarity and data density.
+
+Implement Global Filtering Controls:
+
+Position a new filter bar prominently at the top of the page, just below the "Fleet Sentinel Dashboard" title.
+
+This bar must contain:
+
+Vehicle Selector: A multi-select dropdown menu allowing the user to filter the dashboard data by one, multiple, or all vehicles.
+
+Date Range Picker: A standardized date/time window component with:
+
+Presets: "Today", "Yesterday", "Week to Date", "Month to Date", "Last 7 Days", "Last 30 Days".
+
+Custom Range: An option to select a custom start and end date.
+
+Crucially: All data on the dashboard (KPI cards, charts) must dynamically update to reflect the selections made in these filters.
+
+Revamp Top KPI Card Section:
+
+Modify Existing Cards: The current four cards are good. Ensure their data respects the new global filters.
+
+Add New Cards: Add two new KPI cards to the row, for a total of six cards.
+
+New Card 5: Total Refills
+
+Primary Value: The total count of refill events (e.g., "89").
+
+Sub-text: "Total Volume: [Sum of Liters] L"
+
+New Card 6: Fuel Thefts
+
+Primary Value: The total count of theft events (e.g., "4").
+
+Sub-text: "Total Volume: [Sum of Liters] L"
+
+Remove Obsolete Section: Completely remove the "Fleet Health Score" and its associated elements ("Real-time performance monitoring", "Confidence Index", "Total Parking Days", "Total Refill Counts"). This information will be represented more effectively elsewhere.
+
+Restructure Main Visualization Area:
+
+Reconfigure the area below the KPI cards into a clean, three-column layout to house three data visualizations.
+
+Chart 1 (New): Daily Fuel Consumption
+
+Type: Bar Chart.
+
+Y-Axis: Total Fuel Consumed (Liters).
+
+X-Axis: Days of the selected time period (e.g., Mon, Tue, Wed...).
+
+Chart 2 (New): Daily Performance Metric
+
+Type: Bar Chart.
+
+Y-Axis: Kilometers (Km) or Hours (Hr).
+
+X-Axis: Days of the selected time period.
+
+Interactivity: Include a toggle button directly on this chart's header (e.g., icons for "Distance" and "Time") that allows the user to switch the displayed data between Total Distance Traveled (Km) and Total Engine Hours (Hr) for the period.
+
+Chart 3 (Existing): Fleet Fuel Consumption Rate
+
+Action: Retain this line graph.
+
+Modification: Resize it to fit harmoniously as the third column in this new layout. Ensure its data also respects the global filters.
+
+Part 3: "Focused Asset Performance" Page Refinements
+Apply the new filtering logic and improve data summarization on this page for consistency.
+
+Standardize Filter Component:
+
+Remove the current "hourly, daily, weekly" filter buttons.
+
+Replace them with the exact same Global Date Range Picker component created for the main dashboard (presets + custom range). This ensures a consistent user experience across the application.
+
+Implement Dynamic Event Summary:
+
+Below the "Fuel Levels Over Time" graph, remove the static "Next Refill Due" and "Fuel Efficiency" text blocks.
+
+Replace this with a new section titled "Event Summary for Selected Period".
+
+This section will contain summary cards that dynamically calculate data based on the selected time window. For example:
+
+Refills Card: Displays the total number of refills and the total volume refilled (e.g., "3 Refills | Total: 450 L").
+
+Thefts Card: Displays the total number of thefts and the total volume lost (e.g., "2 Thefts | Total: 200 L").
+
+Consider adding other relevant event cards like "Idling Events", "Overspeeding", etc.
+
+Part 4: Data Consistency & Localization
+Global Filter Adherence:
+
+All data across all relevant pages (Dashboard, Fleet Assets, Focused Asset Performance, Analytics Center, Alert Command Center) must adhere to the selected global filters.
+
+Remove any hardcoded text like "This month" and ensure all labels and data reflect the currently active date range.
+
+The "Reports" and "Settings" pages can be excluded from this global filter logic.
+
+Currency Implementation:
+
+Add support for Ugandan Shillings (UGX).
+
+All financial figures (e.g., "Est. Operating Cost," "Total Fuel Cost") should be displayed in the user's selected currency.
+
+If a currency selector does not exist, plan for its implementation in the user "Settings" or "Profile" page. The format should be clear, e.g., "UGX 1,250,000"

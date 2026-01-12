@@ -1,0 +1,1031 @@
+<template>
+  <div class="min-h-screen w-full bg-[#0b0f17] text-slate-200 antialiased relative overflow-hidden">
+    <!-- Liquid animated background -->
+    <div aria-hidden="true" class="fixed inset-0 -z-10 pointer-events-none">
+      <div class="liquid-bg w-full h-full"></div>
+    </div>
+
+    <div class="flex h-screen">
+      <!-- SIDEBAR -->
+      <aside
+        :class="[
+          'transition-width duration-200 ease-out select-none flex-shrink-0',
+          sidebarExpanded ? 'w-64' : 'w-16'
+        ]"
+        @mouseenter="sidebarExpanded = true"
+        @mouseleave="sidebarExpanded = false"
+      >
+        <div class="h-full flex flex-col bg-[rgba(255,255,255,0.02)] border-r border-[rgba(255,255,255,0.04)]">
+          <div class="h-16 flex items-center px-3 gap-3">
+            <div class="w-10 h-10 rounded-lg glass flex items-center justify-center">
+              <svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12h18M12 3v18"/></svg>
+            </div>
+            <div v-if="sidebarExpanded" class="text-lg font-semibold tracking-tight">Fleet Sentinel</div>
+          </div>
+
+          <nav class="mt-4 flex-1">
+            <button
+              v-for="item in navItems"
+              :key="item.key"
+              @click="navigate(item.key)"
+              :aria-current="activePage === item.key ? 'page' : undefined"
+              class="w-full flex items-center gap-3 px-3 py-2 hover:bg-[rgba(255,255,255,0.02)] focus:outline-none"
+              :class="activePage === item.key ? 'border-l-4 border-blue-500 bg-[rgba(0,123,255,0.06)]' : ''"
+            >
+              <div class="w-8 h-8 flex items-center justify-center">
+                <component :is="item.icon" class="w-5 h-5" />
+              </div>
+              <span v-if="sidebarExpanded" class="text-sm">{{ item.title }}</span>
+            </button>
+          </nav>
+
+          <div class="p-3 border-t border-[rgba(255,255,255,0.03)]">
+            <div class="flex items-center gap-2">
+              <img src="https://via.placeholder.com/36" alt="avatar" class="rounded-full w-9 h-9" />
+              <div v-if="sidebarExpanded" class="text-xs">
+                <div class="font-medium">Brian</div>
+                <div class="text-[10px] text-slate-400">Technical Supervisor</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- MAIN -->
+      <main class="flex-1 overflow-auto">
+        <!-- HEADER -->
+        <header class="sticky top-0 z-20 bg-transparent backdrop-blur-md bg-gradient-to-b from-[rgba(2,6,23,0.6)] to-transparent border-b border-[rgba(255,255,255,0.02)] px-4 py-3">
+          <div class="max-w-[1400px] mx-auto flex items-center gap-4">
+            <div class="flex-1 flex items-center gap-3">
+              <div class="hidden sm:flex items-center gap-2">
+                <label class="text-xs text-slate-400 mr-2">Vehicle</label>
+                <select v-model="selectedVehicleId" @change="onVehicleChange" class="bg-[#121212] text-sm px-2 py-1 rounded border border-[rgba(255,255,255,0.03)]">
+                  <option value="">All vehicles</option>
+                  <option v-for="v in vehicles" :value="v.id" :key="v.id">{{ v.plate }} — {{ v.name }}</option>
+                </select>
+              </div>
+
+              <div class="hidden md:flex items-center gap-4 ml-4">
+                <div class="flex items-center gap-2">
+                  <label class="text-xs text-slate-400">From</label>
+                  <input type="date" v-model="filters.from" class="bg-[#121212] text-sm px-2 py-1 rounded border border-[rgba(255,255,255,0.03)]"/>
+                </div>
+                <div class="flex items-center gap-2">
+                  <label class="text-xs text-slate-400">To</label>
+                  <input type="date" v-model="filters.to" class="bg-[#121212] text-sm px-2 py-1 rounded border border-[rgba(255,255,255,0.03)]"/>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-3">
+              <div class="flex items-center gap-2">
+                <select v-model="settings.currency" class="bg-[#0f1724] text-sm px-2 py-1 rounded border border-[rgba(255,255,255,0.03)]">
+                  <option value="USD">USD</option>
+                  <option value="KES">KES</option>
+                  <option value="UGX">UGX</option>
+                  <option value="NGN">NGN</option>
+                </select>
+                <input
+                  v-model.number="settings.costPerLiter"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  title="Cost per liter"
+                  class="w-28 bg-[#0f1724] px-2 py-1 rounded border border-[rgba(255,255,255,0.03)] text-sm"
+                />
+              </div>
+
+              <button @click="refresh" aria-label="Refresh" class="p-2 rounded hover:bg-[rgba(255,255,255,0.02)]">
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12a9 9 0 1 0 3-6.7"/></svg>
+              </button>
+
+              <div class="ml-2">
+                <button @click="toggleTheme" class="px-3 py-1 text-xs rounded bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.03)]">Theme</button>
+              </div>
+
+              <div class="ml-4">
+                <div class="text-right text-xs">
+                  <div class="font-medium">{{ selectedVehicleLabel }}</div>
+                  <div class="text-slate-400">{{ currentTimeString }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <!-- PAGE CONTENT -->
+        <section class="max-w-[1400px] mx-auto p-4">
+          <div v-if="activePage === 'dashboard'">
+            <!-- DASHBOARD OVERVIEW -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <!-- KPI Cards -->
+              <div class="col-span-1 md:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div class="glass p-4 rounded-xl">
+                  <div class="flex justify-between items-start">
+                    <div>
+                      <div class="text-xs text-slate-400">Total Assets</div>
+                      <div class="text-2xl font-semibold">{{ dashboard.totalAssets }}</div>
+                    </div>
+                    <div class="text-sm text-slate-400">Uptime</div>
+                  </div>
+                  <div class="mt-3 text-sm text-slate-400">Active now: {{ dashboard.activeAssets }}</div>
+                </div>
+
+                <div class="glass p-4 rounded-xl">
+                  <div class="text-xs text-slate-400">Avg Consumption (L/100km)</div>
+                  <div class="text-2xl font-semibold">{{ formatNumber(dashboard.avgConsumption, 1) }}</div>
+                  <div class="mt-3 text-sm text-slate-400">Engine hours: {{ dashboard.totalEngineHours }}h</div>
+                </div>
+
+                <div class="glass p-4 rounded-xl">
+                  <div class="flex justify-between items-start">
+                    <div>
+                      <div class="text-xs text-slate-400">Total Fuel Cost YTD</div>
+                      <div class="text-2xl font-semibold">{{ currencyLabel }}{{ formatNumber(totalFuelCost, 2) }}</div>
+                    </div>
+                    <div class="text-sm text-green-400 font-medium">Proactive</div>
+                  </div>
+                  <div class="mt-3 text-sm text-slate-400">Cost per L: {{ currencyLabel }}{{ settings.costPerLiter }}</div>
+                </div>
+              </div>
+
+              <!-- Right column: Alerts & Top Inefficient Assets -->
+              <div class="space-y-4">
+                <div class="glass p-3 rounded-xl h-full">
+                  <div class="flex justify-between items-center">
+                    <div class="font-medium">Predictive Alerts</div>
+                    <div class="text-xs text-slate-400">AI confidence</div>
+                  </div>
+                  <div class="mt-3">
+                    <div v-if="predictiveAlert" class="p-3 rounded border border-[rgba(255,255,255,0.03)] bg-[rgba(255,255,255,0.01)]">
+                      <div class="flex justify-between items-center">
+                        <div>
+                          <div class="text-sm">{{ predictiveAlert.title }}</div>
+                          <div class="text-xs text-slate-400 mt-1">{{ predictiveAlert.detail }}</div>
+                        </div>
+                        <div class="text-sm font-semibold text-amber-400">{{ predictiveAlert.confidence }}%</div>
+                      </div>
+                      <div class="mt-3 flex gap-2">
+                        <button class="text-xs px-3 py-1 rounded bg-blue-500">Deploy Sensor</button>
+                        <button @click="openInvestigation(predictiveAlert)" class="text-xs px-3 py-1 rounded bg-[rgba(255,255,255,0.03)]">Investigate</button>
+                      </div>
+                    </div>
+                    <div v-else class="text-xs text-slate-400">No predictive issues detected.</div>
+                  </div>
+                </div>
+
+                <div class="glass p-3 rounded-xl overflow-hidden">
+                  <div class="flex justify-between items-center mb-2">
+                    <div class="font-medium">Top Inefficient Assets</div>
+                    <div class="text-xs text-slate-400">Ranked</div>
+                  </div>
+
+                  <div class="space-y-2 max-h-48 overflow-auto">
+                    <div v-for="asset in inefficientAssets" :key="asset.id" class="flex items-center justify-between p-2 rounded hover:bg-[rgba(255,255,255,0.01)]">
+                      <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-md bg-[rgba(255,255,255,0.03)] flex items-center justify-center text-xs">{{ asset.plate }}</div>
+                        <div>
+                          <div class="text-sm font-medium">{{ asset.name }}</div>
+                          <div class="text-xs text-slate-400">Cost/km: {{ currencyLabel }}{{ formatNumber(asset.costPerKm,2) }}</div>
+                        </div>
+                      </div>
+                      <div class="text-right">
+                        <div class="text-sm font-semibold text-red-400">{{ asset.severity }}</div>
+                        <div class="text-[11px] text-slate-400 mt-1">{{ asset.trend }}%</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="mt-3 text-xs text-slate-400">Click an asset to view summary</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Notifications + Live Feed -->
+            <div class="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div class="glass p-4 rounded-xl lg:col-span-2">
+                <div class="flex items-center justify-between">
+                  <div class="font-medium">Fuel Notifications</div>
+                  <div class="text-xs text-slate-400">Live</div>
+                </div>
+
+                <div class="mt-3 max-h-56 overflow-auto">
+                  <div v-for="note in notifications" :key="note.id" class="py-2 border-b border-[rgba(255,255,255,0.02)] flex items-start gap-3">
+                    <div class="w-10">
+                      <span :class="['inline-flex items-center justify-center w-8 h-8 rounded-full text-xs', note.type === 'theft' ? 'bg-red-600' : note.type === 'refill' ? 'bg-green-600' : 'bg-amber-500']">
+                        {{ note.type[0].toUpperCase() }}
+                      </span>
+                    </div>
+                    <div class="flex-1">
+                      <div class="flex justify-between">
+                        <div class="text-sm font-medium">{{ note.title }}</div>
+                        <div class="text-xs text-slate-400">{{ note.time }}</div>
+                      </div>
+                      <div class="text-xs text-slate-400 mt-1">{{ note.message }}</div>
+                      <div class="mt-2">
+                        <button @click="openInvestigation(note)" class="text-xs px-2 py-1 rounded bg-[rgba(255,255,255,0.02)]">Investigate</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="glass p-4 rounded-xl">
+                <div class="font-medium">Quick Insights</div>
+                <div class="mt-3 space-y-3 text-sm text-slate-400">
+                  <div>Predicted refills today: <span class="text-white font-semibold">{{ predictedRefills }}</span></div>
+                  <div>Estimated daily fuel cost: <span class="text-white font-semibold">{{ currencyLabel }}{{ formatNumber(estimatedDailyCost,2) }}</span></div>
+                  <div>Fleet Reliability Score: <span class="text-white font-semibold">{{ dashboard.reliabilityScore }}%</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- VEHICLE SUMMARY PAGE -->
+          <div v-if="activePage === 'assets'">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <!-- Left: Asset Heartbeat -->
+              <div class="glass p-4 rounded-xl lg:col-span-2">
+                <div class="flex items-start gap-4">
+                  <div class="w-56 flex flex-col items-center">
+                    <!-- Fuel Pulse Orb -->
+                    <div class="relative">
+                      <svg viewBox="0 0 120 120" class="w-40 h-40">
+                        <defs>
+                          <linearGradient id="g1" x1="0" x2="1">
+                            <stop offset="0" stop-color="#06B6D4" stop-opacity="0.8"/>
+                            <stop offset="1" stop-color="#06B6D4" stop-opacity="0.2"/>
+                          </linearGradient>
+                        </defs>
+                        <circle cx="60" cy="60" r="44" stroke="#08364a" stroke-width="14" fill="rgba(6,182,212,0.02)"/>
+                        <circle
+                          cx="60" cy="60" r="44"
+                          stroke="url(#g1)"
+                          stroke-width="8"
+                          stroke-linecap="round"
+                          :stroke-dasharray="orbCircumference"
+                          :stroke-dashoffset="orbDashOffset"
+                          fill="none"
+                          class="transition-[stroke-dashoffset] duration-700 ease-out"
+                        />
+                        <circle cx="60" cy="60" r="10" fill="rgba(6,182,212,0.85)" class="pulse-dot"/>
+                        <text x="60" y="70" text-anchor="middle" class="text-[10px] fill-white font-medium">{{ selectedAssetFuelPercent }}%</text>
+                      </svg>
+
+                      <div class="mt-2 text-xs text-slate-400 text-center">Fuel Level</div>
+                    </div>
+
+                    <div class="mt-4 w-full">
+                      <div class="text-xs text-slate-400">Est. time to empty</div>
+                      <div class="text-lg font-semibold">{{ selectedAssetETA }}</div>
+                    </div>
+                  </div>
+
+                  <div class="flex-1">
+                    <div class="flex justify-between items-start">
+                      <div>
+                        <div class="text-2xl font-semibold">{{ selectedAsset.name || 'Select a vehicle' }}</div>
+                        <div class="text-xs text-slate-400">{{ selectedAsset.plate }}</div>
+                      </div>
+                      <div class="text-right">
+                        <div class="text-sm text-slate-400">Status</div>
+                        <div class="text-lg font-semibold" :class="selectedAsset.status === 'ok' ? 'text-green-400' : 'text-amber-400'">{{ selectedAsset.statusLabel }}</div>
+                      </div>
+                    </div>
+
+                    <!-- KPIs grid -->
+                    <div class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div class="p-3 rounded bg-[rgba(255,255,255,0.02)]">
+                        <div class="text-xs text-slate-400">Fuel Used (L)</div>
+                        <div class="font-semibold">{{ formatNumber(selectedAsset.fuelUsed,1) }}</div>
+                      </div>
+                      <div class="p-3 rounded bg-[rgba(255,255,255,0.02)]">
+                        <div class="text-xs text-slate-400">Distance (Km)</div>
+                        <div class="font-semibold">{{ formatNumber(selectedAsset.distance,1) }}</div>
+                      </div>
+                      <div class="p-3 rounded bg-[rgba(255,255,255,0.02)]">
+                        <div class="text-xs text-slate-400">Cost / Km</div>
+                        <div class="font-semibold">{{ currencyLabel }}{{ formatNumber(selectedAsset.costPerKm || 0,2) }}</div>
+                      </div>
+                      <div class="p-3 rounded bg-[rgba(255,255,255,0.02)]">
+                        <div class="text-xs text-slate-400">Refill Anomaly</div>
+                        <div class="font-semibold text-amber-400">{{ selectedAsset.refillAnomalyScore || 0 }}%</div>
+                      </div>
+                    </div>
+
+                    <!-- Cost Estimation -->
+                    <div class="mt-4 p-3 rounded bg-[rgba(255,255,255,0.01)] border border-[rgba(255,255,255,0.02)]">
+                      <div class="flex justify-between items-center">
+                        <div>
+                          <div class="text-xs text-slate-400">Estimated Daily Cost</div>
+                          <div class="text-xl font-semibold">{{ currencyLabel }}{{ formatNumber(selectedAsset.dailyCost || computedDailyCost,2) }}</div>
+                        </div>
+
+                        <div>
+                          <label class="text-xs text-slate-400">Efficiency</label>
+                          <div class="mt-1 text-sm font-semibold">{{ selectedAsset.efficiencyRating || 'N/A' }}</div>
+                        </div>
+                      </div>
+
+                      <div class="mt-3">
+                        <button @click="generateReportForAsset(selectedAsset, 'Theft & Efficiency Audit')" class="text-xs px-3 py-1 rounded bg-blue-500">Generate Audit</button>
+                        <button @click="markResolved(selectedAsset)" class="text-xs px-3 py-1 rounded ml-2 bg-[rgba(255,255,255,0.03)]">Mark Resolved</button>
+                      </div>
+                    </div>
+
+                    <!-- Route Deviation Banner -->
+                    <div v-if="selectedAsset.routeDeviation" class="mt-4 p-3 rounded bg-[rgba(220,38,38,0.06)] border border-[rgba(220,38,38,0.08)]">
+                      <div class="font-medium text-red-400">Route Deviation Detected</div>
+                      <div class="text-xs text-slate-400 mt-1">Last deviation: {{ selectedAsset.routeDeviation }}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Fuel Flow & Trip Tape simplified -->
+                <div class="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-4">
+                  <div class="glass p-3 rounded-lg lg:col-span-2">
+                    <div class="font-medium">Fuel Flow (last 24h)</div>
+                    <div class="mt-2">
+                      <!-- Simple waterfall-like SVG -->
+                      <svg viewBox="0 0 600 120" class="w-full h-28">
+                        <path :d="waterfallPath" fill="rgba(6,182,212,0.06)" stroke="rgba(6,182,212,0.12)"/>
+                      </svg>
+                      <div class="mt-2 text-xs text-slate-400">Refills are green bursts; suspected thefts are highlighted red on hover.</div>
+                    </div>
+                  </div>
+
+                  <div class="glass p-3 rounded-lg">
+                    <div class="font-medium">Trip Tape</div>
+                    <div class="mt-2 flex gap-2 overflow-auto">
+                      <div v-for="trip in sampleTrips" :key="trip.id" @click="selectTrip(trip)" class="min-w-[120px] p-2 rounded cursor-pointer" :class="trip.type === 'eff' ? 'bg-[rgba(16,185,129,0.06)]' : trip.type === 'theft' ? 'bg-[rgba(220,38,38,0.06)]' : 'bg-[rgba(250,204,21,0.04)]'">
+                        <div class="text-xs font-medium">{{ trip.name }}</div>
+                        <div class="text-[11px] text-slate-400 mt-1">{{ trip.distance }} km • {{ trip.fuel }} L</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Right: Intelligence Perimeter -->
+              <aside class="glass p-4 rounded-xl">
+                <div class="font-medium">Predictive Alert</div>
+                <div class="mt-2 text-sm text-slate-400">
+                  <div v-if="predictiveAlert">{{ predictiveAlert.detail }}</div>
+                  <div v-else>No immediate predictions.</div>
+                </div>
+
+                <div class="mt-4">
+                  <div class="font-medium">Maintenance Clock</div>
+                  <div class="mt-2 flex items-center justify-center">
+                    <div class="w-36 h-36 relative">
+                      <svg viewBox="0 0 100 100" class="w-full h-full">
+                        <circle cx="50" cy="50" r="40" stroke="rgba(255,255,255,0.04)" stroke-width="8" fill="none"/>
+                        <circle cx="50" cy="50" r="40" stroke="rgba(16,185,129,0.6)" stroke-width="8" stroke-linecap="round" :stroke-dasharray="maintenanceCircumference" :stroke-dashoffset="maintenanceDashOffset" transform="rotate(-90 50 50)"/>
+                      </svg>
+                      <div class="absolute inset-0 flex items-center justify-center">
+                        <div class="text-sm text-slate-200 font-semibold">{{ maintenanceDays }}d</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="mt-4">
+                  <div class="font-medium">AI Commentary</div>
+                  <div class="mt-2 text-xs text-slate-400 space-y-2">
+                    <div v-for="(c,i) in aiComments" :key="i" class="p-2 rounded bg-[rgba(255,255,255,0.01)]">
+                      {{ c }}
+                    </div>
+                  </div>
+                </div>
+              </aside>
+            </div>
+          </div>
+
+          <!-- ANALYTICS PAGE -->
+          <div v-if="activePage === 'analytics'" class="space-y-4">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div class="glass p-4 rounded-xl lg:col-span-2">
+                <div class="font-medium">Weekly Fuel Trend</div>
+                <svg viewBox="0 0 600 180" class="w-full h-40 mt-2">
+                  <path :d="lineChartPath" fill="none" stroke="rgba(6,182,212,0.9)" stroke-width="2"/>
+                </svg>
+              </div>
+
+              <div class="glass p-4 rounded-xl">
+                <div class="font-medium">Fuel Efficiency by Vehicle</div>
+                <div class="mt-2 space-y-2">
+                  <div v-for="v in analyticsBars" :key="v.label" class="text-xs">
+                    <div class="flex justify-between">
+                      <div>{{ v.label }}</div>
+                      <div>{{ v.value }} L/100km</div>
+                    </div>
+                    <div class="w-full bg-[rgba(255,255,255,0.02)] h-2 rounded mt-1">
+                      <div :style="{ width: v.bar + '%'}" class="h-2 rounded bg-[rgba(6,182,212,0.6)]"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div class="glass p-4 rounded-xl">
+                <div class="font-medium">Distance vs Fuel Used (Scatter)</div>
+                <div class="mt-2 h-48 flex items-center justify-center text-xs text-slate-400">Scatter plot skeletal</div>
+              </div>
+
+              <div class="glass p-4 rounded-xl">
+                <div class="font-medium">Theft Pattern Heatmap</div>
+                <div class="grid grid-cols-7 gap-1 mt-2">
+                  <div v-for="(cell,i) in 42" :key="i" :class="heatCellClass(i)">{{ i%7 === 0 ? '⋯' : '' }}</div>
+                </div>
+                <div class="mt-2 text-xs text-slate-400">Days × time blocks</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- REPORTS PAGE -->
+          <div v-if="activePage === 'reports'">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div class="glass p-4 rounded-xl">
+                <div class="font-medium">Theft & Efficiency Audit</div>
+                <div class="mt-3 text-xs text-slate-400">Quickly generate a branded audit showing suspicious events and efficiency breakdowns.</div>
+                <div class="mt-3">
+                  <button @click="generateReport('Theft & Efficiency Audit')" class="px-3 py-1 rounded bg-blue-500 text-xs">Generate & Export</button>
+                </div>
+              </div>
+
+              <div class="glass p-4 rounded-xl">
+                <div class="font-medium">Daily Fuel & Health Report</div>
+                <div class="mt-3 text-xs text-slate-400">Summaries for operations and finance teams.</div>
+                <div class="mt-3">
+                  <button @click="generateReport('Daily Fuel & Health Report')" class="px-3 py-1 rounded bg-blue-500 text-xs">Generate & Export</button>
+                </div>
+              </div>
+
+              <div class="glass p-4 rounded-xl">
+                <div class="font-medium">Cost & Savings Forecast</div>
+                <div class="mt-3 text-xs text-slate-400">Forecasts using current price and usage trends.</div>
+                <div class="mt-3">
+                  <button @click="generateReport('Cost & Savings Forecast')" class="px-3 py-1 rounded bg-blue-500 text-xs">Generate & Export</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-4 glass p-4 rounded-xl">
+              <div class="font-medium">Live Preview</div>
+              <div class="mt-2 text-xs text-slate-400">A small mock preview including KPIs and a mini-sparkline.</div>
+              <div class="mt-3">
+                <svg viewBox="0 0 200 50" class="w-full h-12">
+                  <path :d="miniSpark" stroke="rgba(6,182,212,0.9)" stroke-width="2" fill="none"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <!-- ALERTS PAGE -->
+          <div v-if="activePage === 'alerts'">
+            <div class="glass p-4 rounded-xl">
+              <div class="flex justify-between items-center">
+                <div class="font-medium">Alerts</div>
+                <div class="text-xs text-slate-400">Filter by type</div>
+              </div>
+
+              <div class="mt-3 space-y-2 max-h-80 overflow-auto">
+                <div v-for="a in allAlerts" :key="a.id" class="p-2 rounded flex items-start gap-3 hover:bg-[rgba(255,255,255,0.01)]">
+                  <div class="w-10">
+                    <span :class="['inline-flex items-center justify-center w-8 h-8 rounded-full text-xs', a.type === 'theft' ? 'bg-red-600' : a.type === 'refill' ? 'bg-green-600' : 'bg-amber-500']">{{ a.type[0].toUpperCase() }}</span>
+                  </div>
+                  <div class="flex-1">
+                    <div class="flex justify-between">
+                      <div class="text-sm font-medium">{{ a.title }}</div>
+                      <div class="text-xs text-slate-400">{{ a.time }}</div>
+                    </div>
+                    <div class="text-xs text-slate-400 mt-1">{{ a.message }}</div>
+                    <div class="mt-2">
+                      <button @click="openInvestigation(a)" class="text-xs px-2 py-1 rounded bg-[rgba(255,255,255,0.02)]">Investigate</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SETTINGS PAGE -->
+          <div v-if="activePage === 'settings'">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="glass p-4 rounded-xl">
+                <div class="font-medium">Financial Parameters</div>
+                <div class="mt-3 space-y-2">
+                  <div>
+                    <label class="text-xs text-slate-400">Currency</label>
+                    <select v-model="settings.currency" class="w-full mt-1 bg-[#0f1724] px-2 py-1 rounded border border-[rgba(255,255,255,0.03)]">
+                      <option value="USD">USD</option>
+                      <option value="KES">KES</option>
+                      <option value="UGX">UGX</option>
+                      <option value="NGN">NGN</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label class="text-xs text-slate-400">Cost per liter</label>
+                    <input v-model.number="settings.costPerLiter" type="number" step="0.01" class="w-full mt-1 bg-[#0f1724] px-2 py-1 rounded"/>
+                  </div>
+
+                  <div>
+                    <label class="text-xs text-slate-400">Default currency symbol</label>
+                    <input v-model="settings.currencySymbol" class="w-full mt-1 bg-[#0f1724] px-2 py-1 rounded"/>
+                  </div>
+                </div>
+              </div>
+
+              <div class="glass p-4 rounded-xl">
+                <div class="font-medium">Threshold Preferences</div>
+                <div class="mt-3 space-y-3">
+                  <div>
+                    <div class="text-xs text-slate-400">Theft threshold (L/hr)</div>
+                    <input v-model.number="settings.thresholds.theftLhr" type="range" min="1" max="50" class="w-full mt-2" />
+                    <div class="text-xs mt-1">{{ settings.thresholds.theftLhr }} L/hr</div>
+                  </div>
+
+                  <div>
+                    <div class="text-xs text-slate-400">Excellent threshold (L/hr)</div>
+                    <input v-model.number="settings.thresholds.excellentLhr" type="range" min="0" max="20" class="w-full mt-2" />
+                    <div class="text-xs mt-1">{{ settings.thresholds.excellentLhr }} L/hr</div>
+                  </div>
+
+                  <div>
+                    <label class="text-xs text-slate-400">Report recipients (comma separated)</label>
+                    <input v-model="settings.recipients" class="w-full mt-1 bg-[#0f1724] px-2 py-1 rounded"/>
+                  </div>
+                </div>
+                <div class="mt-4">
+                  <button @click="saveSettings" class="px-3 py-1 rounded bg-blue-500 text-xs">Save settings</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Investigation Modal -->
+    <div v-if="investigationModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div class="absolute inset-0 bg-black/60" @click="closeInvestigation"></div>
+      <div class="relative w-full max-w-2xl glass p-4 rounded-xl z-10">
+        <div class="flex justify-between items-center">
+          <div class="font-medium">Investigation — {{ investigationTarget.title }}</div>
+          <button @click="closeInvestigation" class="text-slate-400">✕</button>
+        </div>
+
+        <div class="mt-3 text-sm text-slate-300">
+          <div>{{ investigationTarget.message }}</div>
+          <div class="mt-3 text-xs text-slate-400">Suggested actions: capture image, dispatch technician, schedule inspection, attach evidence.</div>
+        </div>
+
+        <div class="mt-4 flex gap-2">
+          <button @click="logInvestigation('Resolved')" class="px-3 py-1 rounded bg-green-500 text-xs">Mark Resolved</button>
+          <button @click="logInvestigation('Escalate')" class="px-3 py-1 rounded bg-amber-500 text-xs">Escalate</button>
+          <button @click="downloadEvidence(investigationTarget)" class="px-3 py-1 rounded bg-[rgba(255,255,255,0.03)] text-xs">Export CSV</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+/**
+ * FuelCommandCenter.vue
+ * Single file - Vue 3 Composition API + TailwindCSS
+ * - Mobile-first, dark-mode-first
+ * - Zero external chart libraries
+ * - Fetch placeholders: /api/dashboard, /api/vehicles, etc.
+ * - Settings persisted to localStorage
+ *
+ * Notes for backend hookup:
+ * - Replace fetch() placeholders with your Laragon-hosted endpoints
+ * - Keep endpoints: /api/dashboard, /api/vehicles, /api/notifications, /api/asset/{id}, /api/reports
+ */
+
+import { ref, reactive, computed, onMounted, watch } from 'vue';
+
+/* ---------- State & Settings ---------- */
+const activePage = ref('dashboard'); // 'dashboard','assets','analytics','reports','alerts','settings'
+const sidebarExpanded = ref(false);
+
+const navItems = [
+  { key: 'dashboard', title: 'Dashboard', icon: { render() { return h('svg', { viewBox: '0 0 24 24', class: 'w-5 h-5' }, [h('path', { d: 'M3 13h8V3H3v10zM3 21h8v-6H3v6zM13 21h8V11h-8v10zM13 3v6h8V3h-8z' }) ]) } } },
+  { key: 'assets', title: 'Asset Summary', icon: { render() { return h('svg', { viewBox: '0 0 24 24', class: 'w-5 h-5' }, [h('path', { d: 'M12 2l4 4-4 4-4-4 4-4zm0 16l4 4-4 4-4-4 4-4z' }) ]) } } },
+  { key: 'analytics', title: 'Analytics', icon: { render() { return h('svg', { viewBox: '0 0 24 24', class: 'w-5 h-5' }, [h('path', { d: 'M3 3v18h18' }) ]) } } },
+  { key: 'reports', title: 'Reports', icon: { render() { return h('svg', { viewBox: '0 0 24 24', class: 'w-5 h-5' }, [h('path', { d: 'M4 4h16v16H4z' }) ]) } } },
+  { key: 'alerts', title: 'Alerts', icon: { render() { return h('svg', { viewBox: '0 0 24 24', class: 'w-5 h-5' }, [h('path', { d: 'M12 22s8-4 8-10V8l-8-6-8 6v4c0 6 8 10 8 10z' }) ]) } } },
+  { key: 'settings', title: 'Settings', icon: { render() { return h('svg', { viewBox: '0 0 24 24', class: 'w-5 h-5' }, [h('path', { d: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z' }) ]) } } },
+];
+
+const settings = reactive({
+  currency: localStorage.getItem('fc_currency') || 'USD',
+  currencySymbol: localStorage.getItem('fc_currencySymbol') || '$',
+  costPerLiter: Number(localStorage.getItem('fc_costPerLiter')) || 1.25,
+  thresholds: {
+    theftLhr: Number(localStorage.getItem('fc_th_lhr')) || 12,
+    excellentLhr: Number(localStorage.getItem('fc_ex_lhr')) || 4,
+  },
+  recipients: localStorage.getItem('fc_recipients') || '',
+});
+
+watch(settings, () => {
+  localStorage.setItem('fc_currency', settings.currency);
+  localStorage.setItem('fc_currencySymbol', settings.currencySymbol);
+  localStorage.setItem('fc_costPerLiter', settings.costPerLiter);
+  localStorage.setItem('fc_th_lhr', settings.thresholds.theftLhr);
+  localStorage.setItem('fc_ex_lhr', settings.thresholds.excellentLhr);
+  localStorage.setItem('fc_recipients', settings.recipients);
+}, { deep: true });
+
+/* ---------- Mock / Data holders ---------- */
+const vehicles = ref([
+  { id: 'v1', plate: 'UBQ543X', name: 'Truck A' },
+  { id: 'v2', plate: 'KDN892T', name: 'Truck B' },
+  { id: 'v3', plate: 'UA752BG', name: 'Truck C' },
+]);
+
+const selectedVehicleId = ref('');
+const selectedAsset = reactive({
+  id: null,
+  name: '',
+  plate: '',
+  fuelLevel: 87,
+  fuelUsed: 120,
+  distance: 950,
+  costPerKm: 0.12,
+  refillAnomalyScore: 8,
+  dailyCost: null,
+  efficiencyRating: 'Good',
+  status: 'ok',
+  statusLabel: 'Operational',
+  routeDeviation: null,
+});
+const selectedAssetFuelPercent = computed(() => Math.round(selectedAsset.fuelLevel || 0));
+const selectedAssetETA = computed(() => {
+  // naive: fuel level / avg consumption
+  const hours = ((selectedAsset.fuelLevel || 0) / ((selectedAsset.fuelUsed || 1) / 24)).toFixed(1);
+  return isFinite(hours) ? `${hours} h` : '—';
+});
+
+const dashboard = reactive({
+  totalAssets: 42,
+  activeAssets: 39,
+  avgConsumption: 27.4,
+  totalEngineHours: 1200,
+  reliabilityScore: 94,
+});
+
+/* Notifications & Alerts */
+const notifications = ref([
+  { id: 1, type: 'theft', title: 'Suspected siphon - UBQ543X', time: '02:14', message: 'Large rapid drop while parked at depot.' },
+  { id: 2, type: 'refill', title: 'Refill logged - KDN892T', time: '08:23', message: 'Manual refill recorded 150 L.' },
+  { id: 3, type: 'anomaly', title: 'Idle consumption - UA752BG', time: '11:02', message: 'Idle consumption above threshold.' },
+]);
+
+const inefficientAssets = ref([
+  { id: 'v6', plate: 'KDJ251Z', name: 'Truck F', costPerKm: 0.65, severity: 'High', trend: 12 },
+  { id: 'v7', plate: 'UBF524U', name: 'Truck G', costPerKm: 0.42, severity: 'Medium', trend: 6 },
+  { id: 'v8', plate: 'KDN892T', name: 'Truck B', costPerKm: 0.39, severity: 'Medium', trend: 3 },
+]);
+
+/* Predictive alert */
+const predictiveAlert = ref({
+  title: '83% chance of theft at Nairobi North Depot',
+  detail: 'Pattern matches previous events between 00:00 and 04:00.',
+  confidence: 83,
+});
+
+/* Analytics skeleton data */
+const analyticsBars = ref([
+  { label: 'Truck A', value: 30, bar: 70 },
+  { label: 'Truck B', value: 28, bar: 60 },
+  { label: 'Truck C', value: 26, bar: 50 },
+]);
+
+const sampleTrips = ref([
+  { id: 1, name: 'Trip 09:00', distance: 80, fuel: 12.2, type: 'eff' },
+  { id: 2, name: 'Trip 11:00', distance: 40, fuel: 8.6, type: 'theft' },
+  { id: 3, name: 'Trip 14:00', distance: 180, fuel: 33.1, type: 'eff' },
+]);
+
+/* Other UI state */
+const filters = reactive({ from: '', to: '' });
+const investigationModal = ref(false);
+const investigationTarget = reactive({ title: '', message: '', id: null });
+
+/* Misc */
+const allAlerts = ref([...notifications.value].map((n, i) => ({ ...n, id: `a${i+1}` })));
+const aiComments = ref([
+  "Two theft events this month at 03:00 — consider night patrols.",
+  "Driver Maria Kim shows top efficiency — review route choices.",
+]);
+
+/* ---------- Computed financials ---------- */
+const currencyLabel = computed(() => {
+  if (settings.currencySymbol) return settings.currencySymbol;
+  switch (settings.currency) {
+    case 'KES': return 'KSh ';
+    case 'UGX': return 'UGX ';
+    case 'NGN': return '₦ ';
+    default: return '$';
+  }
+});
+
+const totalFuelUsed = computed(() => {
+  // This would normally be an aggregation from dashboard or API
+  return 12450; // placeholder liters YTD
+});
+const totalFuelCost = computed(() => totalFuelUsed.value * Number(settings.costPerLiter || 0));
+
+const costPerKm = computed(() => {
+  const totalDistance = 250000; // placeholder
+  return totalDistance ? (totalFuelCost.value / totalDistance) : 0;
+});
+
+const predictedRefills = computed(() => 5); // placeholder
+
+const estimatedDailyCost = computed(() => {
+  // naive daily estimate
+  const dailyLiters = 320; // placeholder
+  return dailyLiters * Number(settings.costPerLiter || 0);
+});
+
+/* ---------- SVG / micro-chart helpers ---------- */
+const orbRadius = 44;
+const orbCircumference = 2 * Math.PI * orbRadius;
+const orbDashOffset = computed(() => {
+  const pct = Math.max(0, Math.min(100, selectedAssetFuelPercent.value));
+  return ((100 - pct) / 100) * orbCircumference;
+});
+
+const maintenanceDays = ref(14);
+const maintenanceCircumference = 2 * Math.PI * 40;
+const maintenanceDashOffset = computed(() => {
+  const pct = Math.max(0, Math.min(100, (maintenanceDays.value / 30) * 100));
+  return ((100 - pct) / 100) * maintenanceCircumference;
+});
+
+function sparkPath(values = [], w = 200, h = 40) {
+  if (!values || !values.length) return '';
+  const max = Math.max(...values);
+  const min = Math.min(...values);
+  const range = max - min || 1;
+  return values.map((v, i) => {
+    const x = (i / (values.length - 1)) * w;
+    const y = h - ((v - min) / range) * h;
+    return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+  }).join(' ');
+}
+
+/* Example computed small charts */
+const miniSpark = computed(() => sparkPath([5,8,6,7,9,8,7], 200, 50));
+const lineChartPath = computed(() => sparkPath([20,25,22,30,28,26,24,22,30,34], 600, 160));
+const waterfallPath = computed(() => {
+  // simple polyline simulating drop/refill
+  const points = [0,60, 60,40, 120,50, 180,30, 240,70, 300,40, 360,60, 420,30, 480,45, 540,30, 600,60];
+  let path = `M ${points[0]} ${points[1]}`;
+  for (let i = 2; i < points.length; i += 2) path += ` L ${points[i]} ${points[i+1]}`;
+  path += ` L 600 120 L 0 120 Z`;
+  return path;
+});
+
+/* Trip selection */
+function selectTrip(trip) {
+  // navigate to trip details: open modal or scroll
+  console.log('Trip selected', trip);
+  // quick highlight: set selectedAsset simulated
+  selectedAsset.name = trip.name;
+}
+
+/* ---------- Functions: fetch placeholders & actions ---------- */
+async function fetchDashboard() {
+  try {
+    // Placeholder: attempt fetch, fallback to mock
+    const res = await fetch('/api/dashboard');
+    if (res.ok) {
+      const data = await res.json();
+      Object.assign(dashboard, data);
+    } else {
+      // nothing - use local
+    }
+  } catch (e) {
+    // silent fallback to mock
+  }
+}
+
+async function fetchVehicles() {
+  try {
+    const res = await fetch('/api/vehicles');
+    if (res.ok) vehicles.value = await res.json();
+  } catch (e) { /* ignore */ }
+}
+
+function navigate(key) {
+  activePage.value = key;
+  // small analytics / tracking could be added here
+}
+
+function onVehicleChange() {
+  if (!selectedVehicleId.value) {
+    // reset
+    Object.assign(selectedAsset, {
+      id: null, name: '', plate: '', fuelLevel: 0, fuelUsed: 0, distance: 0, costPerKm: 0, refillAnomalyScore: 0, dailyCost: null
+    });
+    return;
+  }
+  // fetch detail for vehicle
+  loadAsset(selectedVehicleId.value);
+  navigate('assets');
+}
+
+async function loadAsset(id) {
+  try {
+    const res = await fetch(`/api/asset/${id}`);
+    if (res.ok) {
+      const payload = await res.json();
+      Object.assign(selectedAsset, payload);
+    } else {
+      // fallback: set simulated fields
+      Object.assign(selectedAsset, {
+        id, name: vehicles.value.find(v => v.id === id)?.name || 'Vehicle',
+        plate: vehicles.value.find(v => v.id === id)?.plate || '---',
+        fuelLevel: 72, fuelUsed: 45, distance: 320, costPerKm: 0.28, refillAnomalyScore: 12, dailyCost: (45/30) * settings.costPerLiter, efficiencyRating: 'Acceptable'
+      });
+    }
+  } catch (e) {
+    Object.assign(selectedAsset, {
+      id, name: vehicles.value.find(v => v.id === id)?.name || 'Vehicle',
+      plate: vehicles.value.find(v => v.id === id)?.plate || '---',
+      fuelLevel: 72, fuelUsed: 45, distance: 320, costPerKm: 0.28, refillAnomalyScore: 12, dailyCost: (45/30) * settings.costPerLiter, efficiencyRating: 'Acceptable'
+    });
+  }
+}
+
+/* Investigations / modal */
+function openInvestigation(item) {
+  investigationTarget.title = item.title || 'Investigation';
+  investigationTarget.message = item.message || item.detail || 'No details';
+  investigationTarget.id = item.id || null;
+  investigationModal.value = true;
+}
+
+function closeInvestigation() {
+  investigationModal.value = false;
+}
+
+function logInvestigation(status) {
+  // record to backend
+  console.log('Logging investigation', investigationTarget, status);
+  closeInvestigation();
+}
+
+/* Reports & export */
+function downloadCSV(rows = [], filename = 'report.csv') {
+  const csv = rows.map(r => Object.values(r).map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function generateReport(templateName) {
+  // compile data, call backend to render, or generate CSV
+  const rows = [
+    ['Template', templateName],
+    ['Generated at', new Date().toISOString()],
+    ['Currency', settings.currency],
+    ['Cost per L', settings.costPerLiter],
+  ];
+  downloadCSV(rows, `${templateName.replace(/\s+/g,'_')}.csv`);
+}
+
+function generateReportForAsset(asset, templateName) {
+  const rows = [
+    ['Asset', asset.name || asset.plate],
+    ['Template', templateName]
+  ];
+  downloadCSV(rows, `${asset.plate || 'asset' }_${templateName.replace(/\s+/g,'_')}.csv`);
+}
+
+/* Utilities */
+function formatNumber(n, d = 0) {
+  if (n === null || n === undefined) return '—';
+  return Number(n).toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
+}
+
+function toggleTheme() {
+  // tailwind theme would normally be toggled globally; keep stub
+  document.documentElement.classList.toggle('light');
+}
+
+function refresh() {
+  fetchDashboard();
+  fetchVehicles();
+}
+
+/* small helpers used above */
+function openToast(msg) { console.log(msg); }
+function markResolved(asset) {
+  openToast('Marked resolved: ' + (asset.name || asset.plate));
+}
+
+/* computed daily cost if no asset-specific */
+const computedDailyCost = computed(() => {
+  return estimatedDailyCost.value;
+});
+
+/* investigation download */
+function downloadEvidence(target) {
+  downloadCSV([{ id: target.id, title: target.title, message: target.message }], 'investigation.csv');
+  closeInvestigation();
+}
+
+/* init */
+onMounted(() => {
+  fetchDashboard();
+  fetchVehicles();
+});
+
+/* time display */
+const currentTimeString = new Date().toLocaleString();
+const selectedVehicleLabel = computed(() => {
+  if (!selectedVehicleId.value) return 'All vehicles';
+  const v = vehicles.value.find(x => x.id === selectedVehicleId.value);
+  return v ? `${v.plate} • ${v.name}` : 'Vehicle';
+});
+
+/* mock derived values */
+const maintenanceDays = ref(14);
+const aiCommentsList = aiComments;
+
+/* hot helpers for heatmap */
+function heatCellClass(i) {
+  // randomized intensity
+  const r = (i * 37) % 100;
+  if (r > 80) return 'bg-red-600/30 h-6 rounded';
+  if (r > 50) return 'bg-amber-500/20 h-6 rounded';
+  if (r > 20) return 'bg-green-500/10 h-6 rounded';
+  return 'bg-[rgba(255,255,255,0.02)] h-6 rounded';
+}
+
+/* For vdom icons usage */
+import { h } from 'vue';
+</script>
+
+<style scoped>
+/* Glassmorphism utility */
+.glass {
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  border: 1px solid rgba(255,255,255,0.03);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 6px 18px rgba(2,6,23,0.6);
+}
+
+/* Liquid animated background */
+.liquid-bg {
+  background: radial-gradient(ellipse at center, rgba(4,22,35,1) 0%, rgba(3,6,12,1) 40%, #000000 100%);
+  position: relative;
+  overflow: hidden;
+}
+.liquid-bg::after {
+  content: "";
+  position: absolute;
+  inset: -20% -10%;
+  background: conic-gradient(from 180deg at 50% 50%, rgba(6,182,212,0.06), rgba(16,185,129,0.03), rgba(220,38,38,0.02));
+  filter: blur(40px);
+  transform: rotate(0deg);
+  animation: slow-spin 18s linear infinite;
+  opacity: 0.9;
+}
+@keyframes slow-spin {
+  from { transform: rotate(0deg) translateZ(0); }
+  to { transform: rotate(360deg) translateZ(0); }
+}
+
+/* Pulse dot */
+.pulse-dot {
+  animation: fuelPulse 2s infinite;
+}
+@keyframes fuelPulse {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.08); opacity: 0.8; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* small responsive adjustments */
+@media (max-width: 640px) {
+  aside { width: 56px !important; }
+}
+
+/* Focus styles for keyboard nav */
+:focus {
+  outline: 2px solid rgba(255,230,120,0.14);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+</style>

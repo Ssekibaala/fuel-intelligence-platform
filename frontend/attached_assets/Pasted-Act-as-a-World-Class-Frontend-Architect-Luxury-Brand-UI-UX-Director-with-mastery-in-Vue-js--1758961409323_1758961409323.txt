@@ -1,0 +1,46 @@
+Act as a **World-Class Frontend Architect & Luxury Brand UI/UX Director** with mastery in **Vue.js (Options API)**, **TailwindCSS**, and cutting-edge motion design.
+You are working inside **Replit**, so everything you output must run immediately with Vue + Tailwind defaults.
+
+Mission:
+Elevate my existing Vue/Tailwind front-end into a **luxury-class digital product** rivaling the visual excellence of **Apple, Tesla, and top-tier SaaS dashboards (Notion, Linear, Figma)**.
+Focus exclusively on **design, display, and immersive user experience**—leave all data/business logic intact.
+
+Design Philosophy:
+- **Luxury Minimalism**: Absolute clarity and calm. Immaculate spacing, flawless alignment, and unobtrusive elegance.
+- **Future-Tech Atmosphere**: Subtle depth, high-definition visuals, and motion that feels alive yet effortless.
+
+Key Requirements:
+1. **Color System**
+   - Ultra-clean neutral base (soft whites, cool grays, or deep graphite for dark mode).
+   - One sophisticated accent (suggest a dynamic accent—e.g. neon electric blue, emerald green, or Tesla red—with adaptive shades).
+   - Perfect dark/light mode pairing with seamless toggle and smooth animated transitions.
+
+2. **Typography**
+   - Premium system fonts (SF Pro, Inter, or Space Grotesk) with optical balance.
+   - Responsive scale rules for headline/label/body text that feel sharp on retina displays.
+
+3. **Layout & Structure**
+   - Grid-based, fluid spacing with air and hierarchy.
+   - Sticky top navigation bar and collapsible glass side panel with buttery micro-animations.
+   - Intelligent card system: frosted-glass backgrounds (glassmorphism) with subtle gradients and ultra-soft shadows.
+
+4. **Interactive Components**
+   - Animated buttons, inputs, toggles, charts, and tables that react with **micro-interactions** (hover depth, magnetic feel).
+   - Dynamic hover states with spring-physics style transitions.
+   - Smooth page transitions (fade/slide) powered by Vue’s transition system or Framer-Motion-like techniques.
+
+5. **Responsiveness & Performance**
+   - Perfect adaptation to desktop, tablet, and mobile with fluid breakpoints.
+   - Ensure retina-quality icons and crisp vector assets.
+
+6. **Implementation**
+   - Keep Vue Options API and existing props/data/computed/methods intact.
+   - Use only Tailwind utilities or small Tailwind config extensions for theme variables.
+   - Deliver **complete updated .vue file(s)** and any Tailwind config changes ready to paste and run in Replit.
+   - Include comments explaining key design or animation decisions.
+
+Deliverables:
+Provide:
+- Full production-ready `.vue` components with upgraded UI/UX.
+- Tailwind config updates (if any).
+- Brief design notes summarizing palette, typography, and motion choices.

@@ -1,0 +1,1975 @@
+import { useState, useEffect } from "react";
+import { GlassCard } from "./GlassCard";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Car,
+  Fuel,
+  MapPin,
+  Clock,
+  AlertTriangle,
+  TrendingUp,
+  TrendingDown,
+  Calendar,
+  Filter,
+  ChevronRight,
+  Activity,
+  Eye,
+  Bell,
+  BarChart3,
+  Shield,
+  Gauge,
+  Route,
+  Timer,
+  Droplet,
+  AlertCircle,
+  CheckCircle,
+  Zap,
+  Target,
+  Settings2,
+  RefreshCw,
+  Download,
+  Info,
+  Truck
+} from "lucide-react";
+import { useGlobalFilter } from "./GlobalFilterContext";
+import { VehiclePerformanceSummary } from "./VehiclePerformanceSummary";
+import { FilterControls } from "./FilterControls";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+  ReferenceLine,
+  LineChart,
+  Line,
+  Brush
+} from "recharts";
+
+interface VehiclesPageProps {
+  pageId?: string;
+  selectedVehicle?: string;
+  onVehicleChange?: (vehicleId: string) => void;
+}
+
+const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleChange }) => {
+  const { state: filterState } = useGlobalFilter();
+  const [selectedPeriod, setSelectedPeriod] = useState("month");
+  const [currentVehicle, setCurrentVehicle] = useState(selectedVehicle || "SEM - 12346");
+  const [viewMode, setViewMode] = useState<"table" | "focused">("table");
+  const [mapModalOpen, setMapModalOpen] = useState(false);
+  const [selectedAssetLocation, setSelectedAssetLocation] = useState<string | null>(null);
+  const [sensorConfigOpen, setSensorConfigOpen] = useState(false);
+  const [previewPanelOpen, setPreviewPanelOpen] = useState(false);
+  const [previewAssetId, setPreviewAssetId] = useState<string | null>(null);
+  const [previewDateRange, setPreviewDateRange] = useState<"today" | "week" | "month">("today");
+  const [tempSensorConfig, setTempSensorConfig] = useState<any>(null);
+  const [sensitivityLevel, setSensitivityLevel] = useState<"aggressive" | "medium" | "soft" | "none">("medium");
+  const [showRawLine, setShowRawLine] = useState(true);
+  const [showFuelLine, setShowFuelLine] = useState(true);
+  const [sensorConfigs, setSensorConfigs] = useState<Record<string, any>>({
+    "SEM - 12346": {
+      tankCapacity: 600,
+      useTankCapacity: false,
+      averaging: 20,
+      ignoreOffIgnition: true,
+      spikeStart: 5,
+      spikeDuration: 10,
+      spikeReturn: 10,
+      calibrationType: "incremental",
+      suddenIncrease: 35,
+      suddenDecrease: 20,
+      rangeLow: 100,
+      rangeHigh: 450,
+      rangeViolationCount: 10,
+      sensorEventsEnabled: true
+    },
+    "KCF - 234M": {
+      tankCapacity: 550,
+      useTankCapacity: true,
+      averaging: 15,
+      ignoreOffIgnition: false,
+      spikeStart: 8,
+      spikeDuration: 12,
+      spikeReturn: 8,
+      calibrationType: "absolute",
+      suddenIncrease: 40,
+      suddenDecrease: 25,
+      rangeLow: 80,
+      rangeHigh: 420,
+      rangeViolationCount: 8,
+      sensorEventsEnabled: true
+    },
+    "NAR - 567B": {
+      tankCapacity: 580,
+      useTankCapacity: false,
+      averaging: 25,
+      ignoreOffIgnition: true,
+      spikeStart: 6,
+      spikeDuration: 15,
+      spikeReturn: 12,
+      calibrationType: "incremental",
+      suddenIncrease: 30,
+      suddenDecrease: 18,
+      rangeLow: 120,
+      rangeHigh: 480,
+      rangeViolationCount: 12,
+      sensorEventsEnabled: false
+    },
+    "DEF - 789X": {
+      tankCapacity: 620,
+      useTankCapacity: true,
+      averaging: 18,
+      ignoreOffIgnition: false,
+      spikeStart: 4,
+      spikeDuration: 8,
+      spikeReturn: 6,
+      calibrationType: "incremental",
+      suddenIncrease: 45,
+      suddenDecrease: 22,
+      rangeLow: 90,
+      rangeHigh: 460,
+      rangeViolationCount: 15,
+      sensorEventsEnabled: true
+    },
+    "GHI - 456Y": {
+      tankCapacity: 540,
+      useTankCapacity: false,
+      averaging: 30,
+      ignoreOffIgnition: true,
+      spikeStart: 10,
+      spikeDuration: 20,
+      spikeReturn: 15,
+      calibrationType: "absolute",
+      suddenIncrease: 50,
+      suddenDecrease: 28,
+      rangeLow: 110,
+      rangeHigh: 440,
+      rangeViolationCount: 6,
+      sensorEventsEnabled: true
+    }
+  });
+
+  // Get current sensor config for the selected vehicle
+  const sensorConfig = sensorConfigs[currentVehicle] || sensorConfigs["SEM - 12346"];
+
+  // Fuel telemetry time-series data with fuel values only
+  const getFuelTelemetryData = (vehicleId: string, dateRange: string) => {
+    const baseData = {
+      "SEM - 12346": {
+        today: [
+          { time: "00:04:14", fuel: 69.60, ignition: "off", odometer: 80040 },
+          { time: "06:29:14", fuel: 69.60, ignition: "on", odometer: 80040 },
+          { time: "07:42:23", fuel: 69.60, ignition: "on", odometer: 80055 },
+          { time: "09:39:16", fuel: 69.60, ignition: "on", odometer: 80078 },
+          { time: "10:13:55", fuel: 302.40, ignition: "on", odometer: 80085 },
+          { time: "10:40:21", fuel: 302.40, ignition: "on", odometer: 80095 },
+          { time: "11:30:54", fuel: 296.80, ignition: "on", odometer: 80110 },
+          { time: "12:17:38", fuel: 290.40, ignition: "on", odometer: 80124 }
+        ],
+        week: [
+          { time: "Mon 08:00", fuel: 235.00, ignition: "on", odometer: 79800 },
+          { time: "Mon 18:00", fuel: 168.00, ignition: "off", odometer: 79920 },
+          { time: "Tue 08:00", fuel: 168.00, ignition: "on", odometer: 79920 },
+          { time: "Tue 18:00", fuel: 112.00, ignition: "off", odometer: 80010 },
+          { time: "Wed 08:00", fuel: 328.00, ignition: "on", odometer: 80010 },
+          { time: "Wed 18:00", fuel: 262.00, ignition: "off", odometer: 80085 },
+          { time: "Thu 08:00", fuel: 262.00, ignition: "on", odometer: 80085 },
+          { time: "Thu 18:00", fuel: 206.00, ignition: "off", odometer: 80160 }
+        ],
+        month: [
+          { time: "Week 1", fuel: 375.00, ignition: "on", odometer: 78500 },
+          { time: "Week 2", fuel: 300.00, ignition: "on", odometer: 79200 },
+          { time: "Week 3", fuel: 262.00, ignition: "on", odometer: 79800 },
+          { time: "Week 4", fuel: 290.40, ignition: "on", odometer: 80124 }
+        ]
+      },
+      "KCF - 234M": {
+        today: [
+          { time: "00:00:00", fuel: 168.00, ignition: "off", odometer: 52000 },
+          { time: "07:30:00", fuel: 168.00, ignition: "on", odometer: 52000 },
+          { time: "10:00:00", fuel: 140.00, ignition: "on", odometer: 52085 },
+          { time: "14:00:00", fuel: 112.00, ignition: "on", odometer: 52150 }
+        ],
+        week: [
+          { time: "Mon 08:00", fuel: 206.00, ignition: "on", odometer: 51500 },
+          { time: "Wed 12:00", fuel: 140.00, ignition: "on", odometer: 51850 },
+          { time: "Fri 18:00", fuel: 93.00, ignition: "off", odometer: 52150 }
+        ],
+        month: [
+          { time: "Week 1", fuel: 234.00, ignition: "on", odometer: 50500 },
+          { time: "Week 4", fuel: 112.00, ignition: "on", odometer: 52150 }
+        ]
+      }
+    };
+
+    const vehicleData = baseData[vehicleId as keyof typeof baseData];
+    if (!vehicleData) return baseData["SEM - 12346"].today;
+    return vehicleData[dateRange as keyof typeof vehicleData] || vehicleData.today;
+  };
+
+  // Fuel KPI metrics derived from telemetry data
+  const getFuelKPIMetrics = (vehicleId: string, dateRange: string) => {
+    const telemetry = getFuelTelemetryData(vehicleId, dateRange);
+    const firstReading = telemetry[0];
+    const lastReading = telemetry[telemetry.length - 1];
+
+    const distance = lastReading.odometer - firstReading.odometer;
+    const currentFuel = lastReading.fuel;
+    const fuelUsed = Math.max(0, firstReading.fuel - lastReading.fuel + (lastReading.fuel > firstReading.fuel ? lastReading.fuel - firstReading.fuel : 0));
+    const consumption = distance > 0 ? (distance / Math.max(fuelUsed, 1)).toFixed(2) : "0.00";
+
+    // Calculate drains
+    let drainsCount = 0;
+    let drainsVolume = 0;
+
+    for (let i = 1; i < telemetry.length; i++) {
+      const diff = telemetry[i].fuel - telemetry[i-1].fuel;
+      if (diff < -sensorConfig.suddenDecrease) {
+        drainsCount++;
+        drainsVolume += Math.abs(diff);
+      }
+    }
+
+    return {
+      distance: distance.toFixed(2),
+      currentFuel: currentFuel.toFixed(2),
+      fuelUsed: fuelUsed.toFixed(2),
+      consumption,
+      drainsCount,
+      drainsVolume: drainsVolume.toFixed(2)
+    };
+  };
+
+  // Event data (drains) extracted from telemetry
+  const getFuelEvents = (vehicleId: string, dateRange: string) => {
+    const telemetry = getFuelTelemetryData(vehicleId, dateRange);
+    const drains: { time: string; location: string; initialFuel: number; finalFuel: number; amount: number }[] = [];
+
+    for (let i = 1; i < telemetry.length; i++) {
+      const diff = telemetry[i].fuel - telemetry[i-1].fuel;
+      if (diff < -sensorConfig.suddenDecrease) {
+        drains.push({
+          time: telemetry[i].time,
+          location: "Highway KM 45",
+          initialFuel: telemetry[i-1].fuel,
+          finalFuel: telemetry[i].fuel,
+          amount: Math.abs(diff)
+        });
+      }
+    }
+
+    return { drains };
+  };
+
+  const fuelTelemetry = getFuelTelemetryData(currentVehicle, "today");
+  const fuelKPIs = getFuelKPIMetrics(currentVehicle, "today");
+  const fuelEvents = getFuelEvents(currentVehicle, "today");
+
+  // Fuel consumption chart data
+  const fuelConsumptionData = fuelTelemetry.map((reading, index) => ({
+    time: reading.time,
+    consumption: index > 0 ? Math.max(0, fuelTelemetry[index - 1].fuel - reading.fuel) : 0
+  }));
+
+  // Fuel level chart data with raw and processed fuel levels
+  const fuelLevelChartData = fuelTelemetry.map((reading, index) => {
+    // Add some noise to create "raw" vs "processed" data
+    const rawFuel = reading.fuel + (Math.random() - 0.5) * 2; // Add small random variation
+    const processedFuel = reading.fuel; // Clean processed data
+
+    return {
+      time: reading.time,
+      timestamp: new Date(`2024-01-01 ${reading.time}`).getTime(),
+      raw: Math.max(0, Math.min(sensorConfig.tankCapacity, rawFuel)),
+      fuel: processedFuel,
+      ignition: reading.ignition,
+      odometer: reading.odometer
+    };
+  });
+
+  // Refuel events data
+  const refuelEvents = fuelTelemetry
+    .map((reading, index) => {
+      if (index === 0) return null;
+      const prevReading = fuelTelemetry[index - 1];
+      const change = reading.fuel - prevReading.fuel;
+      if (change > sensorConfig.suddenIncrease) {
+        return {
+          time: reading.time,
+          location: "Fuel Station KM 45",
+          initialLiters: prevReading.fuel,
+          finalLiters: reading.fuel,
+          refilledLiters: change
+        };
+      }
+      return null;
+    })
+    .filter(event => event !== null);
+
+  // Drain events data
+  const drainEvents = fuelEvents.drains.map(drain => ({
+    time: drain.time,
+    location: drain.location,
+    initialLiters: drain.initialFuel,
+    finalLiters: drain.finalFuel,
+    drainedLiters: drain.amount
+  }));
+
+  // Trip data
+  const tripData = [
+    { date: "2024-12-08", startLocation: "Nairobi Depot", endLocation: "Mombasa Highway", startTime: "08:00", endTime: "10:30", duration: "2h 30m", distance: 45.2, fuelUsed: 12.5 },
+    { date: "2024-12-08", startLocation: "Mombasa Highway", endLocation: "Kisumu Route", startTime: "11:00", endTime: "14:15", duration: "3h 15m", distance: 62.8, fuelUsed: 18.3 },
+    { date: "2024-12-07", startLocation: "Kisumu Route", endLocation: "Eldoret Depot", startTime: "15:00", endTime: "17:45", duration: "2h 45m", distance: 38.9, fuelUsed: 11.2 },
+    { date: "2024-12-07", startLocation: "Eldoret Depot", endLocation: "Nakuru Station", startTime: "08:30", endTime: "12:00", duration: "3h 30m", distance: 78.5, fuelUsed: 22.1 },
+    { date: "2024-12-06", startLocation: "Nakuru Station", endLocation: "Nairobi Depot", startTime: "13:15", endTime: "16:30", duration: "3h 15m", distance: 52.3, fuelUsed: 15.8 }
+  ];
+
+  // Sync with selectedVehicle prop changes
+  useEffect(() => {
+    if (selectedVehicle && selectedVehicle !== currentVehicle) {
+      setCurrentVehicle(selectedVehicle);
+    }
+  }, [selectedVehicle, currentVehicle]);
+
+  // Helper function to handle preview configuration changes
+  const handlePreviewConfigChange = (field: string, value: any) => {
+    if (tempSensorConfig) {
+      setTempSensorConfig({
+        ...tempSensorConfig,
+        [field]: value
+      });
+    }
+  };
+
+  // Get fuel level chart data for preview
+  const getFuelLevelChartData = (vehicleId: string, dateRange: string, config: any) => {
+    const telemetry = getFuelTelemetryData(vehicleId, dateRange);
+    return telemetry.map((reading, index) => ({
+      time: reading.time,
+      fuel: reading.fuel,
+      timestamp: new Date(`2024-01-01 ${reading.time}`).getTime()
+    }));
+  };
+
+  // Get refuel events for preview
+  const getRefuelEvents = (vehicleId: string, dateRange: string, config: any) => {
+    const telemetry = getFuelTelemetryData(vehicleId, dateRange);
+    return telemetry
+      .map((reading, index) => {
+        if (index === 0) return null;
+        const prevReading = telemetry[index - 1];
+        const change = reading.fuel - prevReading.fuel;
+        if (change > config.suddenIncrease) {
+          return {
+            time: reading.time,
+            location: "Fuel Station KM 45",
+            initialLiters: prevReading.fuel,
+            finalLiters: reading.fuel,
+            refilledLiters: change
+          };
+        }
+        return null;
+      })
+      .filter(event => event !== null);
+  };
+
+  // Get fuel events for preview
+  const getFuelEventsPreview = (vehicleId: string, dateRange: string, config: any) => {
+    const telemetry = getFuelTelemetryData(vehicleId, dateRange);
+    const drains = [];
+
+    for (let i = 1; i < telemetry.length; i++) {
+      const diff = telemetry[i].fuel - telemetry[i-1].fuel;
+      if (diff < -config.suddenDecrease) {
+        drains.push({
+          time: telemetry[i].time,
+          location: "Highway KM 45",
+          initialFuel: telemetry[i-1].fuel,
+          finalFuel: telemetry[i].fuel,
+          amount: Math.abs(diff)
+        });
+      }
+    }
+
+    return { drains };
+  };
+
+  // Helper functions
+  const handleLocationClick = (location: string) => {
+    setSelectedAssetLocation(location);
+    setMapModalOpen(true);
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "Moving": return "text-green-600 border-green-600";
+      case "Parked": return "text-yellow-600 border-yellow-600";
+      case "Idle": return "text-orange-600 border-orange-600";
+      default: return "text-gray-600 border-gray-600";
+    }
+  };
+
+  const getEfficiencyColor = (rating: string) => {
+    switch (rating) {
+      case "Excellent": return "text-green-600 border-green-600";
+      case "Good": return "text-blue-600 border-blue-600";
+      case "Poor": return "text-red-600 border-red-600";
+      default: return "text-gray-600 border-gray-600";
+    }
+  };
+
+  // Centralized data filtering helper - differentiated by vehicle and period
+  const getAssetData = (vehicleId: string, period: string) => {
+    // Vehicle-specific base data
+    const vehicleBaseData = {
+      "SEM - 12346": {
+        week: {
+          vehicleId: vehicleId,
+          workingDays: 7,
+          parkingDays: 1,
+          avgFuelConsumption: 8.34,
+          totalRefillCounts: 2,
+          totalFuelTheftCounts: 1,
+          totalDistance: 19.85,
+          totalEngineHours: 19.6,
+          totalFuelUsed: 163,
+          totalRefills: 455,
+          totalThefts: 112,
+        },
+        today: {
+          vehicleId: vehicleId,
+          workingDays: 1,
+          parkingDays: 0,
+          avgFuelConsumption: 8.5,
+          totalRefillCounts: 0,
+          totalFuelTheftCounts: 0,
+          totalDistance: 2.8,
+          totalEngineHours: 2.8,
+          totalFuelUsed: 23,
+          totalRefills: 65,
+          totalThefts: 0,
+        },
+        month: {
+          vehicleId: vehicleId,
+          workingDays: 28,
+          parkingDays: 3,
+          avgFuelConsumption: 8.1,
+          totalRefillCounts: 8,
+          totalFuelTheftCounts: 3,
+          totalDistance: 78.5,
+          totalEngineHours: 78.2,
+          totalFuelUsed: 652,
+          totalRefills: 1820,
+          totalThefts: 448,
+        }
+      },
+      "KCF - 234M": {
+        week: {
+          vehicleId: vehicleId,
+          workingDays: 5,
+          parkingDays: 2,
+          avgFuelConsumption: 9.2,
+          totalRefillCounts: 1,
+          totalFuelTheftCounts: 0,
+          totalDistance: 15.6,
+          totalEngineHours: 16.1,
+          totalFuelUsed: 142,
+          totalRefills: 380,
+          totalThefts: 0,
+        },
+        today: {
+          vehicleId: vehicleId,
+          workingDays: 1,
+          parkingDays: 0,
+          avgFuelConsumption: 9.5,
+          totalRefillCounts: 0,
+          totalFuelTheftCounts: 0,
+          totalDistance: 3.2,
+          totalEngineHours: 3.1,
+          totalFuelUsed: 29,
+          totalRefills: 45,
+          totalThefts: 0,
+        },
+        month: {
+          vehicleId: vehicleId,
+          workingDays: 22,
+          parkingDays: 9,
+          avgFuelConsumption: 8.9,
+          totalRefillCounts: 4,
+          totalFuelTheftCounts: 0,
+          totalDistance: 65.2,
+          totalEngineHours: 68.4,
+          totalFuelUsed: 578,
+          totalRefills: 1520,
+          totalThefts: 0,
+        }
+      },
+      "NAR - 567B": {
+        week: {
+          vehicleId: vehicleId,
+          workingDays: 6,
+          parkingDays: 1,
+          avgFuelConsumption: 7.8,
+          totalRefillCounts: 0,
+          totalFuelTheftCounts: 1,
+          totalDistance: 22.3,
+          totalEngineHours: 21.8,
+          totalFuelUsed: 178,
+          totalRefills: 245,
+          totalThefts: 89,
+        },
+        today: {
+          vehicleId: vehicleId,
+          workingDays: 1,
+          parkingDays: 0,
+          avgFuelConsumption: 7.5,
+          totalRefillCounts: 0,
+          totalFuelTheftCounts: 0,
+          totalDistance: 4.1,
+          totalEngineHours: 4.0,
+          totalFuelUsed: 31,
+          totalRefills: 35,
+          totalThefts: 0,
+        },
+        month: {
+          vehicleId: vehicleId,
+          workingDays: 25,
+          parkingDays: 6,
+          avgFuelConsumption: 7.6,
+          totalRefillCounts: 2,
+          totalFuelTheftCounts: 2,
+          totalDistance: 89.2,
+          totalEngineHours: 87.3,
+          totalFuelUsed: 712,
+          totalRefills: 980,
+          totalThefts: 178,
+        }
+      }
+    };
+
+    const vehicleData = vehicleBaseData[vehicleId as keyof typeof vehicleBaseData];
+    if (!vehicleData) return vehicleBaseData["SEM - 12346"].week;
+
+    return vehicleData[period as keyof typeof vehicleData] || vehicleData.week;
+  };
+
+  const assetData = getAssetData(currentVehicle, selectedPeriod);
+
+  // Fleet overview data - all assets with key metrics
+  const fleetAssets = [
+    {
+      id: "SEM - 12346",
+      driver: "John Mwangi",
+      status: "Moving",
+      fuelLevel: 75,
+      fuelCapacity: 300,
+      efficiency: 8.34,
+      efficiencyRating: "Excellent",
+      distance: 19.85,
+      engineHours: 19.6,
+      lastTheft: "2 days ago",
+      refillCount: 2,
+      theftIncidents: 1,
+      operationalStatus: "Normal",
+      maintenanceDue: "Next week",
+      location: "Nairobi CBD",
+      lastUpdate: "2 mins ago",
+      alerts: 1,
+      temperature: 85,
+      pressure: 45
+    },
+    {
+      id: "KCF - 234M",
+      driver: "Peter Kiprotich",
+      status: "Moving",
+      fuelLevel: 60,
+      fuelCapacity: 250,
+      efficiency: 9.2,
+      efficiencyRating: "Good",
+      distance: 15.6,
+      engineHours: 16.1,
+      lastTheft: "Never",
+      refillCount: 1,
+      theftIncidents: 0,
+      operationalStatus: "Normal",
+      maintenanceDue: "Overdue",
+      location: "Mombasa Highway",
+      lastUpdate: "5 mins ago",
+      alerts: 0,
+      temperature: 78,
+      pressure: 42
+    },
+    {
+      id: "NAR - 567B",
+      driver: "Sarah Wanjiku",
+      status: "Parked",
+      fuelLevel: 50,
+      fuelCapacity: 280,
+      efficiency: 7.8,
+      efficiencyRating: "Excellent",
+      distance: 22.3,
+      engineHours: 21.8,
+      lastTheft: "3 days ago",
+      refillCount: 0,
+      theftIncidents: 1,
+      operationalStatus: "Alert",
+      maintenanceDue: "Next month",
+      location: "Kisumu Depot",
+      lastUpdate: "1 hour ago",
+      alerts: 2,
+      temperature: 72,
+      pressure: 38
+    },
+    {
+      id: "DEF - 789X",
+      driver: "Michael Ochieng",
+      status: "Moving",
+      fuelLevel: 85,
+      fuelCapacity: 320,
+      efficiency: 8.9,
+      efficiencyRating: "Good",
+      distance: 28.1,
+      engineHours: 27.5,
+      lastTheft: "Never",
+      refillCount: 3,
+      theftIncidents: 0,
+      operationalStatus: "Normal",
+      maintenanceDue: "2 weeks",
+      location: "Eldoret Route",
+      lastUpdate: "1 min ago",
+      alerts: 0,
+      temperature: 82,
+      pressure: 46
+    },
+    {
+      id: "GHI - 456Y",
+      driver: "Grace Kimani",
+      status: "Parked",
+      fuelLevel: 20,
+      fuelCapacity: 275,
+      efficiency: 11.2,
+      efficiencyRating: "Poor",
+      distance: 8.9,
+      engineHours: 9.2,
+      lastTheft: "1 week ago",
+      refillCount: 1,
+      theftIncidents: 2,
+      operationalStatus: "Maintenance",
+      maintenanceDue: "In Progress",
+      location: "Workshop",
+      lastUpdate: "30 mins ago",
+      alerts: 3,
+      temperature: 65,
+      pressure: 35
+    }
+  ];
+
+  // Fleet-wide metrics for Proactive Scorecard
+  const getFleetMetrics = () => {
+    const movingAssets = fleetAssets.filter(asset => asset.status === "Active").length;
+    const parkedAssets = fleetAssets.filter(asset => asset.status === "Idle").length;
+
+    // Solution Validation Metrics (Last 30 Days)
+    const totalRefillsLast30Days = fleetAssets.reduce((sum, asset) => sum + (asset.refillCount || 0), 0);
+    const totalRefillVolumeLast30Days = totalRefillsLast30Days * 45; // Average 45L per refill
+    const totalTheftsLast30Days = fleetAssets.reduce((sum, asset) => sum + (asset.theftIncidents || 0), 0);
+    const totalTheftVolumeLast30Days = totalTheftsLast30Days * 25; // Average 25L per theft
+
+    return {
+      movingAssets,
+      parkedAssets,
+      totalRefillsLast30Days,
+      totalRefillVolumeLast30Days,
+      totalTheftsLast30Days,
+      totalTheftVolumeLast30Days
+    };
+  };
+
+  const fleetMetrics = getFleetMetrics();
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      {/* Fleet Assets Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">
+            {viewMode === "table" ? "Fleet Assets" : "Focused Asset Performance"}
+          </h1>
+          <p className="text-muted-foreground">
+            {viewMode === "table"
+              ? "High-density overview of all fleet vehicles with key performance metrics"
+              : `Active Asset: ${assetData.vehicleId} | Real-time Health Monitor`
+            }
+          </p>
+        </div>
+
+        <div className="flex items-center gap-4">
+          {/* View Mode Toggle */}
+          <div className="flex items-center gap-2 bg-card/20 backdrop-blur-sm rounded-lg p-1">
+            <Button
+              variant={viewMode === "table" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("table")}
+              className="text-xs px-3 py-1 h-8"
+            >
+              Table View
+            </Button>
+            <Button
+              variant={viewMode === "focused" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("focused")}
+              className="text-xs px-3 py-1 h-8"
+            >
+              Focused View
+            </Button>
+          </div>
+
+          {/* Filter Controls - Moved from first row to replace period filter */}
+          <FilterControls />
+        </div>
+      </div>
+
+      {viewMode === "table" ? (
+        <>
+          {/* Fleet Sentinel - Operational Command Center Redesign */}
+
+          {/* Proactive Scorecard (KPI Cards) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+            <GlassCard className="p-6 card-surface-premium motion-premium" data-testid="kpi-total-assets">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <Truck className="w-6 h-6 text-primary" />
+                  <span className="text-sm font-medium text-muted-foreground">Total Assets</span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {/* TODO: Focus Funnel to Focused Asset Performance */}}
+                  className="h-6 w-6 p-0 text-primary hover:bg-primary/20"
+                  data-testid="focus-funnel-total-assets"
+                >
+                  <Target className="w-3 h-3" />
+                </Button>
+              </div>
+              <div className="text-4xl font-bold text-primary mb-2">
+                {fleetAssets.length}
+              </div>
+              <div className="text-xs text-muted-foreground">All Fleet Vehicles</div>
+            </GlassCard>
+
+            <GlassCard className="p-6 card-surface-premium motion-premium" data-testid="kpi-moving-assets">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <Activity className="w-6 h-6 text-primary" />
+                  <span className="text-sm font-medium text-muted-foreground">Moving</span>
+                </div>
+              </div>
+              <div className="text-4xl font-bold text-primary mb-2">
+                {fleetMetrics.movingAssets}
+              </div>
+              <div className="text-xs text-muted-foreground">Active Assets</div>
+            </GlassCard>
+
+            <GlassCard className="p-6 card-surface-premium motion-premium" data-testid="kpi-parked-assets">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <Timer className="w-6 h-6 text-accent-foreground" />
+                  <span className="text-sm font-medium text-muted-foreground">Parked</span>
+                </div>
+              </div>
+              <div className="text-4xl font-bold text-accent-foreground mb-2">
+                {fleetMetrics.parkedAssets}
+              </div>
+              <div className="text-xs text-muted-foreground">Idle Assets</div>
+            </GlassCard>
+
+            {/* Solution Validation Metrics (Refill/Theft - Last 30 Days) */}
+
+            <GlassCard className="p-6 card-surface-premium motion-premium" data-testid="kpi-thefts-validation">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <AlertTriangle className="w-6 h-6 text-destructive" />
+                  <span className="text-sm font-medium text-muted-foreground">Thefts</span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0 text-destructive hover:bg-destructive/20"
+                  onClick={() => {/* TODO: Focus Funnel to Focused Asset Performance */}}
+                  data-testid="focus-funnel-thefts"
+                >
+                  <Target className="w-3 h-3" />
+                </Button>
+              </div>
+              <div className="text-3xl font-bold text-destructive mb-1">
+                {fleetMetrics.totalTheftsLast30Days}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Total Volume: {fleetMetrics.totalTheftVolumeLast30Days}L
+              </div>
+            </GlassCard>
+
+            <GlassCard className="p-6 card-surface-premium motion-premium" data-testid="kpi-refills-validation">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <Droplet className="w-6 h-6 text-primary" />
+                  <span className="text-sm font-medium text-muted-foreground">Refills</span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0 text-primary hover:bg-primary/20"
+                  onClick={() => {/* TODO: Focus Funnel to Focused Asset Performance */}}
+                  data-testid="focus-funnel-refills"
+                >
+                  <Target className="w-3 h-3" />
+                </Button>
+              </div>
+              <div className="text-3xl font-bold text-primary mb-1">
+                {fleetMetrics.totalRefillsLast30Days}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Total Volume: {fleetMetrics.totalRefillVolumeLast30Days}L
+              </div>
+            </GlassCard>
+          </div>
+
+
+          {/* Fleet Assets Table */}
+          <GlassCard className="p-6" hover={false}>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-foreground">Fleet Assets Overview</h3>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" className="text-xs">
+                  <Download className="w-4 h-4 mr-2" />
+                  Export
+                </Button>
+              </div>
+            </div>
+
+            {/* Fleet Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1200px]">
+                <thead>
+                  <tr className="border-b border-border/20">
+                    <th className="text-left py-3 px-4 font-semibold text-foreground">Asset</th>
+                    <th className="text-center py-3 px-4 font-semibold text-foreground">Status</th>
+                    <th className="text-center py-3 px-4 font-semibold text-foreground">Current Liters</th>
+                    <th className="text-center py-3 px-4 font-semibold text-foreground">Fuel Level</th>
+                    <th className="text-center py-3 px-4 font-semibold text-foreground">Alert Intelligence</th>
+                    <th className="text-center py-3 px-4 font-semibold text-foreground">Efficiency</th>
+                    <th className="text-center py-3 px-4 font-semibold text-foreground">Distance</th>
+                    <th className="text-center py-3 px-4 font-semibold text-foreground">Active Hours</th>
+                    <th className="text-center py-3 px-4 font-semibold text-foreground">Location</th>
+                    <th className="text-center py-3 px-4 font-semibold text-foreground">Last Update</th>
+                    <th className="text-center py-3 px-4 font-semibold text-foreground">Alerts</th>
+                    <th className="text-center py-3 px-4 font-semibold text-foreground">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {fleetAssets.map((asset) => (
+                    <tr
+                      key={asset.id}
+                      className="border-b border-border/10 hover:bg-primary/5 cursor-pointer transition-colors duration-200"
+                      onClick={() => {
+                        setCurrentVehicle(asset.id);
+                        setViewMode("focused");
+                      }}
+                    >
+                      <td className="py-4 px-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center">
+                            <Car className="w-5 h-5 text-primary" />
+                          </div>
+                          <div>
+                            <div className="font-semibold text-foreground text-sm">{asset.id}</div>
+                            {/* Compact Fuel Information Module */}
+                            <div className="flex items-center gap-2 mt-1">
+                              <div className="relative group">
+                                <Fuel className="w-3 h-3 text-primary" />
+                                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-card border border-border rounded-lg shadow-lg text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
+                                  <div className="flex items-center gap-1">
+                                    <span className="font-medium text-primary">{asset.fuelLevel}%</span>
+                                    <span className="text-muted-foreground">of</span>
+                                    <span className="font-medium text-primary">{asset.fuelCapacity}L</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4 text-center whitespace-nowrap">
+                        <Badge
+                          variant="outline"
+                          className={`text-xs ${getStatusColor(asset.status)}`}
+                        >
+                          {asset.status}
+                        </Badge>
+                      </td>
+                      <td className="py-4 px-4 text-center">
+                        <div className="text-sm font-bold text-primary">
+                          {Math.round((asset.fuelLevel / 100) * asset.fuelCapacity)} L
+                        </div>
+                      </td>
+                      <td className="py-4 px-4 text-center">
+                        <div className="flex flex-col items-center gap-1">
+                          <div className="text-sm font-bold text-primary">{asset.fuelLevel}%</div>
+                          <div className="w-16 h-1.5 bg-gray-200 rounded-full">
+                            <div
+                              className="h-1.5 bg-primary rounded-full transition-all duration-300"
+                              style={{ width: `${asset.fuelLevel}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      </td>
+                      {/* Alert Intelligence Column */}
+                      <td className="py-4 px-4 text-center">
+                        <div className="flex flex-col items-center gap-2">
+                          {/* Fuel Refills Badge */}
+                          {asset.refillCount > 0 && (
+                            <Badge variant="secondary" className="text-xs bg-primary/10 text-primary border-primary/20">
+                              <Droplet className="w-3 h-3 mr-1" />
+                              {asset.refillCount} Refill{asset.refillCount !== 1 ? 's' : ''}
+                            </Badge>
+                          )}
+                          {/* Theft Incidents Badge */}
+                          {asset.theftIncidents > 0 && (
+                            <Badge variant="destructive" className="text-xs">
+                              <AlertTriangle className="w-3 h-3 mr-1" />
+                              {asset.theftIncidents} Theft{asset.theftIncidents !== 1 ? 's' : ''}
+                            </Badge>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-4 px-4 text-center">
+                        <Badge
+                          variant="outline"
+                          className={`text-xs ${getEfficiencyColor(asset.efficiencyRating)}`}
+                        >
+                          {asset.efficiencyRating}
+                        </Badge>
+                        <div className="text-xs text-muted-foreground mt-1">{asset.efficiency}L/100km</div>
+                      </td>
+                      <td className="py-4 px-4 text-center">
+                        <div className="text-sm font-medium text-foreground">{asset.distance} km</div>
+                      </td>
+                      <td className="py-4 px-4 text-center">
+                        <div className="text-sm font-medium text-foreground">{asset.engineHours} hrs</div>
+                      </td>
+                      <td className="py-4 px-4 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <MapPin className="w-3 h-3 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">{asset.location}</span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4 text-center">
+                        <div className="text-xs text-muted-foreground">{asset.lastUpdate}</div>
+                      </td>
+                      <td className="py-4 px-4 text-center">
+                        {asset.alerts > 0 ? (
+                          <Badge variant="destructive" className="text-xs">
+                            {asset.alerts}
+                          </Badge>
+                        ) : (
+                          <CheckCircle className="w-4 h-4 text-green-500 mx-auto" />
+                        )}
+                      </td>
+                      <td className="py-4 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setCurrentVehicle(asset.id);
+                              setViewMode("focused");
+                            }}
+                            className="h-8 w-8 p-0"
+                          >
+                            <Eye className="w-3 h-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setPreviewAssetId(asset.id);
+                              setTempSensorConfig(sensorConfigs[asset.id]);
+                              setPreviewPanelOpen(true);
+                            }}
+                            className="h-8 w-8 p-0"
+                          >
+                            <Settings2 className="w-3 h-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleLocationClick(asset.location)}
+                            className="h-8 w-8 p-0"
+                          >
+                            <MapPin className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </GlassCard>
+        </>
+      ) : (
+        <>
+          {/* Focused Asset Performance View */}
+          <div className="space-y-6">
+            {/* Main KPI Section - Updated with new cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6 mb-8">
+              {/* Status Card with Tank Level Percentage Bar and Asset Name */}
+              <GlassCard className="p-6" data-testid="status-card">
+                <h3 className="text-lg font-bold text-foreground mb-2">{currentVehicle}</h3>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Tank Size:</span>
+                    <span className="font-bold text-foreground">{sensorConfig.tankCapacity}L</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Current Fuel:</span>
+                    <span className="font-bold text-primary">{fuelKPIs.currentFuel}L</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Fuel Level:</span>
+                    <span className="font-bold text-primary">{((parseFloat(fuelKPIs.currentFuel) / sensorConfig.tankCapacity) * 100).toFixed(1)}%</span>
+                  </div>
+                  {/* Tank Level Percentage Bar */}
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-primary h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${(parseFloat(fuelKPIs.currentFuel) / sensorConfig.tankCapacity) * 100}%` }}
+                    ></div>
+                  </div>
+                </div>
+              </GlassCard>
+
+              {/* Consumption Km/l Card - Moved to first row with better space utilization */}
+              <GlassCard className="p-6" data-testid="consumption-card">
+                <h3 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
+                  <Gauge className="w-5 h-5 text-accent-foreground" />
+                  Consumption
+                </h3>
+                <div className="flex items-center justify-center h-24">
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-accent-foreground mb-1">{fuelKPIs.consumption}</div>
+                    <div className="text-sm text-muted-foreground">km/l</div>
+                    <div className="text-xs text-muted-foreground mt-2">Distance per liter</div>
+                    <div className="mt-3 pt-2 border-t border-border/20">
+                      <div className="text-sm font-bold text-primary">{fuelKPIs.fuelUsed}L</div>
+                      <div className="text-xs text-muted-foreground">Total fuel used</div>
+                    </div>
+                  </div>
+                </div>
+              </GlassCard>
+
+              {/* Total Distance Card with better space utilization */}
+              <GlassCard className="p-6" data-testid="total-distance-card">
+                <h3 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
+                  <Route className="w-5 h-5 text-primary" />
+                  Total Distance
+                </h3>
+                <div className="flex items-center justify-center h-24">
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-primary mb-1">{assetData.totalDistance}</div>
+                    <div className="text-sm text-muted-foreground">km</div>
+                    <div className="text-xs text-muted-foreground mt-2">Distance traveled</div>
+                  </div>
+                </div>
+              </GlassCard>
+
+              {/* Active Hours Card with better space utilization */}
+              <GlassCard className="p-6" data-testid="active-hours-card">
+                <h3 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-accent-foreground" />
+                  Active Hours
+                </h3>
+                <div className="flex items-center justify-center h-24">
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-accent-foreground mb-1">{assetData.totalEngineHours}</div>
+                    <div className="text-sm text-muted-foreground">hrs</div>
+                    <div className="text-xs text-muted-foreground mt-2">Engine running time</div>
+                  </div>
+                </div>
+              </GlassCard>
+
+              {/* Combined Refills and Drains Card */}
+              <GlassCard className="p-6" data-testid="fuel-events-card">
+                <h3 className="text-lg font-bold text-foreground mb-4">Fuel Events</h3>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                      <Droplet className="w-4 h-4 text-primary" />
+                      <span className="text-sm text-muted-foreground">Refills:</span>
+                    </div>
+                    <span className="font-bold text-primary">{assetData.totalRefillCounts} events</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                      <TrendingDown className="w-4 h-4 text-destructive" />
+                      <span className="text-sm text-muted-foreground">Drains:</span>
+                    </div>
+                    <span className="font-bold text-destructive">{fuelKPIs.drainsCount} events</span>
+                  </div>
+                  <div className="flex justify-between items-center pt-2 border-t">
+                    <span className="text-xs text-muted-foreground">Total Refills Volume:</span>
+                    <span className="text-xs font-bold text-primary">{assetData.totalRefills}L</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-muted-foreground">Total Drains Volume:</span>
+                    <span className="text-xs font-bold text-destructive">{fuelKPIs.drainsVolume}L</span>
+                  </div>
+                </div>
+              </GlassCard>
+
+              {/* Working Days Card */}
+              <GlassCard className="p-6" data-testid="working-days-card">
+                <h3 className="text-lg font-bold text-foreground mb-4">Working Days</h3>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-primary" />
+                      <span className="text-sm text-muted-foreground">Working:</span>
+                    </div>
+                    <span className="font-bold text-primary">{assetData.workingDays}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                      <Timer className="w-4 h-4 text-accent-foreground" />
+                      <span className="text-sm text-muted-foreground">Parked:</span>
+                    </div>
+                    <span className="font-bold text-accent-foreground">{assetData.parkingDays || 0}</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground pt-2 border-t">
+                    Total days: {assetData.workingDays + (assetData.parkingDays || 0)}
+                  </div>
+                </div>
+              </GlassCard>
+
+            </div>
+
+            {/* Interactive Fuel Level Chart */}
+            <GlassCard className="p-6" hover={false}>
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-bold text-foreground">Fuel Level Monitoring</h3>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="showRaw"
+                      checked={showRawLine}
+                      onChange={(e) => setShowRawLine(e.target.checked)}
+                      className="rounded"
+                    />
+                    <label htmlFor="showRaw" className="text-sm text-muted-foreground">Raw Data</label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="showFuel"
+                      checked={showFuelLine}
+                      onChange={(e) => setShowFuelLine(e.target.checked)}
+                      className="rounded"
+                    />
+                    <label htmlFor="showFuel" className="text-sm text-muted-foreground">Processed Fuel</label>
+                  </div>
+                </div>
+              </div>
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={fuelLevelChartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis
+                      dataKey="time"
+                      stroke="hsl(var(--muted-foreground))"
+                      fontSize={12}
+                    />
+                    <YAxis
+                      domain={[0, sensorConfig.tankCapacity]}
+                      stroke="hsl(var(--muted-foreground))"
+                      fontSize={12}
+                      label={{ value: 'Fuel Level (L)', angle: -90, position: 'insideLeft' }}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "hsl(var(--card))",
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: "8px"
+                      }}
+                      formatter={(value: any, name: string) => [
+                        `${value.toFixed(1)}L`,
+                        name === 'raw' ? 'Raw Sensor' : 'Processed Fuel'
+                      ]}
+                      labelFormatter={(label) => `Time: ${label}`}
+                    />
+                    <Legend />
+                    {showRawLine && (
+                      <Line
+                        type="monotone"
+                        dataKey="raw"
+                        stroke="hsl(var(--muted-foreground))"
+                        strokeWidth={1}
+                        strokeDasharray="5 5"
+                        dot={false}
+                        name="Raw Sensor"
+                      />
+                    )}
+                    {showFuelLine && (
+                      <Line
+                        type="monotone"
+                        dataKey="fuel"
+                        stroke="url(#fuelGradient)"
+                        strokeWidth={3}
+                        dot={false}
+                        name="Processed Fuel"
+                      />
+                    )}
+                    <Brush dataKey="time" height={30} stroke="hsl(var(--primary))" />
+                  <defs>
+                    <linearGradient id="fuelGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.8}/>
+                      <stop offset="100%" stopColor="#1d4ed8" stopOpacity={0.8}/>
+                    </linearGradient>
+                  </defs>
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            </GlassCard>
+
+            {/* Refuels Table */}
+            <GlassCard className="p-6" hover={false}>
+              <div className="flex items-center gap-2 mb-6">
+                <Fuel className="w-5 h-5 text-primary" />
+                <h3 className="text-lg font-bold text-foreground">Refuel Events</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-border/20">
+                      <th className="text-left py-3 px-4 font-semibold text-foreground">
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-4 h-4" />
+                          Time
+                        </div>
+                      </th>
+                      <th className="text-left py-3 px-4 font-semibold text-foreground">
+                        <div className="flex items-center gap-2">
+                          <MapPin className="w-4 h-4" />
+                          Location
+                        </div>
+                      </th>
+                      <th className="text-center py-3 px-4 font-semibold text-foreground">Initial (L)</th>
+                      <th className="text-center py-3 px-4 font-semibold text-foreground">Final (L)</th>
+                      <th className="text-center py-3 px-4 font-semibold text-foreground">
+                        <div className="flex items-center gap-2">
+                          <TrendingUp className="w-4 h-4 text-primary" />
+                          Refilled (L)
+                        </div>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {refuelEvents.map((event, index) => (
+                      <tr key={index} className="border-b border-border/10 ">
+                        <td className="py-3 px-4 text-sm text-foreground">{event.time}</td>
+                        <td className="py-3 px-4 text-sm text-muted-foreground">{event.location}</td>
+                        <td className="py-3 px-4 text-center text-sm font-medium">{event.initialLiters.toFixed(1)}</td>
+                        <td className="py-3 px-4 text-center text-sm font-medium">{event.finalLiters.toFixed(1)}</td>
+                        <td className="py-3 px-4 text-center text-sm font-bold text-primary">+{event.refilledLiters.toFixed(1)}</td>
+                      </tr>
+                    ))}
+                    {refuelEvents.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="py-8 text-center text-muted-foreground">
+                          No refuel events recorded
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </GlassCard>
+
+            {/* Drains Table */}
+            <GlassCard className="p-6" hover={false}>
+              <div className="flex items-center gap-2 mb-6">
+                <AlertTriangle className="w-5 h-5 text-destructive" />
+                <h3 className="text-lg font-bold text-foreground">Fuel Drain Events</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-border/20">
+                      <th className="text-left py-3 px-4 font-semibold text-foreground">
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-4 h-4" />
+                          Time
+                        </div>
+                      </th>
+                      <th className="text-left py-3 px-4 font-semibold text-foreground">
+                        <div className="flex items-center gap-2">
+                          <MapPin className="w-4 h-4" />
+                          Location
+                        </div>
+                      </th>
+                      <th className="text-center py-3 px-4 font-semibold text-foreground">Initial (L)</th>
+                      <th className="text-center py-3 px-4 font-semibold text-foreground">Final (L)</th>
+                      <th className="text-center py-3 px-4 font-semibold text-foreground">
+                        <div className="flex items-center gap-2">
+                          <TrendingDown className="w-4 h-4 text-destructive" />
+                          Drained (L)
+                        </div>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {drainEvents.map((event, index) => (
+                      <tr key={index} className="border-b border-border/10 ">
+                        <td className="py-3 px-4 text-sm text-foreground">{event.time}</td>
+                        <td className="py-3 px-4 text-sm text-muted-foreground">{event.location}</td>
+                        <td className="py-3 px-4 text-center text-sm font-medium">{event.initialLiters.toFixed(1)}</td>
+                        <td className="py-3 px-4 text-center text-sm font-medium">{event.finalLiters.toFixed(1)}</td>
+                        <td className="py-3 px-4 text-center text-sm font-bold text-destructive">-{event.drainedLiters.toFixed(1)}</td>
+                      </tr>
+                    ))}
+                    {drainEvents.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="py-8 text-center text-muted-foreground">
+                          No drain events recorded
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </GlassCard>
+
+            {/* Completed Trips Table */}
+            <GlassCard className="p-6" hover={false}>
+              <div className="flex items-center gap-2 mb-6">
+                <Route className="w-5 h-5 text-primary" />
+                <h3 className="text-lg font-bold text-foreground">Completed Trips</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-border/20">
+                      <th className="text-left py-3 px-4 font-semibold text-foreground">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-4 h-4" />
+                          Date
+                        </div>
+                      </th>
+                      <th className="text-left py-3 px-4 font-semibold text-foreground">
+                        <div className="flex items-center gap-2">
+                          <MapPin className="w-4 h-4" />
+                          Route
+                        </div>
+                      </th>
+                      <th className="text-center py-3 px-4 font-semibold text-foreground">
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-4 h-4" />
+                          Duration
+                        </div>
+                      </th>
+                      <th className="text-center py-3 px-4 font-semibold text-foreground">
+                        <div className="flex items-center gap-2">
+                          <Route className="w-4 h-4" />
+                          Distance
+                        </div>
+                      </th>
+                      <th className="text-center py-3 px-4 font-semibold text-foreground">
+                        <div className="flex items-center gap-2">
+                          <Fuel className="w-4 h-4" />
+                          Fuel Used
+                        </div>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tripData.map((trip, index) => (
+                      <tr key={index} className="border-b border-border/10 ">
+                        <td className="py-3 px-4">
+                          <div className="text-sm font-medium text-foreground">{trip.date}</div>
+                          <div className="text-xs text-muted-foreground">{trip.startTime} - {trip.endTime}</div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-2">
+                            <div className="text-sm font-medium text-foreground">{trip.startLocation}</div>
+                            <ChevronRight className="w-3 h-3 text-muted-foreground" />
+                            <div className="text-sm font-medium text-foreground">{trip.endLocation}</div>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-center text-sm font-medium text-accent-foreground">{trip.duration}</td>
+                        <td className="py-3 px-4 text-center text-sm font-medium">{trip.distance.toFixed(1)} km</td>
+                        <td className="py-3 px-4 text-center text-sm font-medium">{trip.fuelUsed.toFixed(1)} L</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </GlassCard>
+          </div>
+        </>
+      )}
+
+      {/* Sensor Configuration Modal */}
+      <Dialog open={sensorConfigOpen} onOpenChange={setSensorConfigOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Settings2 className="w-5 h-5" />
+              Sensor Configuration - {currentVehicle}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-6">
+            {/* Tank Capacity Settings */}
+            <div className="space-y-4">
+              <h4 className="text-sm font-semibold text-foreground">Tank Capacity</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="tankCapacity">Tank Capacity (L)</Label>
+                  <Input
+                    id="tankCapacity"
+                    type="number"
+                    value={sensorConfig.tankCapacity}
+                    onChange={(e) => setSensorConfigs(prev => ({
+                      ...prev,
+                      [currentVehicle]: {
+                        ...prev[currentVehicle],
+                        tankCapacity: parseInt(e.target.value) || 600
+                      }
+                    }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="useTankCapacity">Use Tank Capacity</Label>
+                  <div className="flex items-center space-x-2 pt-2">
+                    <Switch
+                      id="useTankCapacity"
+                      checked={sensorConfig.useTankCapacity}
+                      onCheckedChange={(checked) => setSensorConfigs(prev => ({
+                        ...prev,
+                        [currentVehicle]: {
+                          ...prev[currentVehicle],
+                          useTankCapacity: checked
+                        }
+                      }))}
+                    />
+                    <span className="text-sm text-muted-foreground">
+                      {sensorConfig.useTankCapacity ? "Enabled" : "Disabled"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Averaging and Filtering */}
+            <div className="space-y-4">
+              <h4 className="text-sm font-semibold text-foreground">Data Processing</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="averaging">Averaging Window</Label>
+                  <Input
+                    id="averaging"
+                    type="number"
+                    value={sensorConfig.averaging}
+                    onChange={(e) => setSensorConfigs(prev => ({
+                      ...prev,
+                      [currentVehicle]: {
+                        ...prev[currentVehicle],
+                        averaging: parseInt(e.target.value) || 20
+                      }
+                    }))}
+                  />
+                  <p className="text-xs text-muted-foreground">Data points to average</p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ignoreOffIgnition">Ignore Off Ignition</Label>
+                  <div className="flex items-center space-x-2 pt-2">
+                    <Switch
+                      id="ignoreOffIgnition"
+                      checked={sensorConfig.ignoreOffIgnition}
+                      onCheckedChange={(checked) => setSensorConfigs(prev => ({
+                        ...prev,
+                        [currentVehicle]: {
+                          ...prev[currentVehicle],
+                          ignoreOffIgnition: checked
+                        }
+                      }))}
+                    />
+                    <span className="text-sm text-muted-foreground">
+                      {sensorConfig.ignoreOffIgnition ? "Enabled" : "Disabled"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Spike Detection */}
+            <div className="space-y-4">
+              <h4 className="text-sm font-semibold text-foreground">Spike Detection</h4>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="spikeStart">Spike Start (%)</Label>
+                  <Input
+                    id="spikeStart"
+                    type="number"
+                    value={sensorConfig.spikeStart}
+                    onChange={(e) => setSensorConfigs(prev => ({
+                      ...prev,
+                      [currentVehicle]: {
+                        ...prev[currentVehicle],
+                        spikeStart: parseInt(e.target.value) || 5
+                      }
+                    }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="spikeDuration">Duration (min)</Label>
+                  <Input
+                    id="spikeDuration"
+                    type="number"
+                    value={sensorConfig.spikeDuration}
+                    onChange={(e) => setSensorConfigs(prev => ({
+                      ...prev,
+                      [currentVehicle]: {
+                        ...prev[currentVehicle],
+                        spikeDuration: parseInt(e.target.value) || 10
+                      }
+                    }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="spikeReturn">Return (%)</Label>
+                  <Input
+                    id="spikeReturn"
+                    type="number"
+                    value={sensorConfig.spikeReturn}
+                    onChange={(e) => setSensorConfigs(prev => ({
+                      ...prev,
+                      [currentVehicle]: {
+                        ...prev[currentVehicle],
+                        spikeReturn: parseInt(e.target.value) || 10
+                      }
+                    }))}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Calibration Settings */}
+            <div className="space-y-4">
+              <h4 className="text-sm font-semibold text-foreground">Calibration</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="calibrationType">Calibration Type</Label>
+                  <Select
+                    value={sensorConfig.calibrationType}
+                    onValueChange={(value) => setSensorConfigs(prev => ({
+                      ...prev,
+                      [currentVehicle]: {
+                        ...prev[currentVehicle],
+                        calibrationType: value as "incremental" | "absolute"
+                      }
+                    }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="incremental">Incremental</SelectItem>
+                      <SelectItem value="absolute">Absolute</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="sensorEventsEnabled">Sensor Events</Label>
+                  <div className="flex items-center space-x-2 pt-2">
+                    <Switch
+                      id="sensorEventsEnabled"
+                      checked={sensorConfig.sensorEventsEnabled}
+                      onCheckedChange={(checked) => setSensorConfigs(prev => ({
+                        ...prev,
+                        [currentVehicle]: {
+                          ...prev[currentVehicle],
+                          sensorEventsEnabled: checked
+                        }
+                      }))}
+                    />
+                    <span className="text-sm text-muted-foreground">
+                      {sensorConfig.sensorEventsEnabled ? "Enabled" : "Disabled"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Threshold Settings */}
+            <div className="space-y-4">
+              <h4 className="text-sm font-semibold text-foreground">Event Thresholds</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="suddenIncrease">Sudden Increase (L)</Label>
+                  <Input
+                    id="suddenIncrease"
+                    type="number"
+                    value={sensorConfig.suddenIncrease}
+                    onChange={(e) => setSensorConfigs(prev => ({
+                      ...prev,
+                      [currentVehicle]: {
+                        ...prev[currentVehicle],
+                        suddenIncrease: parseInt(e.target.value) || 35
+                      }
+                    }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="suddenDecrease">Sudden Decrease (L)</Label>
+                  <Input
+                    id="suddenDecrease"
+                    type="number"
+                    value={sensorConfig.suddenDecrease}
+                    onChange={(e) => setSensorConfigs(prev => ({
+                      ...prev,
+                      [currentVehicle]: {
+                        ...prev[currentVehicle],
+                        suddenDecrease: parseInt(e.target.value) || 20
+                      }
+                    }))}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Range Settings */}
+            <div className="space-y-4">
+              <h4 className="text-sm font-semibold text-foreground">Valid Range</h4>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="rangeLow">Low (L)</Label>
+                  <Input
+                    id="rangeLow"
+                    type="number"
+                    value={sensorConfig.rangeLow}
+                    onChange={(e) => setSensorConfigs(prev => ({
+                      ...prev,
+                      [currentVehicle]: {
+                        ...prev[currentVehicle],
+                        rangeLow: parseInt(e.target.value) || 100
+                      }
+                    }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="rangeHigh">High (L)</Label>
+                  <Input
+                    id="rangeHigh"
+                    type="number"
+                    value={sensorConfig.rangeHigh}
+                    onChange={(e) => setSensorConfigs(prev => ({
+                      ...prev,
+                      [currentVehicle]: {
+                        ...prev[currentVehicle],
+                        rangeHigh: parseInt(e.target.value) || 450
+                      }
+                    }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="rangeViolationCount">Violation Count</Label>
+                  <Input
+                    id="rangeViolationCount"
+                    type="number"
+                    value={sensorConfig.rangeViolationCount}
+                    onChange={(e) => setSensorConfigs(prev => ({
+                      ...prev,
+                      [currentVehicle]: {
+                        ...prev[currentVehicle],
+                        rangeViolationCount: parseInt(e.target.value) || 10
+                      }
+                    }))}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4">
+              <Button variant="outline" onClick={() => setSensorConfigOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={() => {
+                setSensorConfigs(prev => ({
+                  ...prev,
+                  [currentVehicle]: sensorConfig
+                }));
+                setSensorConfigOpen(false);
+              }}>
+                Save Configuration
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Sensor Configuration Preview Panel */}
+      <Dialog open={previewPanelOpen} onOpenChange={setPreviewPanelOpen} className="fixed inset-0 z-50 overflow-y-auto">
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Settings2 className="w-5 h-5" />
+              Sensor Configuration Preview - {previewAssetId}
+            </DialogTitle>
+          </DialogHeader>
+
+          {/* Date Range Selector */}
+          <div className="mb-6">
+            <h4 className="text-sm font-semibold text-foreground mb-3">Date Range</h4>
+            <div className="flex items-center gap-2">
+              <Select value={previewDateRange} onValueChange={(value) => setPreviewDateRange(value as "today" | "week" | "month")}>
+                <SelectTrigger className="w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="today">Today</SelectItem>
+                  <SelectItem value="week">Last 7 Days</SelectItem>
+                  <SelectItem value="month">Last 30 Days</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Preview Content */}
+          {previewAssetId && tempSensorConfig && (
+            <div className="space-y-6">
+              {/* Fuel Level Graph with Events */}
+              <GlassCard className="p-6">
+                <h3 className="text-lg font-bold text-foreground mb-4">Fuel Level Visualization</h3>
+                <div className="h-80 mb-4">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={getFuelLevelChartData(previewAssetId, previewDateRange, tempSensorConfig)}
+                      margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis dataKey="time" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                      <YAxis
+                        domain={[0, tempSensorConfig.tankCapacity]}
+                        stroke="hsl(var(--muted-foreground))"
+                        fontSize={12}
+                        label={{ value: 'Fuel Level (L)', angle: -90, position: 'insideLeft' }}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "hsl(var(--card))",
+                          border: "1px solid hsl(var(--border))",
+                          borderRadius: "8px"
+                        }}
+                        formatter={(value: any) => [`${value.toFixed(1)}L`, "Fuel Level"]}
+                        labelFormatter={(label) => `Time: ${label}`}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="fuel"
+                        stroke="hsl(var(--primary))"
+                        strokeWidth={2}
+                        dot={false}
+                        name="Fuel Level"
+                      />
+                      {/* Fuel Events Visualization */}
+                      <ReferenceLine
+                        y={tempSensorConfig.rangeHigh}
+                        stroke="hsl(var(--destructive))"
+                        strokeDasharray="5 5"
+                        label={{ value: 'High Threshold', position: 'insideTopRight', fill: 'hsl(var(--destructive))' }}
+                      />
+                      <ReferenceLine
+                        y={tempSensorConfig.rangeLow}
+                        stroke="hsl(var(--warning))"
+                        strokeDasharray="5 5"
+                        label={{ value: 'Low Threshold', position: 'insideTopRight', fill: 'hsl(var(--warning))' }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* Fuel Events Legend */}
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-primary rounded-full"></div>
+                    <span className="text-sm text-muted-foreground">Normal Fuel Level</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-destructive rounded-full"></div>
+                    <span className="text-sm text-muted-foreground">High Threshold: {tempSensorConfig.rangeHigh}L</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-warning rounded-full"></div>
+                    <span className="text-sm text-muted-foreground">Low Threshold: {tempSensorConfig.rangeLow}L</span>
+                  </div>
+                </div>
+              </GlassCard>
+
+              {/* Configuration Settings */}
+              <GlassCard className="p-6">
+                <h3 className="text-lg font-bold text-foreground mb-4">Sensor Configuration Settings</h3>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Tank Capacity */}
+                  <div className="space-y-3">
+                    <Label htmlFor="previewTankCapacity">Tank Capacity (L)</Label>
+                    <Input
+                      id="previewTankCapacity"
+                      type="number"
+                      value={tempSensorConfig.tankCapacity}
+                      onChange={(e) => handlePreviewConfigChange('tankCapacity', parseInt(e.target.value) || 600)}
+                    />
+                  </div>
+
+                  {/* Averaging Window */}
+                  <div className="space-y-3">
+                    <Label htmlFor="previewAveraging">Averaging Window</Label>
+                    <Input
+                      id="previewAveraging"
+                      type="number"
+                      value={tempSensorConfig.averaging}
+                      onChange={(e) => handlePreviewConfigChange('averaging', parseInt(e.target.value) || 20)}
+                    />
+                    <p className="text-xs text-muted-foreground">Data points to average</p>
+                  </div>
+
+                  {/* Sudden Increase Threshold */}
+                  <div className="space-y-3">
+                    <Label htmlFor="previewSuddenIncrease">Sudden Increase (L)</Label>
+                    <Input
+                      id="previewSuddenIncrease"
+                      type="number"
+                      value={tempSensorConfig.suddenIncrease}
+                      onChange={(e) => handlePreviewConfigChange('suddenIncrease', parseInt(e.target.value) || 35)}
+                    />
+                    <p className="text-xs text-muted-foreground">Refill detection threshold</p>
+                  </div>
+
+                  {/* Sudden Decrease Threshold */}
+                  <div className="space-y-3">
+                    <Label htmlFor="previewSuddenDecrease">Sudden Decrease (L)</Label>
+                    <Input
+                      id="previewSuddenDecrease"
+                      type="number"
+                      value={tempSensorConfig.suddenDecrease}
+                      onChange={(e) => handlePreviewConfigChange('suddenDecrease', parseInt(e.target.value) || 20)}
+                    />
+                    <p className="text-xs text-muted-foreground">Drain detection threshold</p>
+                  </div>
+
+                  {/* Calibration Type */}
+                  <div className="space-y-3">
+                    <Label htmlFor="previewCalibrationType">Calibration Type</Label>
+                    <Select
+                      value={tempSensorConfig.calibrationType}
+                      onValueChange={(value) => handlePreviewConfigChange('calibrationType', value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="incremental">Incremental</SelectItem>
+                        <SelectItem value="absolute">Absolute</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </GlassCard>
+
+              {/* Fuel Events Summary */}
+              <GlassCard className="p-6">
+                <h3 className="text-lg font-bold text-foreground mb-4">Fuel Events Summary</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-primary">{getFuelEventsPreview(previewAssetId, previewDateRange, tempSensorConfig).drains.length}</div>
+                    <div className="text-sm text-muted-foreground">Drain Events</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-destructive">
+                      {getFuelEventsPreview(previewAssetId, previewDateRange, tempSensorConfig).drains.reduce((sum, drain) => sum + drain.amount, 0).toFixed(1)}L
+                    </div>
+                    <div className="text-sm text-muted-foreground">Total Drain Volume</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-primary">
+                      {getRefuelEvents(previewAssetId, previewDateRange, tempSensorConfig).length}
+                    </div>
+                    <div className="text-sm text-muted-foreground">Refill Events</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-primary">
+                      {getRefuelEvents(previewAssetId, previewDateRange, tempSensorConfig).reduce((sum, refill) => sum + refill.refilledLiters, 0).toFixed(1)}L
+                    </div>
+                    <div className="text-sm text-muted-foreground">Total Refill Volume</div>
+                  </div>
+                </div>
+              </GlassCard>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex justify-end gap-3 mt-6">
+            <Button variant="outline" onClick={() => setPreviewPanelOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (previewAssetId && tempSensorConfig) {
+                  setSensorConfigs(prev => ({
+                    ...prev,
+                    [previewAssetId]: tempSensorConfig
+                  }));
+                  setPreviewPanelOpen(false);
+                }
+              }}
+            >
+              Apply Configuration
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Map Modal */}
+      <Dialog open={mapModalOpen} onOpenChange={setMapModalOpen}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MapPin className="w-5 h-5" />
+              Asset Location - {selectedAssetLocation}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="h-96 bg-card/20 rounded-lg flex items-center justify-center">
+            <div className="text-center text-muted-foreground">
+              <MapPin className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p>Interactive map would be displayed here</p>
+              <p className="text-sm">Location: {selectedAssetLocation}</p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};
+
+export { VehiclesPage };
