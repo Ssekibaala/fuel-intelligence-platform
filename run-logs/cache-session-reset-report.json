@@ -1,0 +1,11 @@
+{
+  "timestamp": "2026-02-26T11:06:56.198Z",
+  "baseUrl": "http://localhost:3000",
+  "steps": [
+    "opened_app",
+    "cleared_storage_cache_sw_indexeddb",
+    "cleared_cookies",
+    "verified_login_screen"
+  ],
+  "ok": true
+}

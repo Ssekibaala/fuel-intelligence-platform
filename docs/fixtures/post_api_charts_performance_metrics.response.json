@@ -1,0 +1,11 @@
+{
+  "operation": "POST /api/charts/performance-metrics",
+  "status": 200,
+  "contentType": "application/json",
+  "body": [
+    {
+      "date": "string",
+      "value": 123.45
+    }
+  ]
+}

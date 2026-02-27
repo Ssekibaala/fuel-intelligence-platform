@@ -1,0 +1,25 @@
+{
+  "operation": "GET /api/me",
+  "status": 200,
+  "contentType": "application/json",
+  "body": {
+    "user": {
+      "id": "11111111-1111-1111-1111-111111111111",
+      "email": "string"
+    },
+    "profile": {
+      "id": "11111111-1111-1111-1111-111111111111",
+      "role": "admin",
+      "display_name": "string"
+    },
+    "clientIds": [
+      "11111111-1111-1111-1111-111111111111"
+    ],
+    "clients": [
+      {
+        "id": "11111111-1111-1111-1111-111111111111",
+        "name": "string"
+      }
+    ]
+  }
+}

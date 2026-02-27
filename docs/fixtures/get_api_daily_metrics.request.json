@@ -1,0 +1,17 @@
+{
+  "operation": "GET /api/daily-metrics",
+  "summary": "GET /api/daily-metrics",
+  "method": "GET",
+  "path": "/api/daily-metrics",
+  "pathParams": {},
+  "query": {
+    "vehicleId": "string",
+    "vehicleIds": "string",
+    "startDate": "2026-02-22T12:00:00Z",
+    "endDate": "2026-02-22T12:00:00Z"
+  },
+  "headers": {
+    "Authorization": "Bearer <token>"
+  },
+  "body": null
+}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { Calendar as CalendarIcon, ChevronDown, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,23 +12,36 @@ import { getDateRangeFromPreset } from "./GlobalFilterContext";
 interface DateRangePickerProps {
   value: DateRange;
   onChange: (dateRange: DateRange) => void;
+  presets?: ReadonlyArray<DatePresetOption>;
   className?: string;
 }
 
-const DATE_PRESETS = [
+type DatePresetOption = {
+  value: "today" | "yesterday" | "week_to_date" | "month_to_date" | "last_7_days" | "last_30_days";
+  label: string;
+};
+
+const DEFAULT_PRESETS: ReadonlyArray<DatePresetOption> = [
   { value: "today", label: "Today" },
   { value: "yesterday", label: "Yesterday" },
   { value: "week_to_date", label: "Week to Date" },
   { value: "month_to_date", label: "Month to Date" },
   { value: "last_7_days", label: "Last 7 Days" },
   { value: "last_30_days", label: "Last 30 Days" },
-] as const;
+];
 
-export function DateRangePicker({ value, onChange, className = "" }: DateRangePickerProps) {
+export function DateRangePicker({
+  value,
+  onChange,
+  presets,
+  className = ""
+}: DateRangePickerProps) {
+  const availablePresets = presets && presets.length > 0 ? presets : DEFAULT_PRESETS;
   const [open, setOpen] = useState(false);
   const [selectedTab, setSelectedTab] = useState<"presets" | "custom">(
     value.preset ? "presets" : "custom"
   );
+  const [resetOnNextSelection, setResetOnNextSelection] = useState(false);
   
   // Custom range state
   const [customRange, setCustomRange] = useState<{
@@ -44,8 +57,23 @@ export function DateRangePicker({ value, onChange, className = "" }: DateRangePi
     return { from: undefined, to: undefined };
   });
 
+  useEffect(() => {
+    if (value.startDate && value.endDate) {
+      setCustomRange({
+        from: new Date(value.startDate),
+        to: new Date(value.endDate),
+      });
+    }
+  }, [value.startDate, value.endDate]);
+
+  useEffect(() => {
+    if (open && selectedTab === "custom") {
+      setResetOnNextSelection(true);
+    }
+  }, [open, selectedTab]);
+
   const handlePresetSelect = (preset: string) => {
-    const presetConfig = DATE_PRESETS.find(p => p.value === preset);
+    const presetConfig = availablePresets.find(p => p.value === preset);
     if (presetConfig) {
       const { startDate, endDate } = getDateRangeFromPreset(preset);
       
@@ -63,23 +91,31 @@ export function DateRangePicker({ value, onChange, className = "" }: DateRangePi
   const handleCustomRangeSelect = (range: { from?: Date; to?: Date } | undefined) => {
     if (!range) return;
     
-    const normalizedRange = {
-      from: range.from,
-      to: range.to
-    };
-    
-    setCustomRange(normalizedRange);
-    
-    if (range.from && range.to) {
-      onChange({
-        preset: "custom",
-        startDate: range.from.toISOString(),
-        endDate: range.to.toISOString(),
-        label: `${format(range.from, "MMM d")} - ${format(range.to, "MMM d, yyyy")}`
-      });
-      
-      setOpen(false);
+    if (resetOnNextSelection && range.from) {
+      setCustomRange({ from: range.from, to: undefined });
+      setResetOnNextSelection(false);
+      return;
     }
+
+    setCustomRange({ from: range.from, to: range.to });
+  };
+
+  const applyCustomRange = () => {
+    if (!customRange.from || !customRange.to) return;
+
+    onChange({
+      preset: "custom",
+      startDate: customRange.from.toISOString(),
+      endDate: customRange.to.toISOString(),
+      label: `${format(customRange.from, "MMM d")} - ${format(customRange.to, "MMM d, yyyy")}`,
+    });
+
+    setOpen(false);
+  };
+
+  const clearCustomRange = () => {
+    setCustomRange({ from: undefined, to: undefined });
+    setResetOnNextSelection(true);
   };
 
   const getDisplayText = () => {
@@ -149,7 +185,7 @@ export function DateRangePicker({ value, onChange, className = "" }: DateRangePi
             {selectedTab === "presets" ? (
               <div className="p-3">
                 <div className="space-y-1">
-                  {DATE_PRESETS.map((preset) => {
+                  {availablePresets.map((preset) => {
                     const isSelected = value.preset === preset.value;
                     
                     return (
@@ -188,18 +224,43 @@ export function DateRangePicker({ value, onChange, className = "" }: DateRangePi
                   selected={customRange}
                   onSelect={handleCustomRangeSelect}
                   numberOfMonths={1}
-                  className="rounded-md border border-border/20"
+                  className="rounded-md border border-border/20 !p-1"
+                  classNames={{
+                    day_selected:
+                      "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
+                    day_range_middle:
+                      "aria-selected:bg-primary/15 aria-selected:text-foreground",
+                    cell:
+                      "h-9 w-9 text-center text-sm p-0 relative [&:has([aria-selected])]:bg-primary/10 first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
+                  }}
                   data-testid="calendar-custom-range"
                 />
-                
-                {customRange.from && customRange.to && (
-                  <>
-                    <Separator className="my-3" />
-                    <div className="text-xs text-muted-foreground">
-                      Selected: {format(customRange.from, "MMM d, yyyy")} - {format(customRange.to, "MMM d, yyyy")}
-                    </div>
-                  </>
-                )}
+
+                <Separator className="my-3" />
+                <div className="flex flex-col gap-2">
+                  <div className="text-xs text-muted-foreground">
+                    {customRange.from && customRange.to
+                      ? `Selected: ${format(customRange.from, "MMM d, yyyy")} - ${format(customRange.to, "MMM d, yyyy")}`
+                      : "Pick a start and end date"}
+                  </div>
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearCustomRange}
+                      disabled={!customRange.from && !customRange.to}
+                    >
+                      Clear
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={applyCustomRange}
+                      disabled={!customRange.from || !customRange.to}
+                    >
+                      Apply
+                    </Button>
+                  </div>
+                </div>
               </div>
             )}
           </div>

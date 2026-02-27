@@ -1,0 +1,10 @@
+{
+  "operation": "GET /api/onboarding/status",
+  "status": 200,
+  "contentType": "application/json",
+  "body": {
+    "hasAdmin": true,
+    "hasClient": true,
+    "needsOnboarding": true
+  }
+}

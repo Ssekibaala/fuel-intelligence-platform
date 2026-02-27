@@ -1,0 +1,17 @@
+{
+  "operation": "GET /api/vehicles",
+  "summary": "GET /api/vehicles",
+  "method": "GET",
+  "path": "/api/vehicles",
+  "pathParams": {},
+  "query": {
+    "status": "Active",
+    "efficiencyRating": "Excellent",
+    "driverName": "string",
+    "clientId": "11111111-1111-1111-1111-111111111111"
+  },
+  "headers": {
+    "Authorization": "Bearer <token>"
+  },
+  "body": null
+}

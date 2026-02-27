@@ -39,6 +39,7 @@ interface AssetGroup {
 interface DailyMovementPreviewProps {
   date: string; // YYYY-MM-DD
   data: AssetGroup[];
+  companyName?: string;
 }
 
 // Helper function to convert standing time from various formats to HH:MM:SS
@@ -101,7 +102,8 @@ const getStandingTimeColor = (standingTime: string): string => {
   return '#00b050';
 };
 
-export function DailyMovementPreview({ date, data }: DailyMovementPreviewProps) {
+export function DailyMovementPreview({ date, data, companyName }: DailyMovementPreviewProps) {
+  const displayCompanyName = companyName || "Africa MixEA - Teletrac Fleet Solutions - ADT Africa Limited";
   const formattedDate = new Date(date).toLocaleDateString('en-GB', {
     day: '2-digit',
     month: '2-digit',
@@ -130,7 +132,7 @@ export function DailyMovementPreview({ date, data }: DailyMovementPreviewProps) 
             Daily Movement Report
           </h1>
           <p style={{ fontSize: '10pt', margin: 0, fontWeight: 'normal' }}>
-            Africa MixEA - Teletrac Fleet Solutions - ADT Africa Limited
+            {displayCompanyName}
           </p>
         </div>
         <div className="logo-section" style={{ textAlign: 'right', alignSelf: 'center' }}>
@@ -260,7 +262,6 @@ export function DailyMovementPreview({ date, data }: DailyMovementPreviewProps) 
     </div>
   );
 }
-
 
 
 

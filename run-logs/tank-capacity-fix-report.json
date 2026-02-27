@@ -1,0 +1,29 @@
+{
+  "timestamp": "2026-02-26T15:56:19.925Z",
+  "actions": {
+    "migrationApplied": "20260226152000_tank_capacity_from_report147_only.sql",
+    "processTelemetryDeployed": true,
+    "publicApiDeployed": true,
+    "processTelemetryTriggered": true
+  },
+  "dbStats": {
+    "total": 10,
+    "withNull": 10,
+    "withNonNull": 0,
+    "with300": 0,
+    "with300AndCapacityKey": 0,
+    "with300WithoutCapacityKey": 0
+  },
+  "apiStats": {
+    "status": 200,
+    "count": 10,
+    "withNullTankCapacity": 10,
+    "withNumericTankCapacity": 0,
+    "with300TankCapacity": 0,
+    "usedEmail": "public.api.verify.1772000353@example.com"
+  },
+  "notes": [
+    "tank_capacity now remains null unless set by report_type=147 processing.",
+    "public-api now returns tankCapacity as null (not 0) when capacity is unknown."
+  ]
+}

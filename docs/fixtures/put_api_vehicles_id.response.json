@@ -1,0 +1,29 @@
+{
+  "operation": "PUT /api/vehicles/{id}",
+  "status": 200,
+  "contentType": "application/json",
+  "body": {
+    "id": "string",
+    "clientId": "11111111-1111-1111-1111-111111111111",
+    "assetId": "string",
+    "vehiclePlate": "string",
+    "driverName": "string",
+    "status": "Active",
+    "currentFuelLevel": 123.45,
+    "tankCapacity": 123.45,
+    "fuelEfficiency": 123.45,
+    "efficiencyRating": "Excellent",
+    "totalDistance": 123.45,
+    "totalEngineHours": 123.45,
+    "totalFuelUsed": 123.45,
+    "workingDays": 1,
+    "parkingDays": 1,
+    "lastMaintenanceDate": "2026-02-22T12:00:00Z",
+    "maintenanceStatus": "string",
+    "theftIncidents": 1,
+    "costPerKm": 123.45,
+    "systemReliability": "Excellent",
+    "createdAt": "2026-02-22T12:00:00Z",
+    "updatedAt": "2026-02-22T12:00:00Z"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "operation": "GET /health",
+  "summary": "GET /health",
+  "method": "GET",
+  "path": "/health",
+  "pathParams": {},
+  "query": {},
+  "headers": {},
+  "body": null
+}

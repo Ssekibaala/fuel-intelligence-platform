@@ -1,0 +1,6 @@
+{
+  "operation": "DELETE /api/vehicles/{id}",
+  "status": 204,
+  "contentType": "text/plain",
+  "body": ""
+}

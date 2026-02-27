@@ -1,0 +1,49 @@
+{
+  "timestamp": "2026-02-26T18:04:27.834Z",
+  "apiBase": "https://pkduhowdqvymmvboyivt.supabase.co/functions/v1/public-api",
+  "range": {
+    "startDate": "2026-02-25T21:00:00.000Z",
+    "endDate": "2026-02-26T20:59:59.999Z"
+  },
+  "totals": {
+    "vehicles": 3,
+    "dailyMetricRows": 0,
+    "vehiclesWithTodayMetrics": 0,
+    "vehiclesWithTankCapacity": 3
+  },
+  "fleetSample": [
+    {
+      "vehicleId": "a0acf213-7ed4-4643-b35d-476d45a8c1c6",
+      "label": "SCANIA_UAS239L_CAN",
+      "tankCapacity": 500,
+      "distanceToday": null,
+      "fuelUsedToday": null,
+      "consumptionLPerKmToday": null,
+      "metricRowsToday": 0
+    },
+    {
+      "vehicleId": "8e9a1980-d9d0-4910-a16b-30963a8c784a",
+      "label": "SCANIA_UAS239L_AF",
+      "tankCapacity": 500,
+      "distanceToday": null,
+      "fuelUsedToday": null,
+      "consumptionLPerKmToday": null,
+      "metricRowsToday": 0
+    },
+    {
+      "vehicleId": "e62b532e-97b1-43f1-a4be-8ff4c843efcd",
+      "label": "FAW UBF493U",
+      "tankCapacity": 590,
+      "distanceToday": null,
+      "fuelUsedToday": null,
+      "consumptionLPerKmToday": null,
+      "metricRowsToday": 0
+    }
+  ],
+  "checks": {
+    "hasAnyVehicle": true,
+    "hasAnyTodayMetricRow": false,
+    "hasAnyTankCapacity": true,
+    "hasAnyComputedConsumption": false
+  }
+}

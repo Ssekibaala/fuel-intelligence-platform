@@ -1,0 +1,10 @@
+{
+  "operation": "GET /api/onboarding/status",
+  "summary": "GET /api/onboarding/status",
+  "method": "GET",
+  "path": "/api/onboarding/status",
+  "pathParams": {},
+  "query": {},
+  "headers": {},
+  "body": null
+}

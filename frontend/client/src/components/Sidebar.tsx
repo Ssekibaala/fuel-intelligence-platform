@@ -8,10 +8,14 @@ import {
   AlertTriangle,
   Settings,
   FileText,
-  Plus,
   Moon,
-  Sun
+  Sun,
+  ShieldCheck,
+  LogOut
 } from "lucide-react";
+import { useAuth } from "./AuthProvider";
+import teletracLogo from "@/assets/teletrac-logo.png";
+import { BRAND_LOGO_UPDATED_EVENT, getStoredBrandLogo } from "@/lib/branding";
 
 interface NavItem {
   key: string;
@@ -30,6 +34,8 @@ interface SidebarProps {
 export function Sidebar({ activePage, onNavigate, theme, toggleTheme }: SidebarProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [currentDateTime, setCurrentDateTime] = useState("");
+  const [brandLogo, setBrandLogo] = useState<string>(() => getStoredBrandLogo() || teletracLogo);
+  const { user, profile, isAdmin, signOut } = useAuth();
 
   const updateDateTime = () => {
     const now = new Date();
@@ -53,12 +59,27 @@ export function Sidebar({ activePage, onNavigate, theme, toggleTheme }: SidebarP
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    const syncLogo = () => {
+      setBrandLogo(getStoredBrandLogo() || teletracLogo);
+    };
+
+    syncLogo();
+    window.addEventListener(BRAND_LOGO_UPDATED_EVENT, syncLogo as EventListener);
+    window.addEventListener("storage", syncLogo);
+    return () => {
+      window.removeEventListener(BRAND_LOGO_UPDATED_EVENT, syncLogo as EventListener);
+      window.removeEventListener("storage", syncLogo);
+    };
+  }, []);
+
   // todo: remove mock data - navigation items
   const navItems: NavItem[] = [
     { key: "dashboard", title: "Dashboard", icon: LayoutDashboard },
     { key: "assets", title: "Fleet Assets", icon: Truck },
     { key: "alerts", title: "Alerts", icon: AlertTriangle, badge: 3 },
     { key: "reports", title: "Reports", icon: FileText },
+    ...(isAdmin ? [{ key: "admin", title: "Admin", icon: ShieldCheck }] : []),
     { key: "settings", title: "Settings", icon: Settings },
   ];
 
@@ -74,19 +95,27 @@ export function Sidebar({ activePage, onNavigate, theme, toggleTheme }: SidebarP
     >
       {/* Glass morphism background */}
       <div className="h-full flex flex-col bg-card/30 backdrop-blur-xl border-r border-border/40">
-        
-        {/* Logo section */}
-        <div className="h-16 flex items-center px-3 gap-3 border-b border-border/20">
-          <div className="w-10 h-10 rounded-lg bg-primary/20 backdrop-blur-sm border border-primary/30 flex items-center justify-center hover-elevate">
-            <Plus className="w-6 h-6 text-primary" />
-          </div>
-          {isExpanded && (
-            <div className="text-lg font-display font-semibold tracking-tight text-foreground animate-fade-in">
-              Fleet Sentinel
+        <div
+          className="h-14 border-b border-border/20 px-2 overflow-hidden"
+        >
+          <div
+            className={`h-full flex items-center transition-all duration-300 ease-out ${
+              isExpanded ? "justify-start gap-2 pl-1" : "justify-center gap-0"
+            }`}
+          >
+            <div className="h-8 w-8 rounded-md bg-white border border-border/40 shadow-sm p-1.5 shrink-0">
+              <img src={brandLogo} alt="Teletrac Fuel logo" className="h-full w-full object-contain" />
             </div>
-          )}
+            <span
+              className={`whitespace-nowrap text-sm font-semibold tracking-tight text-foreground overflow-hidden transition-all duration-300 ease-out ${
+                isExpanded ? "max-w-[140px] opacity-100 translate-x-0" : "max-w-0 opacity-0 -translate-x-2"
+              }`}
+            >
+              Teletrac Fuel
+            </span>
+          </div>
         </div>
-
+        
         {/* Navigation */}
         <nav className="mt-4 flex-1 px-2">
           {navItems.map((item) => {
@@ -133,15 +162,30 @@ export function Sidebar({ activePage, onNavigate, theme, toggleTheme }: SidebarP
           <div className="flex items-center gap-3">
             <Avatar className="w-9 h-9">
               <AvatarImage src="" alt="User avatar" />
-              <AvatarFallback className="bg-primary/20 text-primary font-semibold">BS</AvatarFallback>
+              <AvatarFallback className="bg-primary/20 text-primary font-semibold">
+                {(user?.email || "U")[0]?.toUpperCase()}
+              </AvatarFallback>
             </Avatar>
             {isExpanded && (
               <div className="text-xs animate-fade-in">
-                <div className="font-medium text-foreground">Brian Stevens</div>
-                <div className="text-muted-foreground">Technical Supervisor</div>
+                <div className="font-medium text-foreground">
+                  {profile?.display_name || user?.email || "User"}
+                </div>
+                <div className="text-muted-foreground">{profile?.role || "client"}</div>
               </div>
             )}
           </div>
+          {isExpanded && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => signOut()}
+              className="mt-3 w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
+            >
+              <LogOut className="w-4 h-4" />
+              Sign out
+            </Button>
+          )}
         </div>
 
         {/* Theme toggle and date/time - moved from header */}
@@ -170,3 +214,4 @@ export function Sidebar({ activePage, onNavigate, theme, toggleTheme }: SidebarP
     </aside>
   );
 }
+

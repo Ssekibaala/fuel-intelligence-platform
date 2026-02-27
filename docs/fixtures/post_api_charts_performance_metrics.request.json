@@ -1,0 +1,20 @@
+{
+  "operation": "POST /api/charts/performance-metrics",
+  "summary": "POST /api/charts/performance-metrics",
+  "method": "POST",
+  "path": "/api/charts/performance-metrics",
+  "pathParams": {},
+  "query": {},
+  "headers": {
+    "Authorization": "Bearer <token>",
+    "Content-Type": "application/json"
+  },
+  "body": {
+    "vehicleIds": [
+      "string"
+    ],
+    "dateRange": {
+      "key": "value"
+    }
+  }
+}

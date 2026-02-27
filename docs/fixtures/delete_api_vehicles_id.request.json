@@ -1,0 +1,14 @@
+{
+  "operation": "DELETE /api/vehicles/{id}",
+  "summary": "DELETE /api/vehicles/{id}",
+  "method": "DELETE",
+  "path": "/api/vehicles/{id}",
+  "pathParams": {
+    "id": "string"
+  },
+  "query": {},
+  "headers": {
+    "Authorization": "Bearer <token>"
+  },
+  "body": null
+}

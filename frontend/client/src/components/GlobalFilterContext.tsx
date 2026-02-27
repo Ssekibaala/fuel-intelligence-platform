@@ -36,7 +36,7 @@ const initialState: GlobalFilterState = {
   dateRange: getInitialDateRange(),
   currency: "KES",
   fuelCostPerLiter: 145.50,
-  refreshInterval: 30000, // 30 seconds
+  refreshInterval: 15000, // 15 seconds
   isLoading: false,
   lastUpdated: new Date()
 };

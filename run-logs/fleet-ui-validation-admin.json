@@ -1,0 +1,14 @@
+{
+  "timestamp": "2026-02-26T18:05:46.356Z",
+  "baseUrl": "http://localhost:3000",
+  "email": "telemetry.admin.20260225051034@example.com",
+  "loginOk": true,
+  "onFleetPage": true,
+  "rowCount": 0,
+  "headers": {
+    "hasTankCapacity": true,
+    "hasConsumptionLPerKm": true
+  },
+  "firstRow": null,
+  "errors": []
+}

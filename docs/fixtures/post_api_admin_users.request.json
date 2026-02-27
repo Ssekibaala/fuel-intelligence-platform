@@ -1,0 +1,21 @@
+{
+  "operation": "POST /api/admin/users",
+  "summary": "POST /api/admin/users",
+  "method": "POST",
+  "path": "/api/admin/users",
+  "pathParams": {},
+  "query": {},
+  "headers": {
+    "Authorization": "Bearer <token>",
+    "Content-Type": "application/json"
+  },
+  "body": {
+    "email": "user@example.com",
+    "password": "string",
+    "role": "admin",
+    "displayName": "string",
+    "clientIds": [
+      "11111111-1111-1111-1111-111111111111"
+    ]
+  }
+}

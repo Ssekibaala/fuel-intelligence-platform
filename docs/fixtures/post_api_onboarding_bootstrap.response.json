@@ -1,0 +1,11 @@
+{
+  "operation": "POST /api/onboarding/bootstrap",
+  "status": 201,
+  "contentType": "application/json",
+  "body": {
+    "success": true,
+    "adminId": "11111111-1111-1111-1111-111111111111",
+    "clientId": "11111111-1111-1111-1111-111111111111",
+    "clientName": "string"
+  }
+}

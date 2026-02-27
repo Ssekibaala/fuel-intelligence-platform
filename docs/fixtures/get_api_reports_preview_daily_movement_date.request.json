@@ -1,0 +1,14 @@
+{
+  "operation": "GET /api/reports/preview-daily-movement/{date}",
+  "summary": "GET /api/reports/preview-daily-movement/{date}",
+  "method": "GET",
+  "path": "/api/reports/preview-daily-movement/{date}",
+  "pathParams": {
+    "date": "2026-02-22"
+  },
+  "query": {},
+  "headers": {
+    "Authorization": "Bearer <token>"
+  },
+  "body": null
+}

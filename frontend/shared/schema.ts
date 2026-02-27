@@ -14,19 +14,35 @@ import {
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
+// Clients (tenants)
+export const clients = pgTable("clients", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
+// User profiles (linked to auth.users)
+export const profiles = pgTable("profiles", {
+  id: uuid("id").primaryKey(), // auth.users.id
+  role: text("role").notNull().default("client"), // "admin" | "client"
+  displayName: text("display_name"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
-export type InsertUser = z.infer<typeof insertUserSchema>;
-export type User = typeof users.$inferSelect;
+// Client-user assignments
+export const clientUsers = pgTable("client_users", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  clientId: uuid("client_id").references(() => clients.id).notNull(),
+  userId: uuid("user_id").notNull(),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
+export const insertClientSchema = createInsertSchema(clients).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertClient = z.infer<typeof insertClientSchema>;
+export type Client = typeof clients.$inferSelect;
 
 // =============================================================================
 // ENUMS & CONSTANTS
@@ -63,17 +79,18 @@ export type AggregateScope = z.infer<typeof aggregateScopeEnum>;
 // Core Vehicle/Fleet Asset Entity
 export const vehicles = pgTable("vehicles", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clientId: uuid("client_id").references(() => clients.id).notNull(),
   assetId: text("asset_id").notNull().unique(), // e.g., "SEM - 12346"
   vehiclePlate: text("vehicle_plate").notNull(),
   driverName: text("driver_name").notNull(),
   status: text("status").notNull().$type<VehicleStatus>(), // "Active", "Idle", "Maintenance"
   currentFuelLevel: real("current_fuel_level").notNull(), // Liters
-  tankCapacity: real("tank_capacity").notNull().default(300), // Liters
-  fuelEfficiency: real("fuel_efficiency").notNull(), // L/100km
+  tankCapacity: real("tank_capacity"), // Set from report_type=147 summary payload
+  fuelEfficiency: real("fuel_efficiency"), // report_type=147 summary (today end_date only)
   efficiencyRating: text("efficiency_rating").notNull().$type<EfficiencyRating>(), // "Excellent", "Good", "Poor"
-  totalDistance: real("total_distance").notNull().default(0), // Kilometers
-  totalEngineHours: real("total_engine_hours").notNull().default(0), // Hours
-  totalFuelUsed: real("total_fuel_used").notNull().default(0), // Liters
+  totalDistance: real("total_distance"), // report_type=147 summary (today end_date only)
+  totalEngineHours: real("total_engine_hours"), // report_type=147 summary (today end_date only)
+  totalFuelUsed: real("total_fuel_used"), // report_type=147 summary (today end_date only)
   workingDays: integer("working_days").notNull().default(0), // This period
   parkingDays: integer("parking_days").notNull().default(0), // This period
   lastMaintenanceDate: timestamp("last_maintenance_date"),
@@ -113,18 +130,6 @@ export const dailyMetrics = pgTable("daily_metrics", {
   operatingCostKES: real("operating_cost_kes").notNull().default(0),
   operatingCostUGX: real("operating_cost_ugx").notNull().default(0),
   createdAt: timestamp("created_at").notNull().default(sql`now()`)
-});
-
-// Global Filter State & User Preferences  
-export const userSettings = pgTable("user_settings", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id).notNull(),
-  preferredCurrency: text("preferred_currency").notNull().default("KES").$type<Currency>(), // "KES", "UGX"
-  defaultDateRange: text("default_date_range").notNull().default("Last 7 Days"), // "Today", "Yesterday", "Week to Date", etc.
-  selectedVehicles: json("selected_vehicles").$type<string[]>().default([]), // Array of vehicle IDs for filtering
-  dashboardLayout: json("dashboard_layout").$type<Record<string, any>>().default({}),
-  notifications: boolean("notifications").notNull().default(true),
-  updatedAt: timestamp("updated_at").notNull().default(sql`now()`)
 });
 
 // KPI Aggregates (for Dashboard Cards) - With Global Filter Context
@@ -199,29 +204,6 @@ export const insertDailyMetricsSchema = createInsertSchema(dailyMetrics).omit({
 
 export type InsertDailyMetrics = z.infer<typeof insertDailyMetricsSchema>;
 export type DailyMetrics = typeof dailyMetrics.$inferSelect;
-
-// User Settings schemas with enum enforcement
-export const insertUserSettingsSchema = createInsertSchema(userSettings).omit({
-  id: true,
-  updatedAt: true
-}).extend({
-  preferredCurrency: currencyEnum,
-  selectedVehicles: z.array(z.string()).default([]),
-  dashboardLayout: z.record(z.string(), z.any()).default({})
-});
-
-export const selectUserSettingsSchema = createSelectSchema(userSettings).extend({
-  preferredCurrency: currencyEnum
-});
-
-export const updateUserSettingsSchema = insertUserSettingsSchema.partial().extend({
-  userId: z.string(),
-  preferredCurrency: currencyEnum.optional()
-});
-
-export type InsertUserSettings = z.infer<typeof insertUserSettingsSchema>;
-export type UpdateUserSettings = z.infer<typeof updateUserSettingsSchema>;
-export type UserSettings = typeof userSettings.$inferSelect;
 
 // KPI Aggregates schemas with enum enforcement
 export const insertKpiAggregatesSchema = createInsertSchema(kpiAggregates).omit({
@@ -314,12 +296,11 @@ export type EventSummary = z.infer<typeof eventSummarySchema>;
 // =============================================================================
 
 // Daily Movement Reports
-export const dailyMovementReports = pgTable("daily_movement_reports", {
+export const dailyMovementReports = pgTable("trip_reports", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   reportDate: timestamp("report_date").notNull(),
-  companyName: text("company_name").default('Africa MixEA - Teletrac Fleet Solutions - ADT Africa Limited'),
-  fromDate: timestamp("from_date"),
-  toDate: timestamp("to_date"),
+  clientId: uuid("client_id").references(() => clients.id),
+  vehicleId: varchar("vehicle_id").references(() => vehicles.id),
   assetDescription: varchar("asset_description", { length: 100 }),
   registrationNumber: varchar("registration_number", { length: 20 }),
   assetId: integer("asset_id"),
@@ -337,8 +318,6 @@ export const dailyMovementReports = pgTable("daily_movement_reports", {
   nextDeparture: timestamp("next_departure"),
   standingTimeAtLocation: text("standing_time_at_location"), // INTERVAL stored as text (hh:mm:ss)
   fuelUsedLitres: decimal("fuel_used_litres", { precision: 10, scale: 2 }),
-  isTotalRow: boolean("is_total_row").default(false),
-  isAverageRow: boolean("is_average_row").default(false),
   createdAt: timestamp("created_at").notNull().default(sql`now()`)
 });
 
@@ -346,6 +325,8 @@ export const dailyMovementReports = pgTable("daily_movement_reports", {
 export const fuelTemperatureReports = pgTable("fuel_temperature_reports", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   reportDate: timestamp("report_date").notNull(),
+  clientId: uuid("client_id").references(() => clients.id),
+  vehicleId: varchar("vehicle_id").references(() => vehicles.id),
   reportTitle: varchar("report_title", { length: 255 }).default('Sensor / Fuel / Temperature'),
   assetName: varchar("asset_name", { length: 100 }).default('Howo Demo'),
   fromDatetime: timestamp("from_datetime"),

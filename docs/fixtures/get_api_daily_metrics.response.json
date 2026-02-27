@@ -1,0 +1,21 @@
+{
+  "operation": "GET /api/daily-metrics",
+  "status": 200,
+  "contentType": "application/json",
+  "body": [
+    {
+      "id": "string",
+      "vehicleId": "string",
+      "metricDate": "2026-02-22T12:00:00Z",
+      "totalFuelConsumed": 123.45,
+      "totalDistanceTraveled": 123.45,
+      "totalEngineHours": 123.45,
+      "idleTimeHours": 123.45,
+      "numberOfRefills": 1,
+      "numberOfThefts": 1,
+      "operatingCostKES": 123.45,
+      "operatingCostUGX": 123.45,
+      "createdAt": "2026-02-22T12:00:00Z"
+    }
+  ]
+}

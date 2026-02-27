@@ -1,0 +1,17 @@
+{
+  "operation": "POST /api/fuel-events",
+  "status": 201,
+  "contentType": "application/json",
+  "body": {
+    "id": "string",
+    "vehicleId": "string",
+    "eventType": "refill",
+    "volumeLiters": 123.45,
+    "costKES": 123.45,
+    "costUGX": 123.45,
+    "location": "string",
+    "notes": "string",
+    "eventTimestamp": "2026-02-22T12:00:00Z",
+    "createdAt": "2026-02-22T12:00:00Z"
+  }
+}

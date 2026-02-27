@@ -1,0 +1,50 @@
+{
+  "timestamp": "2026-02-26T09:59:44.966Z",
+  "baseUrl": "http://localhost:3000",
+  "login": {
+    "ok": true,
+    "note": "Authenticated and sidebar loaded"
+  },
+  "pages": [
+    {
+      "page": "dashboard",
+      "ok": true,
+      "marker": "Fleet Sentinel Dashboard"
+    },
+    {
+      "page": "assets",
+      "ok": true,
+      "marker": "Fleet Assets"
+    },
+    {
+      "page": "alerts",
+      "ok": true,
+      "marker": "Alerts Monitoring"
+    },
+    {
+      "page": "reports",
+      "ok": true,
+      "marker": "Reports Center"
+    },
+    {
+      "page": "admin",
+      "ok": false,
+      "marker": "Create Client",
+      "error": "page.waitForSelector: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('text=Create Client') to be visible\u001b[22m\n"
+    },
+    {
+      "page": "settings",
+      "ok": true,
+      "marker": "System Configuration"
+    }
+  ],
+  "reportFlow": {
+    "ok": true,
+    "csvOnlyNoteVisible": true,
+    "note": "Preview modal opened and CSV-only note is visible"
+  },
+  "consoleErrors": [],
+  "pageErrors": [],
+  "httpFailures": [],
+  "expectedNoData404": []
+}

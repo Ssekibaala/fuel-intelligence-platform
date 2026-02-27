@@ -1,0 +1,15 @@
+
+> rest-express@1.0.0 dev
+> cross-env NODE_ENV=development PORT=3000 tsx server/index.ts
+
+NODE_ENV: development
+app env: development
+Re-optimizing dependencies because vite config has changed
+8:05:51 AM [express] serving on port 3000
+[2m10:32:12 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/@fs/C:/Users/brian/OneDrive/Dev/Fuel-platform/frontend/client/src/components/VehiclesPage.tsx, /@fs/C:/Users/brian/OneDrive/Dev/Fuel-platform/frontend/client/src/index.css?v=_FKWX2TaxY5ofZiTX0EbK[22m
+[2m10:32:12 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/@fs/C:/Users/brian/OneDrive/Dev/Fuel-platform/frontend/client/src/components/VehiclesPage.tsx, /@fs/C:/Users/brian/OneDrive/Dev/Fuel-platform/frontend/client/src/index.css?v=_FKWX2TaxY5ofZiTX0EbK[22m
+[2m10:36:55 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/@fs/C:/Users/brian/OneDrive/Dev/Fuel-platform/frontend/client/src/components/VehiclesPage.tsx, /@fs/C:/Users/brian/OneDrive/Dev/Fuel-platform/frontend/client/src/index.css?v=_FKWX2TaxY5ofZiTX0EbK[22m
+[2m10:39:57 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/@fs/C:/Users/brian/OneDrive/Dev/Fuel-platform/frontend/client/src/components/VehiclesPage.tsx, /@fs/C:/Users/brian/OneDrive/Dev/Fuel-platform/frontend/client/src/index.css?v=_FKWX2TaxY5ofZiTX0EbK[22m
+[2m10:42:59 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/@fs/C:/Users/brian/OneDrive/Dev/Fuel-platform/frontend/client/src/components/VehiclesPage.tsx, /@fs/C:/Users/brian/OneDrive/Dev/Fuel-platform/frontend/client/src/index.css?v=_FKWX2TaxY5ofZiTX0EbK[22m
+[2m10:55:05 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/@fs/C:/Users/brian/OneDrive/Dev/Fuel-platform/frontend/client/src/components/VehiclesPage.tsx, /@fs/C:/Users/brian/OneDrive/Dev/Fuel-platform/frontend/client/src/index.css?v=_FKWX2TaxY5ofZiTX0EbK[22m
+[2m10:55:57 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/@fs/C:/Users/brian/OneDrive/Dev/Fuel-platform/frontend/client/src/components/VehiclesPage.tsx, /@fs/C:/Users/brian/OneDrive/Dev/Fuel-platform/frontend/client/src/index.css?v=_FKWX2TaxY5ofZiTX0EbK[22m

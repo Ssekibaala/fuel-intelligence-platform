@@ -1,0 +1,20 @@
+{
+  "operation": "POST /api/charts/fuel-consumption",
+  "summary": "POST /api/charts/fuel-consumption",
+  "method": "POST",
+  "path": "/api/charts/fuel-consumption",
+  "pathParams": {},
+  "query": {},
+  "headers": {
+    "Authorization": "Bearer <token>",
+    "Content-Type": "application/json"
+  },
+  "body": {
+    "vehicleIds": [
+      "string"
+    ],
+    "dateRange": {
+      "key": "value"
+    }
+  }
+}

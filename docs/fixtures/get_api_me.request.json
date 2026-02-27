@@ -1,0 +1,12 @@
+{
+  "operation": "GET /api/me",
+  "summary": "GET /api/me",
+  "method": "GET",
+  "path": "/api/me",
+  "pathParams": {},
+  "query": {},
+  "headers": {
+    "Authorization": "Bearer <token>"
+  },
+  "body": null
+}

@@ -54,7 +54,12 @@ export function CountUpAnimation({
   }, [value, duration, trigger]); // Re-run when trigger changes
 
   const formatValue = (val: number) => {
-    return val.toFixed(decimals);
+    const safeVal = Number.isFinite(val) ? val : 0;
+    const rounded = Number(safeVal.toFixed(decimals));
+    return rounded.toLocaleString(undefined, {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    });
   };
 
   return (
@@ -62,7 +67,7 @@ export function CountUpAnimation({
       className={`${className} ${isAnimating ? 'animate-pulse-subtle' : ''}`}
       data-testid="count-up-value"
     >
-      {formatValue(displayValue).toLocaleString()}{suffix}
+      {formatValue(displayValue)}{suffix}
     </span>
   );
 }

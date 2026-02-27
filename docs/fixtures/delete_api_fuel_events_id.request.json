@@ -1,0 +1,14 @@
+{
+  "operation": "DELETE /api/fuel-events/{id}",
+  "summary": "DELETE /api/fuel-events/{id}",
+  "method": "DELETE",
+  "path": "/api/fuel-events/{id}",
+  "pathParams": {
+    "id": "string"
+  },
+  "query": {},
+  "headers": {
+    "Authorization": "Bearer <token>"
+  },
+  "body": null
+}

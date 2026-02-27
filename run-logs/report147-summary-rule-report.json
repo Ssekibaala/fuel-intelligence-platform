@@ -1,0 +1,29 @@
+{
+  "timestamp": "2026-02-26T16:15:20.231Z",
+  "projectRef": "pkduhowdqvymmvboyivt",
+  "deployments": {
+    "processTelemetryVersion": 42,
+    "publicApiVersion": 12
+  },
+  "db": {
+    "totalVehicles": 10,
+    "nonNullTankCapacity": 2,
+    "nonNullFuelEfficiency": 0,
+    "nonNullTotalDistance": 0,
+    "nonNullTotalEngineHours": 0,
+    "nonNullTotalFuelUsed": 0
+  },
+  "api": {
+    "status": 200,
+    "totalVehicles": 10,
+    "nonNullTankCapacity": 2,
+    "nonNullFuelEfficiency": 0,
+    "nonNullTotalDistance": 0,
+    "nonNullTotalEngineHours": 0,
+    "nonNullTotalFuelUsed": 0
+  },
+  "notes": [
+    "tank_capacity remains independently populated from report_type=147 and is not nulled by end_date gating.",
+    "fuel_efficiency, total_distance, total_engine_hours, total_fuel_used are currently null until a report_type=147 payload with end_date=today arrives."
+  ]
+}

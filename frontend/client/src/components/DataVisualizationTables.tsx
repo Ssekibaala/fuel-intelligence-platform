@@ -10,7 +10,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Search, Filter, Download, TrendingUp, TrendingDown, AlertTriangle, Fuel, MapPin, Clock, Eye, SortAsc, SortDesc } from "lucide-react";
 
 // Mock data for drains (fuel consumption anomalies)
-const drainsData = [
+const drainsData: any[] = [
   { id: 1, asset: "SEM-123", date: "2024-09-25", fuelDrained: 45, location: "Nairobi Central", severity: "high", status: "investigating" },
   { id: 2, asset: "KCF-234", date: "2024-09-24", fuelDrained: 32, location: "Mombasa Port", severity: "medium", status: "resolved" },
   { id: 3, asset: "NAR-567", date: "2024-09-23", fuelDrained: 67, location: "Kisumu Depot", severity: "high", status: "pending" },
@@ -19,7 +19,7 @@ const drainsData = [
 ];
 
 // Mock data for thefts
-const theftsData = [
+const theftsData: any[] = [
   { id: 1, asset: "SEM-123", date: "2024-09-25", theftAmount: 45, location: "Nairobi Central", time: "02:30", method: "siphon", status: "confirmed" },
   { id: 2, asset: "KCF-234", date: "2024-09-24", theftAmount: 32, location: "Mombasa Port", time: "01:15", method: "pump", status: "suspected" },
   { id: 3, asset: "NAR-567", date: "2024-09-23", theftAmount: 67, location: "Kisumu Depot", time: "03:45", method: "siphon", status: "confirmed" },
@@ -28,7 +28,7 @@ const theftsData = [
 ];
 
 // Mock data for trips
-const tripsData = [
+const tripsData: any[] = [
   { id: 1, asset: "SEM-123", date: "2024-09-25", distance: 245, duration: "4h 32m", startLocation: "Nairobi", endLocation: "Mombasa", efficiency: 8.2, status: "completed" },
   { id: 2, asset: "KCF-234", date: "2024-09-24", distance: 189, duration: "3h 15m", startLocation: "Mombasa", endLocation: "Nairobi", efficiency: 9.1, status: "completed" },
   { id: 3, asset: "NAR-567", date: "2024-09-23", distance: 312, duration: "5h 48m", startLocation: "Kisumu", endLocation: "Eldoret", efficiency: 7.8, status: "completed" },
@@ -41,7 +41,7 @@ interface DataVisualizationTablesProps {
 }
 
 export function DataVisualizationTables({ initialTab = "drains" }: DataVisualizationTablesProps) {
-  const [activeTab, setActiveTab] = useState(initialTab);
+  const [activeTab, setActiveTab] = useState<string>(initialTab);
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string>("");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
@@ -59,7 +59,7 @@ export function DataVisualizationTables({ initialTab = "drains" }: DataVisualiza
 
   // Filtered and sorted data
   const processedData = useMemo(() => {
-    let data = getCurrentData();
+    let data: any[] = getCurrentData();
 
     // Apply search filter
     if (searchTerm) {
@@ -152,7 +152,7 @@ export function DataVisualizationTables({ initialTab = "drains" }: DataVisualiza
     }
   };
 
-  const chartData = getChartData();
+  const chartData = getChartData() as any[];
 
   // Heatmap data for severity/frequency
   const getHeatmapData = () => {

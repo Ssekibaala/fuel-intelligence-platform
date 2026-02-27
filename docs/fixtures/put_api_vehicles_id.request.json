@@ -1,0 +1,17 @@
+{
+  "operation": "PUT /api/vehicles/{id}",
+  "summary": "PUT /api/vehicles/{id}",
+  "method": "PUT",
+  "path": "/api/vehicles/{id}",
+  "pathParams": {
+    "id": "string"
+  },
+  "query": {},
+  "headers": {
+    "Authorization": "Bearer <token>",
+    "Content-Type": "application/json"
+  },
+  "body": {
+    "key": "value"
+  }
+}

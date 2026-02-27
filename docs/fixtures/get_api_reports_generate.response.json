@@ -1,0 +1,28 @@
+{
+  "operation": "GET /api/reports/generate",
+  "status": 200,
+  "contentType": "application/json",
+  "body": {
+    "date": "string",
+    "companyName": "string",
+    "reports": [
+      {
+        "assetDescription": "string",
+        "registrationNumber": "string",
+        "assetId": 123.45,
+        "siteName": "string",
+        "movements": [
+          {
+            "key": "value"
+          }
+        ],
+        "totals": {
+          "key": "value"
+        },
+        "averages": {
+          "key": "value"
+        }
+      }
+    ]
+  }
+}

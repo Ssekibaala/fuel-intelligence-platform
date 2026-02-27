@@ -1,45 +1,178 @@
 import {
-  type User,
-  type InsertUser,
   type Vehicle,
   type InsertVehicle,
   type FuelEvent,
   type InsertFuelEvent,
   type DailyMetrics,
   type InsertDailyMetrics,
-  type UserSettings,
-  type InsertUserSettings,
-  type UpdateUserSettings,
   type KpiAggregates,
   type InsertKpiAggregates,
-  type GlobalFilter,
   type DateRange,
   type VehicleStatus,
   type FuelEventType,
   type Currency,
-  type DailyMovementReport,
-  type InsertDailyMovementReport,
-  type FuelTemperatureReport,
-  type InsertFuelTemperatureReport,
-  type RefuelEvent,
-  type InsertRefuelEvent,
-  type RawSensorData,
-  type InsertRawSensorData
 } from "@shared/schema";
-import { randomUUID } from "crypto";
+import { supabaseAdmin } from "./supabase";
+
+// Helpers
+const toIso = (value?: Date | string | null) => {
+  if (!value) return null;
+  if (value instanceof Date) return value.toISOString();
+  return value;
+};
+
+const mapVehicleRow = (row: any): Vehicle => ({
+  id: row.id,
+  clientId: row.client_id,
+  assetId: row.asset_id,
+  vehiclePlate: row.vehicle_plate,
+  driverName: row.driver_name,
+  status: row.status,
+  currentFuelLevel: row.current_fuel_level,
+  tankCapacity: row.tank_capacity,
+  fuelEfficiency: row.fuel_efficiency,
+  efficiencyRating: row.efficiency_rating,
+  totalDistance: row.total_distance,
+  totalEngineHours: row.total_engine_hours,
+  totalFuelUsed: row.total_fuel_used,
+  workingDays: row.working_days,
+  parkingDays: row.parking_days,
+  lastMaintenanceDate: row.last_maintenance_date ? new Date(row.last_maintenance_date) : null,
+  maintenanceStatus: row.maintenance_status,
+  theftIncidents: row.theft_incidents,
+  costPerKm: row.cost_per_km,
+  systemReliability: row.system_reliability,
+  createdAt: row.created_at ? new Date(row.created_at) : new Date(),
+  updatedAt: row.updated_at ? new Date(row.updated_at) : new Date(),
+});
+
+const cleanPayload = (payload: Record<string, any>) =>
+  Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined));
+
+const mapVehicleInsert = (vehicle: InsertVehicle) => ({
+  client_id: (vehicle as any).clientId,
+  asset_id: vehicle.assetId,
+  vehicle_plate: vehicle.vehiclePlate,
+  driver_name: vehicle.driverName,
+  status: vehicle.status,
+  current_fuel_level: vehicle.currentFuelLevel,
+  tank_capacity: vehicle.tankCapacity,
+  fuel_efficiency: vehicle.fuelEfficiency,
+  efficiency_rating: vehicle.efficiencyRating,
+  total_distance: vehicle.totalDistance,
+  total_engine_hours: vehicle.totalEngineHours,
+  total_fuel_used: vehicle.totalFuelUsed,
+  working_days: vehicle.workingDays,
+  parking_days: vehicle.parkingDays,
+  last_maintenance_date: toIso(vehicle.lastMaintenanceDate),
+  maintenance_status: vehicle.maintenanceStatus,
+  theft_incidents: vehicle.theftIncidents,
+  cost_per_km: vehicle.costPerKm,
+  system_reliability: vehicle.systemReliability,
+});
+
+const mapFuelEventRow = (row: any): FuelEvent => ({
+  id: row.id,
+  vehicleId: row.vehicle_id,
+  eventType: row.event_type,
+  volumeLiters: row.volume_liters,
+  costKES: row.cost_kes,
+  costUGX: row.cost_ugx,
+  location: row.location,
+  notes: row.notes,
+  eventTimestamp: row.event_timestamp ? new Date(row.event_timestamp) : new Date(),
+  createdAt: row.created_at ? new Date(row.created_at) : new Date(),
+});
+
+const mapFuelEventInsert = (event: InsertFuelEvent) => ({
+  vehicle_id: event.vehicleId,
+  event_type: event.eventType,
+  volume_liters: event.volumeLiters,
+  cost_kes: event.costKES,
+  cost_ugx: event.costUGX,
+  location: event.location,
+  notes: event.notes,
+  event_timestamp: toIso(event.eventTimestamp),
+});
+
+const mapDailyMetricsRow = (row: any): DailyMetrics => ({
+  id: row.id,
+  vehicleId: row.vehicle_id,
+  metricDate: row.metric_date ? new Date(row.metric_date) : new Date(),
+  totalFuelConsumed: row.total_fuel_consumed,
+  totalDistanceTraveled: row.total_distance_traveled,
+  totalEngineHours: row.total_engine_hours,
+  idleTimeHours: row.idle_time_hours,
+  numberOfRefills: row.number_of_refills,
+  numberOfThefts: row.number_of_thefts,
+  operatingCostKES: row.operating_cost_kes,
+  operatingCostUGX: row.operating_cost_ugx,
+  createdAt: row.created_at ? new Date(row.created_at) : new Date(),
+});
+
+const mapDailyMetricsInsert = (metric: InsertDailyMetrics) => ({
+  vehicle_id: metric.vehicleId,
+  metric_date: toIso(metric.metricDate),
+  total_fuel_consumed: metric.totalFuelConsumed,
+  total_distance_traveled: metric.totalDistanceTraveled,
+  total_engine_hours: metric.totalEngineHours,
+  idle_time_hours: metric.idleTimeHours,
+  number_of_refills: metric.numberOfRefills,
+  number_of_thefts: metric.numberOfThefts,
+  operating_cost_kes: metric.operatingCostKES,
+  operating_cost_ugx: metric.operatingCostUGX,
+});
+
+const mapKpiAggregatesRow = (row: any): KpiAggregates => ({
+  id: row.id,
+  vehicleId: row.vehicle_id,
+  rangeStart: row.range_start ? new Date(row.range_start) : new Date(),
+  rangeEnd: row.range_end ? new Date(row.range_end) : new Date(),
+  aggregateScope: row.aggregate_scope,
+  totalEngineHours: row.total_engine_hours,
+  totalDistance: row.total_distance,
+  totalFuelUsed: row.total_fuel_used,
+  systemReliabilityScore: row.system_reliability_score,
+  totalRefills: row.total_refills,
+  totalRefillVolume: row.total_refill_volume,
+  totalFuelThefts: row.total_fuel_thefts,
+  totalTheftVolume: row.total_theft_volume,
+  averageEfficiency: row.average_efficiency,
+  fleetUtilization: row.fleet_utilization,
+  totalOperatingCostKES: row.total_operating_cost_kes,
+  totalOperatingCostUGX: row.total_operating_cost_ugx,
+  createdAt: row.created_at ? new Date(row.created_at) : new Date(),
+});
+
+const mapKpiAggregatesInsert = (aggregate: InsertKpiAggregates) => ({
+  vehicle_id: aggregate.vehicleId,
+  range_start: toIso(aggregate.rangeStart),
+  range_end: toIso(aggregate.rangeEnd),
+  aggregate_scope: aggregate.aggregateScope,
+  total_engine_hours: aggregate.totalEngineHours,
+  total_distance: aggregate.totalDistance,
+  total_fuel_used: aggregate.totalFuelUsed,
+  system_reliability_score: aggregate.systemReliabilityScore,
+  total_refills: aggregate.totalRefills,
+  total_refill_volume: aggregate.totalRefillVolume,
+  total_fuel_thefts: aggregate.totalFuelThefts,
+  total_theft_volume: aggregate.totalTheftVolume,
+  average_efficiency: aggregate.averageEfficiency,
+  fleet_utilization: aggregate.fleetUtilization,
+  total_operating_cost_kes: aggregate.totalOperatingCostKES,
+  total_operating_cost_ugx: aggregate.totalOperatingCostUGX,
+});
 
 // Comprehensive Fleet Management Storage Interface
 export interface IStorage {
-  // User Management
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
-
   // Vehicle/Fleet Management
   getVehicles(filters?: {
     status?: VehicleStatus;
     efficiencyRating?: string;
     driverName?: string;
+    clientId?: string;
+    clientIds?: string[];
+    vehicleIds?: string[];
   }): Promise<Vehicle[]>;
   getVehicle(id: string): Promise<Vehicle | undefined>;
   getVehicleByAssetId(assetId: string): Promise<Vehicle | undefined>;
@@ -80,11 +213,6 @@ export interface IStorage {
     averageEfficiency: number;
   }>;
 
-  // User Settings Management
-  getUserSettings(userId: string): Promise<UserSettings | undefined>;
-  createUserSettings(settings: InsertUserSettings): Promise<UserSettings>;
-  updateUserSettings(updates: UpdateUserSettings): Promise<UserSettings | undefined>;
-
   // KPI Aggregates Management
   getKpiAggregates(filters?: {
     vehicleId?: string;
@@ -94,7 +222,7 @@ export interface IStorage {
     scope?: string;
   }): Promise<KpiAggregates[]>;
   createKpiAggregate(aggregate: InsertKpiAggregates): Promise<KpiAggregates>;
-  
+
   // Dashboard & Analytics Methods
   computeFleetKpis(filters: {
     vehicleIds?: string[];
@@ -109,12 +237,18 @@ export interface IStorage {
     totalFuelThefts: number;
   }>;
 
-  getChartData(chartType: 'fuel-consumption' | 'performance-metrics', filters: {
-    vehicleIds?: string[];
-    dateRange: DateRange;
-  }): Promise<Array<{ date: string; value: number; }>>;
+  getChartData(
+    chartType: "fuel-consumption" | "performance-metrics",
+    filters: {
+      vehicleIds?: string[];
+      dateRange: DateRange;
+    }
+  ): Promise<Array<{ date: string; value: number }>>;
 
-  getFocusedAssetSummary(vehicleId: string, dateRange: DateRange): Promise<{
+  getFocusedAssetSummary(
+    vehicleId: string,
+    dateRange: DateRange
+  ): Promise<{
     refillEvents: number;
     refillVolume: number;
     theftEvents: number;
@@ -126,47 +260,7 @@ export interface IStorage {
   }>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-  private vehicles: Map<string, Vehicle>;
-  private fuelEvents: Map<string, FuelEvent>;
-  private dailyMetrics: Map<string, DailyMetrics>;
-  private userSettings: Map<string, UserSettings>;
-  private kpiAggregates: Map<string, KpiAggregates>;
-
-  constructor() {
-    this.users = new Map();
-    this.vehicles = new Map();
-    this.fuelEvents = new Map();
-    this.dailyMetrics = new Map();
-    this.userSettings = new Map();
-    this.kpiAggregates = new Map();
-
-    // Initialize with sample data for demo
-    this.initializeSampleData();
-  }
-
-  // =============================================================================
-  // USER MANAGEMENT
-  // =============================================================================
-
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
-  }
-
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
-  }
-
+export class SupabaseStorage implements IStorage {
   // =============================================================================
   // VEHICLE MANAGEMENT
   // =============================================================================
@@ -175,70 +269,81 @@ export class MemStorage implements IStorage {
     status?: VehicleStatus;
     efficiencyRating?: string;
     driverName?: string;
+    clientId?: string;
+    clientIds?: string[];
+    vehicleIds?: string[];
   }): Promise<Vehicle[]> {
-    let vehicles = Array.from(this.vehicles.values());
-    
-    if (filters?.status) {
-      vehicles = vehicles.filter(v => v.status === filters.status);
+    let query = supabaseAdmin.from("vehicles").select("*");
+
+    if (filters?.vehicleIds?.length) {
+      query = query.in("id", filters.vehicleIds);
     }
+    if (filters?.clientId) {
+      query = query.eq("client_id", filters.clientId);
+    }
+    if (filters?.clientIds?.length) {
+      query = query.in("client_id", filters.clientIds);
+    }
+    if (filters?.status) query = query.eq("status", filters.status);
     if (filters?.efficiencyRating) {
-      vehicles = vehicles.filter(v => v.efficiencyRating === filters.efficiencyRating);
+      query = query.eq("efficiency_rating", filters.efficiencyRating);
     }
     if (filters?.driverName) {
-      vehicles = vehicles.filter(v => 
-        v.driverName.toLowerCase().includes(filters.driverName!.toLowerCase())
-      );
+      query = query.ilike("driver_name", `%${filters.driverName}%`);
     }
-    
-    return vehicles;
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    return (data || []).map(mapVehicleRow);
   }
 
   async getVehicle(id: string): Promise<Vehicle | undefined> {
-    return this.vehicles.get(id);
+    const { data, error } = await supabaseAdmin
+      .from("vehicles")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+    if (error || !data) return undefined;
+    return mapVehicleRow(data);
   }
 
   async getVehicleByAssetId(assetId: string): Promise<Vehicle | undefined> {
-    return Array.from(this.vehicles.values()).find(v => v.assetId === assetId);
+    const { data, error } = await supabaseAdmin
+      .from("vehicles")
+      .select("*")
+      .eq("asset_id", assetId)
+      .maybeSingle();
+    if (error || !data) return undefined;
+    return mapVehicleRow(data);
   }
 
   async createVehicle(vehicle: InsertVehicle): Promise<Vehicle> {
-    const id = randomUUID();
-    const now = new Date();
-    const newVehicle: Vehicle = {
-      ...vehicle,
-      id,
-      createdAt: now,
-      updatedAt: now,
-      lastMaintenanceDate: vehicle.lastMaintenanceDate ?? null,
-      maintenanceStatus: vehicle.maintenanceStatus ?? "Next week",
-      tankCapacity: vehicle.tankCapacity ?? 300,
-      totalDistance: vehicle.totalDistance ?? 0,
-      totalEngineHours: vehicle.totalEngineHours ?? 0,
-      totalFuelUsed: vehicle.totalFuelUsed ?? 0,
-      workingDays: vehicle.workingDays ?? 0,
-      parkingDays: vehicle.parkingDays ?? 0,
-      theftIncidents: vehicle.theftIncidents ?? 0,
-      costPerKm: vehicle.costPerKm ?? 15.5
-    };
-    this.vehicles.set(id, newVehicle);
-    return newVehicle;
+    const payload = cleanPayload(mapVehicleInsert(vehicle));
+    const { data, error } = await supabaseAdmin
+      .from("vehicles")
+      .insert([payload])
+      .select("*")
+      .single();
+    if (error) throw error;
+    return mapVehicleRow(data);
   }
 
   async updateVehicle(id: string, updates: Partial<InsertVehicle>): Promise<Vehicle | undefined> {
-    const existing = this.vehicles.get(id);
-    if (!existing) return undefined;
-    
-    const updated: Vehicle = { 
-      ...existing, 
-      ...updates, 
-      updatedAt: new Date() 
-    };
-    this.vehicles.set(id, updated);
-    return updated;
+    const payload = cleanPayload(mapVehicleInsert(updates as InsertVehicle));
+    const { data, error } = await supabaseAdmin
+      .from("vehicles")
+      .update(payload)
+      .eq("id", id)
+      .select("*")
+      .maybeSingle();
+    if (error || !data) return undefined;
+    return mapVehicleRow(data);
   }
 
   async deleteVehicle(id: string): Promise<boolean> {
-    return this.vehicles.delete(id);
+    const { error } = await supabaseAdmin.from("vehicles").delete().eq("id", id);
+    return !error;
   }
 
   // =============================================================================
@@ -253,66 +358,59 @@ export class MemStorage implements IStorage {
     endDate?: Date;
     limit?: number;
   }): Promise<FuelEvent[]> {
-    let events = Array.from(this.fuelEvents.values());
-    
-    if (filters?.vehicleId) {
-      events = events.filter(e => e.vehicleId === filters.vehicleId);
-    }
-    if (filters?.vehicleIds?.length) {
-      events = events.filter(e => filters.vehicleIds!.includes(e.vehicleId));
-    }
-    if (filters?.eventType) {
-      events = events.filter(e => e.eventType === filters.eventType);
-    }
-    if (filters?.startDate) {
-      events = events.filter(e => new Date(e.eventTimestamp) >= filters.startDate!);
-    }
-    if (filters?.endDate) {
-      events = events.filter(e => new Date(e.eventTimestamp) <= filters.endDate!);
-    }
-    
-    // Sort by timestamp descending
-    events.sort((a, b) => new Date(b.eventTimestamp).getTime() - new Date(a.eventTimestamp).getTime());
-    
-    if (filters?.limit) {
-      events = events.slice(0, filters.limit);
-    }
-    
-    return events;
+    let query = supabaseAdmin
+      .from("fuel_events")
+      .select("*")
+      .order("event_timestamp", { ascending: false });
+
+    if (filters?.vehicleId) query = query.eq("vehicle_id", filters.vehicleId);
+    if (filters?.vehicleIds?.length) query = query.in("vehicle_id", filters.vehicleIds);
+    if (filters?.eventType) query = query.eq("event_type", filters.eventType);
+    if (filters?.startDate) query = query.gte("event_timestamp", toIso(filters.startDate) as string);
+    if (filters?.endDate) query = query.lte("event_timestamp", toIso(filters.endDate) as string);
+    if (filters?.limit) query = query.limit(filters.limit);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return (data || []).map(mapFuelEventRow);
   }
 
   async getFuelEvent(id: string): Promise<FuelEvent | undefined> {
-    return this.fuelEvents.get(id);
+    const { data, error } = await supabaseAdmin
+      .from("fuel_events")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+    if (error || !data) return undefined;
+    return mapFuelEventRow(data);
   }
 
   async createFuelEvent(event: InsertFuelEvent): Promise<FuelEvent> {
-    const id = randomUUID();
-    const now = new Date();
-    const newEvent: FuelEvent = { 
-      ...event,
-      id,
-      createdAt: now,
-      costKES: event.costKES ?? null,
-      costUGX: event.costUGX ?? null,
-      location: event.location ?? null,
-      notes: event.notes ?? null,
-      eventTimestamp: event.eventTimestamp ?? now
-    };
-    this.fuelEvents.set(id, newEvent);
-    return newEvent;
+    const payload = cleanPayload(mapFuelEventInsert(event));
+    const { data, error } = await supabaseAdmin
+      .from("fuel_events")
+      .insert([payload])
+      .select("*")
+      .single();
+    if (error) throw error;
+    return mapFuelEventRow(data);
   }
 
   async updateFuelEvent(id: string, updates: Partial<InsertFuelEvent>): Promise<FuelEvent | undefined> {
-    const existing = this.fuelEvents.get(id);
-    if (!existing) return undefined;
-    
-    const updated: FuelEvent = { ...existing, ...updates };
-    this.fuelEvents.set(id, updated);
-    return updated;
+    const payload = cleanPayload(mapFuelEventInsert(updates as InsertFuelEvent));
+    const { data, error } = await supabaseAdmin
+      .from("fuel_events")
+      .update(payload)
+      .eq("id", id)
+      .select("*")
+      .maybeSingle();
+    if (error || !data) return undefined;
+    return mapFuelEventRow(data);
   }
 
   async deleteFuelEvent(id: string): Promise<boolean> {
-    return this.fuelEvents.delete(id);
+    const { error } = await supabaseAdmin.from("fuel_events").delete().eq("id", id);
+    return !error;
   }
 
   // =============================================================================
@@ -325,43 +423,30 @@ export class MemStorage implements IStorage {
     startDate?: Date;
     endDate?: Date;
   }): Promise<DailyMetrics[]> {
-    let metrics = Array.from(this.dailyMetrics.values());
-    
-    if (filters?.vehicleId) {
-      metrics = metrics.filter(m => m.vehicleId === filters.vehicleId);
-    }
-    if (filters?.vehicleIds?.length) {
-      metrics = metrics.filter(m => m.vehicleId && filters.vehicleIds!.includes(m.vehicleId));
-    }
-    if (filters?.startDate) {
-      metrics = metrics.filter(m => new Date(m.metricDate) >= filters.startDate!);
-    }
-    if (filters?.endDate) {
-      metrics = metrics.filter(m => new Date(m.metricDate) <= filters.endDate!);
-    }
-    
-    return metrics.sort((a, b) => new Date(b.metricDate).getTime() - new Date(a.metricDate).getTime());
+    let query = supabaseAdmin
+      .from("daily_metrics")
+      .select("*")
+      .order("metric_date", { ascending: false });
+
+    if (filters?.vehicleId) query = query.eq("vehicle_id", filters.vehicleId);
+    if (filters?.vehicleIds?.length) query = query.in("vehicle_id", filters.vehicleIds);
+    if (filters?.startDate) query = query.gte("metric_date", toIso(filters.startDate) as string);
+    if (filters?.endDate) query = query.lte("metric_date", toIso(filters.endDate) as string);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return (data || []).map(mapDailyMetricsRow);
   }
 
   async createDailyMetric(metric: InsertDailyMetrics): Promise<DailyMetrics> {
-    const id = randomUUID();
-    const now = new Date();
-    const newMetric: DailyMetrics = { 
-      ...metric,
-      id,
-      createdAt: now,
-      vehicleId: metric.vehicleId ?? null,
-      totalFuelConsumed: metric.totalFuelConsumed ?? 0,
-      totalDistanceTraveled: metric.totalDistanceTraveled ?? 0,
-      totalEngineHours: metric.totalEngineHours ?? 0,
-      idleTimeHours: metric.idleTimeHours ?? 0,
-      numberOfRefills: metric.numberOfRefills ?? 0,
-      numberOfThefts: metric.numberOfThefts ?? 0,
-      operatingCostKES: metric.operatingCostKES ?? 0,
-      operatingCostUGX: metric.operatingCostUGX ?? 0
-    };
-    this.dailyMetrics.set(id, newMetric);
-    return newMetric;
+    const payload = cleanPayload(mapDailyMetricsInsert(metric));
+    const { data, error } = await supabaseAdmin
+      .from("daily_metrics")
+      .insert([payload])
+      .select("*")
+      .single();
+    if (error) throw error;
+    return mapDailyMetricsRow(data);
   }
 
   async aggregateDailyMetrics(filters: {
@@ -375,61 +460,21 @@ export class MemStorage implements IStorage {
     averageEfficiency: number;
   }> {
     const metrics = await this.getDailyMetrics(filters);
-    
-    const totals = metrics.reduce((acc, metric) => ({
-      totalFuelConsumed: acc.totalFuelConsumed + metric.totalFuelConsumed,
-      totalDistance: acc.totalDistance + metric.totalDistanceTraveled,
-      totalEngineHours: acc.totalEngineHours + metric.totalEngineHours,
-    }), { totalFuelConsumed: 0, totalDistance: 0, totalEngineHours: 0 });
-    
-    const averageEfficiency = totals.totalDistance > 0 
-      ? (totals.totalFuelConsumed / totals.totalDistance) * 100 
+
+    const totals = metrics.reduce(
+      (acc, metric) => ({
+        totalFuelConsumed: acc.totalFuelConsumed + metric.totalFuelConsumed,
+        totalDistance: acc.totalDistance + metric.totalDistanceTraveled,
+        totalEngineHours: acc.totalEngineHours + metric.totalEngineHours,
+      }),
+      { totalFuelConsumed: 0, totalDistance: 0, totalEngineHours: 0 }
+    );
+
+    const averageEfficiency = totals.totalDistance > 0
+      ? (totals.totalFuelConsumed / totals.totalDistance) * 100
       : 0;
-    
+
     return { ...totals, averageEfficiency };
-  }
-
-  // =============================================================================
-  // USER SETTINGS MANAGEMENT
-  // =============================================================================
-
-  async getUserSettings(userId: string): Promise<UserSettings | undefined> {
-    return Array.from(this.userSettings.values()).find(s => s.userId === userId);
-  }
-
-  async createUserSettings(settings: InsertUserSettings): Promise<UserSettings> {
-    const id = randomUUID();
-    const now = new Date();
-    const newSettings: UserSettings = {
-      ...settings,
-      id,
-      updatedAt: now,
-      defaultDateRange: settings.defaultDateRange ?? "Last 7 Days",
-      selectedVehicles: Array.isArray(settings.selectedVehicles) ? settings.selectedVehicles : [],
-      dashboardLayout: typeof settings.dashboardLayout === 'object' ? settings.dashboardLayout : {},
-      notifications: settings.notifications ?? true
-    };
-    this.userSettings.set(id, newSettings);
-    return newSettings;
-  }
-
-  async updateUserSettings(updates: UpdateUserSettings): Promise<UserSettings | undefined> {
-    const existing = Array.from(this.userSettings.values()).find(s => s.userId === updates.userId);
-    if (!existing) return undefined;
-    
-    const updated: UserSettings = {
-      ...existing,
-      ...updates,
-      updatedAt: new Date(),
-      selectedVehicles: updates.selectedVehicles !== undefined
-        ? (Array.isArray(updates.selectedVehicles) ? updates.selectedVehicles : [])
-        : existing.selectedVehicles,
-      dashboardLayout: updates.dashboardLayout !== undefined
-        ? (typeof updates.dashboardLayout === 'object' ? updates.dashboardLayout : {})
-        : existing.dashboardLayout
-    };
-    this.userSettings.set(existing.id, updated);
-    return updated;
   }
 
   // =============================================================================
@@ -443,52 +488,28 @@ export class MemStorage implements IStorage {
     endDate?: Date;
     scope?: string;
   }): Promise<KpiAggregates[]> {
-    let aggregates = Array.from(this.kpiAggregates.values());
-    
-    if (filters?.vehicleId) {
-      aggregates = aggregates.filter(a => a.vehicleId === filters.vehicleId);
-    }
-    if (filters?.vehicleIds?.length) {
-      aggregates = aggregates.filter(a => 
-        a.vehicleId && filters.vehicleIds!.includes(a.vehicleId)
-      );
-    }
-    if (filters?.startDate) {
-      aggregates = aggregates.filter(a => new Date(a.rangeStart) >= filters.startDate!);
-    }
-    if (filters?.endDate) {
-      aggregates = aggregates.filter(a => new Date(a.rangeEnd) <= filters.endDate!);
-    }
-    if (filters?.scope) {
-      aggregates = aggregates.filter(a => a.aggregateScope === filters.scope);
-    }
-    
-    return aggregates;
+    let query = supabaseAdmin.from("kpi_aggregates").select("*");
+
+    if (filters?.vehicleId) query = query.eq("vehicle_id", filters.vehicleId);
+    if (filters?.vehicleIds?.length) query = query.in("vehicle_id", filters.vehicleIds);
+    if (filters?.startDate) query = query.gte("range_start", toIso(filters.startDate) as string);
+    if (filters?.endDate) query = query.lte("range_end", toIso(filters.endDate) as string);
+    if (filters?.scope) query = query.eq("aggregate_scope", filters.scope);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return (data || []).map(mapKpiAggregatesRow);
   }
 
   async createKpiAggregate(aggregate: InsertKpiAggregates): Promise<KpiAggregates> {
-    const id = randomUUID();
-    const now = new Date();
-    const newAggregate: KpiAggregates = { 
-      ...aggregate,
-      id,
-      createdAt: now,
-      vehicleId: aggregate.vehicleId ?? null,
-      totalEngineHours: aggregate.totalEngineHours ?? 0,
-      totalDistance: aggregate.totalDistance ?? 0,
-      totalFuelUsed: aggregate.totalFuelUsed ?? 0,
-      systemReliabilityScore: aggregate.systemReliabilityScore ?? 85.2,
-      totalRefills: aggregate.totalRefills ?? 0,
-      totalRefillVolume: aggregate.totalRefillVolume ?? 0,
-      totalFuelThefts: aggregate.totalFuelThefts ?? 0,
-      totalTheftVolume: aggregate.totalTheftVolume ?? 0,
-      averageEfficiency: aggregate.averageEfficiency ?? 0,
-      fleetUtilization: aggregate.fleetUtilization ?? 0,
-      totalOperatingCostKES: aggregate.totalOperatingCostKES ?? 0,
-      totalOperatingCostUGX: aggregate.totalOperatingCostUGX ?? 0
-    };
-    this.kpiAggregates.set(id, newAggregate);
-    return newAggregate;
+    const payload = cleanPayload(mapKpiAggregatesInsert(aggregate));
+    const { data, error } = await supabaseAdmin
+      .from("kpi_aggregates")
+      .insert([payload])
+      .select("*")
+      .single();
+    if (error) throw error;
+    return mapKpiAggregatesRow(data);
   }
 
   // =============================================================================
@@ -507,67 +528,100 @@ export class MemStorage implements IStorage {
     totalRefills: number;
     totalFuelThefts: number;
   }> {
-    // Get vehicles in scope
-    const vehicles = filters.vehicleIds?.length 
-      ? Array.from(this.vehicles.values()).filter(v => filters.vehicleIds!.includes(v.id))
-      : Array.from(this.vehicles.values());
+    const scopedVehicles = await this.getVehicles({
+      vehicleIds: filters.vehicleIds?.length ? filters.vehicleIds : undefined,
+    });
 
-    // Aggregate vehicle totals
-    const totals = vehicles.reduce((acc, vehicle) => ({
-      totalEngineHours: acc.totalEngineHours + vehicle.totalEngineHours,
-      totalDistance: acc.totalDistance + vehicle.totalDistance,
-      totalFuelUsed: acc.totalFuelUsed + vehicle.totalFuelUsed,
-    }), { totalEngineHours: 0, totalDistance: 0, totalFuelUsed: 0 });
+    const parsedStartDate = filters.dateRange.startDate ? new Date(filters.dateRange.startDate) : undefined;
+    const parsedEndDate = filters.dateRange.endDate ? new Date(filters.dateRange.endDate) : undefined;
 
-    // Calculate system reliability (average of all vehicles)
-    const systemReliability = vehicles.length > 0 
-      ? vehicles.reduce((sum, v) => {
-          const score = v.systemReliability === "Excellent" ? 95 : 
-                       v.systemReliability === "Good" ? 80 : 
-                       v.systemReliability === "Warning" ? 60 : 40;
+    const metricsTotals = (parsedStartDate && parsedEndDate)
+      ? await this.aggregateDailyMetrics({
+          vehicleIds: filters.vehicleIds,
+          startDate: parsedStartDate,
+          endDate: parsedEndDate,
+        })
+      : null;
+
+    const totals = metricsTotals
+      ? {
+          totalEngineHours: metricsTotals.totalEngineHours,
+          totalDistance: metricsTotals.totalDistance,
+          totalFuelUsed: metricsTotals.totalFuelConsumed,
+        }
+      : scopedVehicles.reduce(
+          (acc, vehicle) => ({
+            totalEngineHours: acc.totalEngineHours + (vehicle.totalEngineHours ?? 0),
+            totalDistance: acc.totalDistance + (vehicle.totalDistance ?? 0),
+            totalFuelUsed: acc.totalFuelUsed + (vehicle.totalFuelUsed ?? 0),
+          }),
+          { totalEngineHours: 0, totalDistance: 0, totalFuelUsed: 0 }
+        );
+
+    const systemReliability = scopedVehicles.length > 0
+      ? scopedVehicles.reduce((sum, v) => {
+          const score = v.systemReliability === "Excellent"
+            ? 95
+            : v.systemReliability === "Good"
+            ? 80
+            : v.systemReliability === "Warning"
+            ? 60
+            : 40;
           return sum + score;
-        }, 0) / vehicles.length
+        }, 0) / scopedVehicles.length
       : 85.2;
 
-    // Count fuel events
-    const vehicleIds = vehicles.map(v => v.id);
-    const fuelEvents = await this.getFuelEvents({ vehicleIds });
-    
-    const totalRefills = fuelEvents.filter(e => e.eventType === "refill").length;
-    const totalFuelThefts = fuelEvents.filter(e => e.eventType === "theft").length;
+    const fuelEvents = await this.getFuelEvents({
+      vehicleIds: scopedVehicles.map((v) => v.id),
+      startDate: parsedStartDate,
+      endDate: parsedEndDate,
+    });
+    const totalRefills = fuelEvents.filter((e) => e.eventType === "refill").length;
+    const totalFuelThefts = fuelEvents.filter((e) => e.eventType === "theft").length;
 
     return {
       ...totals,
       systemReliability,
       totalRefills,
-      totalFuelThefts
+      totalFuelThefts,
     };
   }
 
-  async getChartData(chartType: 'fuel-consumption' | 'performance-metrics', filters: {
-    vehicleIds?: string[];
-    dateRange: DateRange;
-  }): Promise<Array<{ date: string; value: number; }>> {
-    const metrics = await this.getDailyMetrics({ vehicleIds: filters.vehicleIds });
-    
-    // Group by date and sum values
+  async getChartData(
+    chartType: "fuel-consumption" | "performance-metrics",
+    filters: {
+      vehicleIds?: string[];
+      dateRange: DateRange;
+    }
+  ): Promise<Array<{ date: string; value: number }>> {
+    const parsedStartDate = filters.dateRange.startDate ? new Date(filters.dateRange.startDate) : undefined;
+    const parsedEndDate = filters.dateRange.endDate ? new Date(filters.dateRange.endDate) : undefined;
+
+    const metrics = await this.getDailyMetrics({
+      vehicleIds: filters.vehicleIds,
+      startDate: parsedStartDate,
+      endDate: parsedEndDate,
+    });
+
     const grouped = new Map<string, number>();
-    
-    metrics.forEach(metric => {
-      const dateKey = new Date(metric.metricDate).toISOString().split('T')[0];
-      const value = chartType === 'fuel-consumption' 
-        ? metric.totalFuelConsumed 
+    metrics.forEach((metric) => {
+      const dateKey = new Date(metric.metricDate).toISOString().split("T")[0];
+      const value = chartType === "fuel-consumption"
+        ? metric.totalFuelConsumed
         : metric.totalDistanceTraveled;
-      
+
       grouped.set(dateKey, (grouped.get(dateKey) || 0) + value);
     });
-    
+
     return Array.from(grouped.entries())
       .map(([date, value]) => ({ date, value }))
       .sort((a, b) => a.date.localeCompare(b.date));
   }
 
-  async getFocusedAssetSummary(vehicleId: string, dateRange: DateRange): Promise<{
+  async getFocusedAssetSummary(
+    vehicleId: string,
+    dateRange: DateRange
+  ): Promise<{
     refillEvents: number;
     refillVolume: number;
     theftEvents: number;
@@ -577,97 +631,29 @@ export class MemStorage implements IStorage {
     overspeedingEvents: number;
     maintenanceEvents: number;
   }> {
-    const fuelEvents = await this.getFuelEvents({ vehicleId });
-    
-    const refillEvents = fuelEvents.filter(e => e.eventType === "refill");
-    const theftEvents = fuelEvents.filter(e => e.eventType === "theft");
-    
+    const parsedStartDate = dateRange.startDate ? new Date(dateRange.startDate) : undefined;
+    const parsedEndDate = dateRange.endDate ? new Date(dateRange.endDate) : undefined;
+
+    const fuelEvents = await this.getFuelEvents({
+      vehicleId,
+      startDate: parsedStartDate,
+      endDate: parsedEndDate,
+    });
+
+    const refillEvents = fuelEvents.filter((e) => e.eventType === "refill");
+    const theftEvents = fuelEvents.filter((e) => e.eventType === "theft");
+
     return {
       refillEvents: refillEvents.length,
       refillVolume: refillEvents.reduce((sum, e) => sum + e.volumeLiters, 0),
       theftEvents: theftEvents.length,
       theftVolume: Math.abs(theftEvents.reduce((sum, e) => sum + e.volumeLiters, 0)),
-      idlingEvents: 12, // Mock data
-      idlingHours: 8.5,
-      overspeedingEvents: 3,
-      maintenanceEvents: 1
+      idlingEvents: 0,
+      idlingHours: 0,
+      overspeedingEvents: 0,
+      maintenanceEvents: 0,
     };
-  }
-
-  // =============================================================================
-  // SAMPLE DATA INITIALIZATION
-  // =============================================================================
-
-  private initializeSampleData(): void {
-    // Create sample vehicles with luxury fleet data
-    const sampleVehicles: InsertVehicle[] = [
-      {
-        assetId: "SEM - 12346",
-        vehiclePlate: "KDQ 123A",
-        driverName: "James Kimani",
-        status: "Active",
-        currentFuelLevel: 180,
-        tankCapacity: 300,
-        fuelEfficiency: 8.5,
-        efficiencyRating: "Excellent",
-        totalDistance: 15420,
-        totalEngineHours: 285,
-        totalFuelUsed: 1310,
-        workingDays: 22,
-        parkingDays: 3,
-        lastMaintenanceDate: new Date("2024-08-15"),
-        maintenanceStatus: "Next week",
-        theftIncidents: 0,
-        costPerKm: 15.5,
-        systemReliability: "Excellent"
-      },
-      {
-        assetId: "SEM - 12347",
-        vehiclePlate: "KDQ 456B",
-        driverName: "Mary Wanjiku",
-        status: "Active",
-        currentFuelLevel: 220,
-        tankCapacity: 300,
-        fuelEfficiency: 9.2,
-        efficiencyRating: "Good",
-        totalDistance: 12800,
-        totalEngineHours: 240,
-        totalFuelUsed: 1176,
-        workingDays: 20,
-        parkingDays: 5,
-        lastMaintenanceDate: new Date("2024-07-20"),
-        maintenanceStatus: "Overdue",
-        theftIncidents: 1,
-        costPerKm: 16.2,
-        systemReliability: "Good"
-      },
-      {
-        assetId: "SEM - 12348",
-        vehiclePlate: "KDQ 789C",
-        driverName: "Peter Mwangi",
-        status: "Maintenance",
-        currentFuelLevel: 45,
-        tankCapacity: 300,
-        fuelEfficiency: 12.1,
-        efficiencyRating: "Poor",
-        totalDistance: 8600,
-        totalEngineHours: 180,
-        totalFuelUsed: 1041,
-        workingDays: 15,
-        parkingDays: 10,
-        lastMaintenanceDate: new Date("2024-09-01"),
-        maintenanceStatus: "In progress",
-        theftIncidents: 2,
-        costPerKm: 18.8,
-        systemReliability: "Warning"
-      }
-    ];
-
-    // Create vehicles
-    sampleVehicles.forEach(vehicle => {
-      this.createVehicle(vehicle);
-    });
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new SupabaseStorage();

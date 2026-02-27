@@ -8,8 +8,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Settings, DollarSign, Gauge, Palette, Upload, Save } from "lucide-react";
+import { DollarSign, Gauge, Palette, Upload, Save, X } from "lucide-react";
 import { useGlobalFilter } from "./GlobalFilterContext";
+import teletracLogo from "@/assets/teletrac-logo.png";
+import { getStoredBrandLogo, setStoredBrandLogo } from "@/lib/branding";
 
 interface SettingsData {
   fuelCostPerLiter: number;
@@ -38,7 +40,7 @@ export function SettingsPage({ pageId }: SettingsPageProps) {
     excellentThreshold: 8.0,
     acceptableThreshold: 12.0,
     theftAlertThreshold: 15.0,
-    companyLogo: null,
+    companyLogo: getStoredBrandLogo(),
     defaultTheme: "dark",
     defaultLandingPage: "dashboard",
     enableNotifications: true,
@@ -84,22 +86,42 @@ export function SettingsPage({ pageId }: SettingsPageProps) {
 
   const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
-      // In a real app, you'd upload to a server
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setSettings(prev => ({
-          ...prev,
-          companyLogo: e.target?.result as string
-        }));
-      };
-      reader.readAsDataURL(file);
-      
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast({
+        variant: "destructive",
+        title: "Invalid file",
+        description: "Please upload an image file.",
+      });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const nextLogo = (e.target?.result as string) || null;
+      setSettings((prev) => ({
+        ...prev,
+        companyLogo: nextLogo,
+      }));
+      setStoredBrandLogo(nextLogo);
       toast({
         title: "Logo uploaded",
-        description: "Company logo has been updated and will appear in reports.",
+        description: "Logo updated. It now appears in page headings across the app.",
       });
-    }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleResetLogo = () => {
+    setSettings((prev) => ({
+      ...prev,
+      companyLogo: null,
+    }));
+    setStoredBrandLogo(null);
+    toast({
+      title: "Logo reset",
+      description: "Default Teletrac logo restored in page headings.",
+    });
   };
 
   const updateSetting = <K extends keyof SettingsData>(key: K, value: SettingsData[K]) => {
@@ -109,13 +131,13 @@ export function SettingsPage({ pageId }: SettingsPageProps) {
     }));
   };
 
+  const currentHeadingLogo = settings.companyLogo || teletracLogo;
+
   return (
     <div className="space-y-8">
       {/* Page Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <PageHeader pageId={pageId || "settings"} />
-        </div>
+      <div className="mb-6 flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+        <PageHeader pageId={pageId || "settings"} className="mb-0" />
         <Button 
           onClick={handleSaveSettings} 
           disabled={isSaving}
@@ -129,7 +151,7 @@ export function SettingsPage({ pageId }: SettingsPageProps) {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 gap-8">
         {/* Financial Parameters */}
-        <GlassCard className="p-6">
+        <GlassCard className="p-6" hover={false}>
           <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
             <DollarSign className="w-5 h-5 text-primary" />
             Financial Parameters
@@ -197,7 +219,7 @@ export function SettingsPage({ pageId }: SettingsPageProps) {
         </GlassCard>
 
         {/* Threshold Preferences */}
-        <GlassCard className="p-6">
+        <GlassCard className="p-6" hover={false}>
           <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
             <Gauge className="w-5 h-5 text-primary" />
             Efficiency Thresholds
@@ -282,7 +304,7 @@ export function SettingsPage({ pageId }: SettingsPageProps) {
         </GlassCard>
 
         {/* Branding & Defaults */}
-        <GlassCard className="p-6">
+        <GlassCard className="p-6" hover={false}>
           <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
             <Palette className="w-5 h-5 text-primary" />
             Branding & Defaults
@@ -290,17 +312,15 @@ export function SettingsPage({ pageId }: SettingsPageProps) {
           
           <div className="space-y-6">
             <div className="space-y-3">
-              <Label className="text-sm font-medium text-foreground">Company Logo</Label>
+              <Label className="text-sm font-medium text-foreground">Page Heading Logo</Label>
               <div className="flex items-center gap-4">
-                {settings.companyLogo && (
-                  <div className="w-16 h-16 border border-border/30 rounded-lg overflow-hidden bg-card/20">
-                    <img 
-                      src={settings.companyLogo} 
-                      alt="Company Logo" 
-                      className="w-full h-full object-contain"
-                    />
-                  </div>
-                )}
+                <div className="h-16 w-40 border border-border/30 rounded-lg overflow-hidden bg-white p-2">
+                  <img
+                    src={currentHeadingLogo}
+                    alt="Page heading logo"
+                    className="w-full h-full object-contain"
+                  />
+                </div>
                 <div className="flex-1">
                   <input
                     type="file"
@@ -318,8 +338,18 @@ export function SettingsPage({ pageId }: SettingsPageProps) {
                     <Upload className="w-4 h-4" />
                     Upload Logo
                   </Button>
+                  {settings.companyLogo && (
+                    <Button
+                      variant="ghost"
+                      onClick={handleResetLogo}
+                      className="ml-2"
+                    >
+                      <X className="w-4 h-4 mr-1" />
+                      Reset
+                    </Button>
+                  )}
                   <p className="text-xs text-muted-foreground mt-1">
-                    Used in generated reports and PDFs
+                    Upload your brand logo here. It will appear in the page heading on each page.
                   </p>
                 </div>
               </div>
@@ -386,13 +416,13 @@ export function SettingsPage({ pageId }: SettingsPageProps) {
         </GlassCard>
 
         {/* System Information */}
-        <GlassCard className="p-6">
+        <GlassCard className="p-6" hover={false}>
           <h2 className="text-xl font-bold text-foreground mb-6">System Information</h2>
           
           <div className="space-y-4">
             <div className="flex justify-between py-2 border-b border-border/20">
               <span className="text-sm text-muted-foreground">Application Version</span>
-              <span className="text-sm font-medium text-foreground">Fleet Sentinel v2.1.4</span>
+              <span className="text-sm font-medium text-foreground">Teletrac Fuel v2.1.4</span>
             </div>
             
             <div className="flex justify-between py-2 border-b border-border/20">
@@ -420,3 +450,4 @@ export function SettingsPage({ pageId }: SettingsPageProps) {
     </div>
   );
 }
+

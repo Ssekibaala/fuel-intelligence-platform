@@ -1,0 +1,14 @@
+{
+  "operation": "GET /api/reports/preview-fuel-temperature/{date}",
+  "summary": "GET /api/reports/preview-fuel-temperature/{date}",
+  "method": "GET",
+  "path": "/api/reports/preview-fuel-temperature/{date}",
+  "pathParams": {
+    "date": "2026-02-22"
+  },
+  "query": {},
+  "headers": {
+    "Authorization": "Bearer <token>"
+  },
+  "body": null
+}

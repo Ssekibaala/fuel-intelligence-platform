@@ -1,0 +1,19 @@
+{
+  "operation": "GET /api/fuel-events",
+  "summary": "GET /api/fuel-events",
+  "method": "GET",
+  "path": "/api/fuel-events",
+  "pathParams": {},
+  "query": {
+    "vehicleId": "string",
+    "vehicleIds": "string",
+    "eventType": "refill",
+    "startDate": "2026-02-22T12:00:00Z",
+    "endDate": "2026-02-22T12:00:00Z",
+    "clientId": "11111111-1111-1111-1111-111111111111"
+  },
+  "headers": {
+    "Authorization": "Bearer <token>"
+  },
+  "body": null
+}

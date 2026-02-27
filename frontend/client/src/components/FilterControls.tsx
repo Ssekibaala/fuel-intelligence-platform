@@ -7,15 +7,72 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { VehicleMultiSelect } from "./VehicleMultiSelect";
 import { DateRangePicker } from "./DateRangePicker";
-import { useGlobalFilter } from "./GlobalFilterContext";
+import { useGlobalFilter, getDateRangeFromPreset } from "./GlobalFilterContext";
+import { type DateRange } from "@shared/schema";
 
 interface FilterControlsProps {
   className?: string;
+  dateRangeOverride?: DateRange;
+  onDateRangeOverrideChange?: (dateRange: DateRange) => void;
+  defaultDatePreset?: Exclude<NonNullable<DateRange["preset"]>, "custom">;
 }
 
-export function FilterControls({ className = "" }: FilterControlsProps) {
-  const { state, actions, computed } = useGlobalFilter();
+const DATE_PRESET_LABELS: Record<Exclude<NonNullable<DateRange["preset"]>, "custom">, string> = {
+  today: "Today",
+  yesterday: "Yesterday",
+  week_to_date: "Week to Date",
+  month_to_date: "Month to Date",
+  last_7_days: "Last 7 Days",
+  last_30_days: "Last 30 Days",
+};
+
+function buildDateRangeFromPreset(
+  preset: Exclude<NonNullable<DateRange["preset"]>, "custom">
+): DateRange {
+  const { startDate, endDate } = getDateRangeFromPreset(preset);
+  return {
+    preset,
+    startDate: startDate.toISOString(),
+    endDate: endDate.toISOString(),
+    label: DATE_PRESET_LABELS[preset],
+  };
+}
+
+export function FilterControls({
+  className = "",
+  dateRangeOverride,
+  onDateRangeOverrideChange,
+  defaultDatePreset = "last_7_days",
+}: FilterControlsProps) {
+  const { state, actions } = useGlobalFilter();
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const activeDateRange = dateRangeOverride ?? state.dateRange;
+  const setDateRange = onDateRangeOverrideChange ?? actions.setDateRange;
+  const hasDateRangeFilter =
+    activeDateRange.preset !== defaultDatePreset &&
+    Boolean(activeDateRange.startDate) &&
+    Boolean(activeDateRange.endDate);
+  const hasActiveFilters = state.selectedVehicles.length > 0 || hasDateRangeFilter;
+  const dateRangeLabel = activeDateRange.label || "Custom range";
+  const filterSummary = (() => {
+    const parts: string[] = [];
+    if (state.selectedVehicles.length > 0) {
+      parts.push(`${state.selectedVehicles.length} vehicle${state.selectedVehicles.length === 1 ? "" : "s"}`);
+    } else {
+      parts.push("All vehicles");
+    }
+    parts.push(dateRangeLabel);
+    return parts.join(" | ");
+  })();
+
+  const resetFilters = () => {
+    if (!dateRangeOverride) {
+      actions.resetFilters();
+      return;
+    }
+    actions.setSelectedVehicles([]);
+    setDateRange(buildDateRangeFromPreset(defaultDatePreset));
+  };
 
   const handleCurrencyChange = (currency: "KES" | "UGX" | "USD") => {
     actions.setCurrency(currency);
@@ -52,7 +109,7 @@ export function FilterControls({ className = "" }: FilterControlsProps) {
           >
             <Filter className="h-4 w-4 mr-2" />
             <span className="hidden sm:inline">Filters</span>
-            {computed.hasActiveFilters && (
+            {hasActiveFilters && (
               <div className="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full" />
             )}
           </Button>
@@ -62,11 +119,11 @@ export function FilterControls({ className = "" }: FilterControlsProps) {
           <div className="p-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-sm">Global Filters</h3>
-              {computed.hasActiveFilters && (
+              {hasActiveFilters && (
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={actions.resetFilters}
+                  onClick={resetFilters}
                   className="h-7 text-xs text-destructive hover:text-destructive"
                   data-testid="button-reset-filters"
                 >
@@ -94,8 +151,8 @@ export function FilterControls({ className = "" }: FilterControlsProps) {
                   Date Range
                 </label>
                 <DateRangePicker
-                  value={state.dateRange}
-                  onChange={actions.setDateRange}
+                  value={activeDateRange}
+                  onChange={setDateRange}
                 />
               </div>
 
@@ -147,11 +204,11 @@ export function FilterControls({ className = "" }: FilterControlsProps) {
             </div>
 
             {/* Filter Summary */}
-            {computed.hasActiveFilters && (
+            {hasActiveFilters && (
               <>
                 <Separator className="my-4" />
                 <div className="text-xs text-muted-foreground">
-                  <span className="font-medium">Active filters:</span> {computed.filterSummary}
+                  <span className="font-medium">Active filters:</span> {filterSummary}
                 </div>
               </>
             )}
@@ -170,7 +227,7 @@ export function FilterControls({ className = "" }: FilterControlsProps) {
       </Badge>
 
       {/* Active Filters Summary (when filters are active) */}
-      {computed.hasActiveFilters && (
+      {hasActiveFilters && (
         <div className="hidden md:flex items-center gap-2">
           <Separator orientation="vertical" className="h-4" />
           
@@ -193,18 +250,15 @@ export function FilterControls({ className = "" }: FilterControlsProps) {
           )}
 
           {/* Date range */}
-          {state.dateRange.preset !== "last_7_days" && (
+          {hasDateRangeFilter && (
             <Badge 
               variant="secondary" 
               className="flex items-center gap-1 text-xs"
               data-testid="badge-date-range"
             >
-              {computed.dateRangeLabel}
+              {dateRangeLabel}
               <button
-                onClick={() => actions.setDateRange({ 
-                  preset: "last_7_days", 
-                  label: "Last 7 Days" 
-                })}
+                onClick={() => setDateRange(buildDateRangeFromPreset(defaultDatePreset))}
                 className="ml-1 hover:bg-destructive/20 rounded-sm p-0.5"
                 data-testid="button-reset-date-range"
               >

@@ -1,0 +1,14 @@
+{
+  "operation": "DELETE /api/admin/assignments/{id}",
+  "summary": "DELETE /api/admin/assignments/{id}",
+  "method": "DELETE",
+  "path": "/api/admin/assignments/{id}",
+  "pathParams": {
+    "id": "11111111-1111-1111-1111-111111111111"
+  },
+  "query": {},
+  "headers": {
+    "Authorization": "Bearer <token>"
+  },
+  "body": null
+}

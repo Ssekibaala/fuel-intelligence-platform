@@ -1,0 +1,831 @@
+openapi: 3.1.0
+info:
+  title: Fuel Platform Frontend Contract
+  version: 1.0.0
+  description: Frontend-driven API contract for `frontend/client`.
+servers:
+  - url: http://localhost:3000
+security:
+  - bearerAuth: []
+tags:
+  - name: Public
+  - name: Auth
+  - name: Admin
+  - name: Fleet
+  - name: Reports
+paths:
+  /health:
+    get:
+      tags: [Public]
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, message]
+                properties:
+                  status: { type: string }
+                  message: { type: string }
+
+  /api/onboarding/status:
+    get:
+      tags: [Public]
+      security: []
+      responses:
+        '200':
+          description: Onboarding status
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [hasAdmin, hasClient, needsOnboarding]
+                properties:
+                  hasAdmin: { type: boolean }
+                  hasClient: { type: boolean }
+                  needsOnboarding: { type: boolean }
+
+  /api/onboarding/bootstrap:
+    post:
+      tags: [Public]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, clientName]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+                displayName: { type: string }
+                clientName: { type: string }
+      responses:
+        '201':
+          description: Bootstrap result
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, adminId, clientId, clientName]
+                properties:
+                  success: { type: boolean }
+                  adminId: { type: string, format: uuid }
+                  clientId: { type: string, format: uuid }
+                  clientName: { type: string }
+
+  /api/me:
+    get:
+      tags: [Auth]
+      responses:
+        '200':
+          description: Current user and scope
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeResponse'
+
+  /api/admin/clients:
+    get:
+      tags: [Admin]
+      responses:
+        '200':
+          description: Clients
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/AdminClient' }
+    post:
+      tags: [Admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+      responses:
+        '201':
+          description: Created client
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminClient'
+
+  /api/admin/users:
+    get:
+      tags: [Admin]
+      responses:
+        '200':
+          description: Users
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/AdminUser' }
+    post:
+      tags: [Admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+                role: { type: string, enum: [admin, client] }
+                displayName: { type: string }
+                clientIds:
+                  type: array
+                  items: { type: string, format: uuid }
+      responses:
+        '201':
+          description: Created user ID
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, email]
+                properties:
+                  id: { type: string, format: uuid }
+                  email: { type: string, format: email }
+
+  /api/admin/assignments:
+    get:
+      tags: [Admin]
+      parameters:
+        - in: query
+          name: userId
+          schema: { type: string, format: uuid }
+        - in: query
+          name: clientId
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Assignments
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/AdminAssignment' }
+    post:
+      tags: [Admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, clientId]
+              properties:
+                userId: { type: string, format: uuid }
+                clientId: { type: string, format: uuid }
+      responses:
+        '201':
+          description: Created assignment
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, user_id, client_id]
+                properties:
+                  id: { type: string, format: uuid }
+                  user_id: { type: string, format: uuid }
+                  client_id: { type: string, format: uuid }
+
+  /api/admin/assignments/{id}:
+    delete:
+      tags: [Admin]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Deleted
+
+  /api/vehicles:
+    get:
+      tags: [Fleet]
+      parameters:
+        - in: query
+          name: status
+          schema: { type: string, enum: [Active, Idle, Maintenance, Out of Service] }
+        - in: query
+          name: efficiencyRating
+          schema: { type: string, enum: [Excellent, Good, Poor] }
+        - in: query
+          name: driverName
+          schema: { type: string }
+        - in: query
+          name: clientId
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Vehicles
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Vehicle' }
+    post:
+      tags: [Fleet]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VehicleWrite'
+      responses:
+        '201':
+          description: Created vehicle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicle'
+
+  /api/vehicles/{id}:
+    get:
+      tags: [Fleet]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Vehicle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicle'
+    put:
+      tags: [Fleet]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Updated vehicle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicle'
+    delete:
+      tags: [Fleet]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '204':
+          description: Deleted
+
+  /api/fuel-events:
+    get:
+      tags: [Fleet]
+      parameters:
+        - in: query
+          name: vehicleId
+          schema: { type: string }
+        - in: query
+          name: vehicleIds
+          schema: { type: string, description: comma-separated IDs }
+        - in: query
+          name: eventType
+          schema: { type: string, enum: [refill, theft, consumption, leak] }
+        - in: query
+          name: startDate
+          schema: { type: string, format: date-time }
+        - in: query
+          name: endDate
+          schema: { type: string, format: date-time }
+        - in: query
+          name: clientId
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Fuel events
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/FuelEvent' }
+    post:
+      tags: [Fleet]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FuelEventWrite'
+      responses:
+        '201':
+          description: Created fuel event
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FuelEvent'
+
+  /api/fuel-events/{id}:
+    put:
+      tags: [Fleet]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Updated fuel event
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FuelEvent'
+    delete:
+      tags: [Fleet]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '204':
+          description: Deleted
+
+  /api/daily-metrics:
+    get:
+      tags: [Fleet]
+      parameters:
+        - in: query
+          name: vehicleId
+          schema: { type: string }
+        - in: query
+          name: vehicleIds
+          schema: { type: string, description: comma-separated IDs }
+        - in: query
+          name: startDate
+          schema: { type: string, format: date-time }
+        - in: query
+          name: endDate
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Daily metrics
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/DailyMetric' }
+    post:
+      tags: [Fleet]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: Created daily metric
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DailyMetric'
+
+  /api/dashboard/kpis:
+    get:
+      tags: [Fleet]
+      parameters:
+        - in: query
+          name: vehicleIds
+          schema: { type: string, description: comma-separated IDs }
+        - in: query
+          name: startDate
+          schema: { type: string, format: date-time }
+        - in: query
+          name: endDate
+          schema: { type: string, format: date-time }
+        - in: query
+          name: clientId
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Dashboard KPIs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardKpis'
+
+  /api/charts/fuel-consumption:
+    post:
+      tags: [Fleet]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                vehicleIds:
+                  type: array
+                  items: { type: string }
+                dateRange:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '200':
+          description: Chart points
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [date, value]
+                  properties:
+                    date: { type: string }
+                    value: { type: number }
+
+  /api/charts/performance-metrics:
+    post:
+      tags: [Fleet]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                vehicleIds:
+                  type: array
+                  items: { type: string }
+                dateRange:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '200':
+          description: Chart points
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [date, value]
+                  properties:
+                    date: { type: string }
+                    value: { type: number }
+
+  /api/reports/generate:
+    get:
+      tags: [Reports]
+      parameters:
+        - in: query
+          name: format
+          required: true
+          schema: { type: string, enum: [preview, pdf, excel, csv] }
+        - in: query
+          name: report_type
+          required: true
+          schema: { type: string, enum: [daily-movement, fuel-temperature] }
+        - in: query
+          name: start_date
+          required: true
+          schema: { type: string, format: date }
+        - in: query
+          name: end_date
+          schema: { type: string, format: date }
+        - in: query
+          name: vehicle_id
+          schema: { type: string }
+        - in: query
+          name: vehicle_ids
+          schema: { type: string, description: comma-separated IDs }
+        - in: query
+          name: client_id
+          schema: { type: string, format: uuid }
+        - in: query
+          name: asset_id
+          schema: { type: integer }
+        - in: query
+          name: registration_number
+          schema: { type: string }
+        - in: query
+          name: asset_name
+          schema: { type: string }
+      responses:
+        '200':
+          description: Preview JSON or file download
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/DailyMovementPreview'
+                  - $ref: '#/components/schemas/FuelTemperaturePreview'
+            application/pdf:
+              schema: { type: string, format: binary }
+            text/csv:
+              schema: { type: string, format: binary }
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { type: string, format: binary }
+
+  /api/reports/preview-daily-movement/{date}:
+    get:
+      tags: [Reports]
+      parameters:
+        - in: path
+          name: date
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Daily movement preview
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DailyMovementPreview'
+
+  /api/reports/preview-fuel-temperature/{date}:
+    get:
+      tags: [Reports]
+      parameters:
+        - in: path
+          name: date
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Fuel/temperature preview
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FuelTemperaturePreview'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    MeResponse:
+      type: object
+      required: [user, profile, clientIds, clients]
+      properties:
+        user:
+          type: object
+          nullable: true
+          properties:
+            id: { type: string, format: uuid }
+            email: { type: string, nullable: true }
+        profile:
+          type: object
+          nullable: true
+          properties:
+            id: { type: string, format: uuid }
+            role: { type: string, enum: [admin, client] }
+            display_name: { type: string, nullable: true }
+        clientIds:
+          type: array
+          items: { type: string, format: uuid }
+        clients:
+          type: array
+          items:
+            type: object
+            required: [id, name]
+            properties:
+              id: { type: string, format: uuid }
+              name: { type: string }
+
+    AdminClient:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        created_at: { type: string, format: date-time }
+
+    AdminUser:
+      type: object
+      required: [id, role, clientIds]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time, nullable: true }
+        role: { type: string, enum: [admin, client] }
+        displayName: { type: string, nullable: true }
+        clientIds:
+          type: array
+          items: { type: string, format: uuid }
+
+    AdminAssignment:
+      type: object
+      required: [id, user_id, client_id]
+      properties:
+        id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid }
+        client_id: { type: string, format: uuid }
+        clients:
+          type: object
+          nullable: true
+          properties:
+            name: { type: string }
+
+    Vehicle:
+      type: object
+      required: [id, clientId, assetId, vehiclePlate, driverName, status, currentFuelLevel, tankCapacity, fuelEfficiency, efficiencyRating, totalDistance, totalEngineHours, totalFuelUsed, workingDays, parkingDays, maintenanceStatus, theftIncidents, costPerKm, systemReliability, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        clientId: { type: string, format: uuid }
+        assetId: { type: string }
+        vehiclePlate: { type: string }
+        driverName: { type: string }
+        status: { type: string, enum: [Active, Idle, Maintenance, Out of Service] }
+        currentFuelLevel: { type: number }
+        tankCapacity: { type: number }
+        fuelEfficiency: { type: number }
+        efficiencyRating: { type: string, enum: [Excellent, Good, Poor] }
+        totalDistance: { type: number }
+        totalEngineHours: { type: number }
+        totalFuelUsed: { type: number }
+        workingDays: { type: integer }
+        parkingDays: { type: integer }
+        lastMaintenanceDate: { type: string, format: date-time, nullable: true }
+        maintenanceStatus: { type: string }
+        theftIncidents: { type: integer }
+        costPerKm: { type: number }
+        systemReliability: { type: string, enum: [Excellent, Good, Warning, Critical] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    VehicleWrite:
+      type: object
+      required: [clientId, assetId, vehiclePlate, driverName, status, currentFuelLevel, tankCapacity, fuelEfficiency, efficiencyRating, systemReliability]
+      properties:
+        clientId: { type: string, format: uuid }
+        assetId: { type: string }
+        vehiclePlate: { type: string }
+        driverName: { type: string }
+        status: { type: string, enum: [Active, Idle, Maintenance, Out of Service] }
+        currentFuelLevel: { type: number }
+        tankCapacity: { type: number }
+        fuelEfficiency: { type: number }
+        efficiencyRating: { type: string, enum: [Excellent, Good, Poor] }
+        systemReliability: { type: string, enum: [Excellent, Good, Warning, Critical] }
+
+    FuelEvent:
+      type: object
+      required: [id, vehicleId, eventType, volumeLiters, eventTimestamp, createdAt]
+      properties:
+        id: { type: string }
+        vehicleId: { type: string }
+        eventType: { type: string, enum: [refill, theft, consumption, leak] }
+        volumeLiters: { type: number }
+        costKES: { type: number, nullable: true }
+        costUGX: { type: number, nullable: true }
+        location: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+        eventTimestamp: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+
+    FuelEventWrite:
+      type: object
+      required: [vehicleId, eventType, volumeLiters]
+      properties:
+        vehicleId: { type: string }
+        eventType: { type: string, enum: [refill, theft, consumption, leak] }
+        volumeLiters: { type: number }
+        costKES: { type: number, nullable: true }
+        costUGX: { type: number, nullable: true }
+        location: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+        eventTimestamp: { type: string, format: date-time, nullable: true }
+
+    DailyMetric:
+      type: object
+      required: [id, vehicleId, metricDate, totalFuelConsumed, totalDistanceTraveled, totalEngineHours, idleTimeHours, numberOfRefills, numberOfThefts, operatingCostKES, operatingCostUGX, createdAt]
+      properties:
+        id: { type: string }
+        vehicleId: { type: string }
+        metricDate: { type: string, format: date-time }
+        totalFuelConsumed: { type: number }
+        totalDistanceTraveled: { type: number }
+        totalEngineHours: { type: number }
+        idleTimeHours: { type: number }
+        numberOfRefills: { type: integer }
+        numberOfThefts: { type: integer }
+        operatingCostKES: { type: number }
+        operatingCostUGX: { type: number }
+        createdAt: { type: string, format: date-time }
+
+    DashboardKpis:
+      type: object
+      required: [totalVehicles, activeVehicles, totalRefills, totalThefts, totalFuelUsed, totalDistance, totalEngineHours, fleetUtilization, lastUpdated]
+      properties:
+        totalVehicles: { type: integer }
+        activeVehicles: { type: integer }
+        totalRefills: { type: integer }
+        totalThefts: { type: integer }
+        totalFuelUsed: { type: number }
+        totalDistance: { type: number }
+        totalEngineHours: { type: number }
+        fleetUtilization: { type: integer }
+        lastUpdated: { type: string, format: date-time }
+
+    DailyMovementPreview:
+      type: object
+      required: [date, companyName, reports]
+      properties:
+        date: { type: string }
+        companyName: { type: string }
+        reports:
+          type: array
+          items:
+            type: object
+            required: [assetDescription, registrationNumber, assetId, siteName, movements, totals, averages]
+            properties:
+              assetDescription: { type: string }
+              registrationNumber: { type: string }
+              assetId: { type: number }
+              siteName: { type: string }
+              movements:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+              totals:
+                type: object
+                additionalProperties: true
+              averages:
+                type: object
+                additionalProperties: true
+
+    FuelTemperaturePreview:
+      type: object
+      required: [date, reportTitle, assetName, totalDistance, totalRefills, totalDrains, fuelUsed, fuelConsumption, refuelEvents, rawSensorData]
+      properties:
+        date: { type: string }
+        reportDate: { type: string, nullable: true }
+        reportTitle: { type: string }
+        assetName: { type: string }
+        fromDatetime: { type: string, format: date-time, nullable: true }
+        toDatetime: { type: string, format: date-time, nullable: true }
+        generatedOn: { type: string, format: date-time, nullable: true }
+        totalDistance: { type: number }
+        totalRefills: { type: number }
+        totalDrains: { type: number }
+        fuelUsed: { type: number }
+        fuelConsumption: { type: number }
+        refuelEvents:
+          type: array
+          items:
+            type: object
+            required: [time, initial_fuel, final_fuel, refilled, location, latitude, longitude]
+            properties:
+              time: { type: string }
+              initial_fuel: { type: number }
+              final_fuel: { type: number }
+              refilled: { type: number }
+              location: { type: string }
+              latitude: { type: number }
+              longitude: { type: number }
+        rawSensorData:
+          type: array
+          items:
+            type: object
+            required: [timestamp, fuel, altitude, odometer, speed, temperature]
+            properties:
+              timestamp: { type: string }
+              fuel: { type: number }
+              altitude: { type: number }
+              odometer: { type: number }
+              speed: { type: number }
+              temperature: { type: number }

@@ -3,17 +3,22 @@ import React from 'react';
 // --- Interfaces (Kept as provided) ---
 interface RefuelEvent {
   time: string; // "08 Dec 2025 12:30:05"
-  initial_fuel: number;
-  final_fuel: number;
-  refilled: number;
+  initial_fuel: number | string | null;
+  final_fuel: number | string | null;
+  refilled: number | string | null;
   location: string;
-  latitude: number;
-  longitude: number;
+  latitude: number | string | null;
+  longitude: number | string | null;
 }
 
 interface FuelTemperaturePreviewProps {
   date: string; // YYYY-MM-DD
   data: {
+    reportTitle?: string;
+    assetName?: string;
+    fromDatetime?: string | null;
+    toDatetime?: string | null;
+    generatedOn?: string | null;
     totalDistance: number;
     totalRefills: number;
     totalDrains: number;
@@ -24,10 +29,45 @@ interface FuelTemperaturePreviewProps {
 }
 
 export function FuelTemperaturePreview({ date, data }: FuelTemperaturePreviewProps) {
-  // Hardcoded per sample image
-  const displayDate = "08 Dec 2025"; 
-  const fromTime = "00:00:00";
-  const toTime = "13:43:00";
+  const toValidDate = (value?: string | null) => {
+    if (!value) return null;
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+  const formatDate = (value: Date) => value.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric'
+  });
+  const formatTime = (value: Date) => value.toLocaleTimeString('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+  const fromDateValue = toValidDate(data.fromDatetime) || toValidDate(`${date}T00:00:00`) || new Date();
+  const toDateValue = toValidDate(data.toDatetime) || toValidDate(`${date}T23:59:00`) || new Date();
+  const generatedOnValue = toValidDate(data.generatedOn);
+
+  const displayDate = formatDate(fromDateValue);
+  const fromTime = formatTime(fromDateValue);
+  const toTime = formatTime(toDateValue);
+  const generatedLabel = generatedOnValue
+    ? `${formatDate(generatedOnValue)} ${formatTime(generatedOnValue)}`
+    : `${displayDate} ${toTime}`;
+  const reportTitle = data.reportTitle || "Sensor / Fuel / Temperature";
+  const assetName = data.assetName || "Howo Demo";
+  const refuelEvents = data.refuelEvents || [];
+  const safeNumber = (value: number | string | null | undefined) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+  const formatMetric = (value: number | string | null | undefined, digits = 2) =>
+    safeNumber(value).toFixed(digits);
+  const formatCoord = (value: number | string | null | undefined, digits = 6) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed.toFixed(digits) : "-";
+  };
   
   // Custom Metric component for perfect alignment
   const Metric: React.FC<{ label: string, value: string, unit: string }> = ({ label, value, unit }) => (
@@ -56,7 +96,7 @@ export function FuelTemperaturePreview({ date, data }: FuelTemperaturePreviewPro
       {/* --- HEADER --- */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10mm' }}>
         <div style={{ fontSize: '16pt', fontWeight: 'bold', textAlign: 'left' }}>
-          Sensor / Fuel / Temperature
+          {reportTitle}
         </div>
         {/* Teletrac/Hewi Logo Placeholder */}
         <div style={{ textAlign: 'right', lineHeight: 1 }}>
@@ -72,22 +112,22 @@ export function FuelTemperaturePreview({ date, data }: FuelTemperaturePreviewPro
       {/* --- ASSET AND DATE RANGE --- */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '2mm', marginBottom: '6mm', fontSize: '10pt' }}>
         <div style={{ fontWeight: 'bold' }}>Assets</div>
-        <div>Howo Demo</div>
+        <div>{assetName}</div>
         
         <div style={{ display: 'flex', justifyContent: 'space-between', width: '500px' }}>
             <span style={{ display: 'inline-block', width: '250px' }}>From&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{displayDate} {fromTime}</span>
             <span style={{ display: 'inline-block', width: '250px' }}>To&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{displayDate} {toTime}</span>
-            <span style={{ fontSize: '9pt', color: '#555', position: 'absolute', right: '20mm' }}>Generated on {displayDate} 13:42:57</span>
+            <span style={{ fontSize: '9pt', color: '#555', position: 'absolute', right: '20mm' }}>Generated on {generatedLabel}</span>
         </div>
       </div>
       
       {/* --- SUMMARY METRICS --- */}
       <div style={{ textAlign: 'left', marginBottom: '15mm', display: 'flex', flexDirection: 'column', gap: '0' }}>
-        <Metric label="Total Distance" value={data.totalDistance.toFixed(2)} unit="km" />
-        <Metric label="Total refills" value={data.totalRefills.toFixed(2)} unit="L" />
-        <Metric label="Total Drains" value={data.totalDrains.toFixed(2)} unit="L" />
-        <Metric label="Fuel used" value={data.fuelUsed.toFixed(2)} unit="L" />
-        <Metric label="Fuel Consumption" value={data.fuelConsumption.toFixed(2)} unit="Km/L" />
+        <Metric label="Total Distance" value={formatMetric(data.totalDistance)} unit="km" />
+        <Metric label="Total refills" value={formatMetric(data.totalRefills)} unit="L" />
+        <Metric label="Total Drains" value={formatMetric(data.totalDrains)} unit="L" />
+        <Metric label="Fuel used" value={formatMetric(data.fuelUsed)} unit="L" />
+        <Metric label="Fuel Consumption" value={formatMetric(data.fuelConsumption)} unit="Km/L" />
       </div>
 
       {/* --- FUEL GRAPH REPLICATION (VISUAL PROOF OF SOLUTION) --- */}
@@ -171,15 +211,15 @@ export function FuelTemperaturePreview({ date, data }: FuelTemperaturePreviewPro
           </tr>
         </thead>
         <tbody>
-          {data.refuelEvents.map((event, idx) => (
+          {refuelEvents.map((event, idx) => (
             <tr key={idx} style={{ borderBottom: '1px solid #eee' }}>
-              <td style={{ padding: '1mm 2mm 1mm 5px', verticalAlign: 'top' }}>{event.time}</td>
-              <td style={{ padding: '1mm', textAlign: 'right', verticalAlign: 'top' }}>{event.initial_fuel.toFixed(2)}</td>
-              <td style={{ padding: '1mm', textAlign: 'right', verticalAlign: 'top' }}>{event.final_fuel.toFixed(2)}</td>
-              <td style={{ padding: '1mm', textAlign: 'right', verticalAlign: 'top' }}>{event.refilled.toFixed(2)}</td>
-              <td style={{ padding: '1mm 2mm 1mm 5px', verticalAlign: 'top', wordBreak: 'break-word', fontSize: '8pt' }}>{event.location}</td>
-              <td style={{ padding: '1mm', textAlign: 'right', verticalAlign: 'top' }}>{event.latitude.toFixed(6)}</td>
-              <td style={{ padding: '1mm', textAlign: 'right', verticalAlign: 'top' }}>{event.longitude.toFixed(6)}</td>
+              <td style={{ padding: '1mm 2mm 1mm 5px', verticalAlign: 'top' }}>{event.time || "-"}</td>
+              <td style={{ padding: '1mm', textAlign: 'right', verticalAlign: 'top' }}>{formatMetric(event.initial_fuel)}</td>
+              <td style={{ padding: '1mm', textAlign: 'right', verticalAlign: 'top' }}>{formatMetric(event.final_fuel)}</td>
+              <td style={{ padding: '1mm', textAlign: 'right', verticalAlign: 'top' }}>{formatMetric(event.refilled)}</td>
+              <td style={{ padding: '1mm 2mm 1mm 5px', verticalAlign: 'top', wordBreak: 'break-word', fontSize: '8pt' }}>{event.location || "-"}</td>
+              <td style={{ padding: '1mm', textAlign: 'right', verticalAlign: 'top' }}>{formatCoord(event.latitude)}</td>
+              <td style={{ padding: '1mm', textAlign: 'right', verticalAlign: 'top' }}>{formatCoord(event.longitude)}</td>
             </tr>
           ))}
         </tbody>

@@ -1,0 +1,16 @@
+{
+  "operation": "GET /api/dashboard/kpis",
+  "status": 200,
+  "contentType": "application/json",
+  "body": {
+    "totalVehicles": 1,
+    "activeVehicles": 1,
+    "totalRefills": 1,
+    "totalThefts": 1,
+    "totalFuelUsed": 123.45,
+    "totalDistance": 123.45,
+    "totalEngineHours": 123.45,
+    "fleetUtilization": 1,
+    "lastUpdated": "2026-02-22T12:00:00Z"
+  }
+}

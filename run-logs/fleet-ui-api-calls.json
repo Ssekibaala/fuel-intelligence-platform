@@ -1,0 +1,298 @@
+{
+  "timestamp": "2026-02-26T18:06:28.404Z",
+  "apiCalls": [
+    {
+      "status": 200,
+      "url": "https://pkduhowdqvymmvboyivt.supabase.co/functions/v1/public-api/api/onboarding/status",
+      "body": {
+        "hasAdmin": true,
+        "hasClient": true,
+        "needsOnboarding": false
+      }
+    },
+    {
+      "status": 200,
+      "url": "https://pkduhowdqvymmvboyivt.supabase.co/functions/v1/public-api/api/me",
+      "body": {
+        "user": {
+          "id": "dba69226-02f6-4374-8df9-d91477173ed7",
+          "email": "telemetry.admin.20260225051034@example.com"
+        },
+        "profile": {
+          "id": "dba69226-02f6-4374-8df9-d91477173ed7",
+          "role": "admin",
+          "display_name": "Telemetry Test Admin"
+        },
+        "clientIds": [
+          "190eca12-5940-4b1c-9997-91231314c96d"
+        ],
+        "clients": [
+          {
+            "id": "190eca12-5940-4b1c-9997-91231314c96d",
+            "name": "MOVIT PRODUCTS LTD"
+          }
+        ]
+      }
+    },
+    {
+      "status": 200,
+      "url": "https://pkduhowdqvymmvboyivt.supabase.co/functions/v1/public-api/api/vehicles?",
+      "body": [
+        {
+          "id": "a0acf213-7ed4-4643-b35d-476d45a8c1c6",
+          "clientId": "190eca12-5940-4b1c-9997-91231314c96d",
+          "assetId": "352592572072775",
+          "vehiclePlate": "SCANIA_UAS239L_CAN",
+          "driverName": "Unassigned",
+          "status": "Active",
+          "currentFuelLevel": 325,
+          "tankCapacity": 500,
+          "fuelEfficiency": 1.27,
+          "efficiencyRating": "Poor",
+          "totalDistance": 107.54,
+          "totalEngineHours": 5.44,
+          "totalFuelUsed": 85,
+          "workingDays": 0,
+          "parkingDays": 0,
+          "lastMaintenanceDate": null,
+          "maintenanceStatus": "N/A",
+          "theftIncidents": 0,
+          "costPerKm": 0,
+          "systemReliability": "Good",
+          "createdAt": "2026-02-26T15:10:05.5335",
+          "updatedAt": "2026-02-26T16:25:47.098"
+        },
+        {
+          "id": "8e9a1980-d9d0-4910-a16b-30963a8c784a",
+          "clientId": "190eca12-5940-4b1c-9997-91231314c96d",
+          "assetId": "353691845849792",
+          "vehiclePlate": "SCANIA_UAS239L_AF",
+          "driverName": "Unassigned",
+          "status": "Active",
+          "currentFuelLevel": 354.26,
+          "tankCapacity": 500,
+          "fuelEfficiency": 1.44,
+          "efficiencyRating": "Poor",
+          "totalDistance": 96.14,
+          "totalEngineHours": 5.00139,
+          "totalFuelUsed": 66.96,
+          "workingDays": 0,
+          "parkingDays": 0,
+          "lastMaintenanceDate": null,
+          "maintenanceStatus": "N/A",
+          "theftIncidents": 0,
+          "costPerKm": 0,
+          "systemReliability": "Good",
+          "createdAt": "2026-02-26T15:10:05.875308",
+          "updatedAt": "2026-02-26T16:25:47.098"
+        },
+        {
+          "id": "e62b532e-97b1-43f1-a4be-8ff4c843efcd",
+          "clientId": "255076e9-0553-47cf-8528-3a19672dcd48",
+          "assetId": "353201357628012",
+          "vehiclePlate": "FAW UBF493U",
+          "driverName": "0",
+          "status": "Active",
+          "currentFuelLevel": 211.68,
+          "tankCapacity": 590,
+          "fuelEfficiency": 3.6,
+          "efficiencyRating": "Poor",
+          "totalDistance": 203.05,
+          "totalEngineHours": 6.51611,
+          "totalFuelUsed": 56.405,
+          "workingDays": 0,
+          "parkingDays": 0,
+          "lastMaintenanceDate": null,
+          "maintenanceStatus": "N/A",
+          "theftIncidents": 0,
+          "costPerKm": 0,
+          "systemReliability": "Good",
+          "createdAt": "2026-02-26T15:19:03.481152",
+          "updatedAt": "2026-02-26T17:52:02.679664"
+        }
+      ]
+    },
+    {
+      "status": 200,
+      "url": "https://pkduhowdqvymmvboyivt.supabase.co/functions/v1/public-api/api/fuel-events?startDate=2026-02-19T21%3A00%3A00.000Z&endDate=2026-02-26T18%3A06%3A30.645Z",
+      "body": []
+    },
+    {
+      "status": 200,
+      "url": "https://pkduhowdqvymmvboyivt.supabase.co/functions/v1/public-api/api/daily-metrics?startDate=2026-02-19T21%3A00%3A00.000Z&endDate=2026-02-26T18%3A06%3A30.645Z",
+      "body": []
+    },
+    {
+      "status": 200,
+      "url": "https://pkduhowdqvymmvboyivt.supabase.co/functions/v1/public-api/api/admin/users",
+      "body": [
+        {
+          "id": "cb39d572-e48d-4a40-902e-37db9c331b95",
+          "email": "briansekibaala@gmail.com",
+          "createdAt": "2026-02-26T17:26:50.99818Z",
+          "role": "client",
+          "displayName": "Brian Teletrac",
+          "clientIds": [
+            "255076e9-0553-47cf-8528-3a19672dcd48",
+            "190eca12-5940-4b1c-9997-91231314c96d"
+          ]
+        },
+        {
+          "id": "4abae18c-20ce-4a98-9541-bcd4e712faec",
+          "email": "public.api.verify.1772000353@example.com",
+          "createdAt": "2026-02-25T06:19:13.981772Z",
+          "role": "admin",
+          "displayName": "API Verify Admin",
+          "clientIds": []
+        },
+        {
+          "id": "dba69226-02f6-4374-8df9-d91477173ed7",
+          "email": "telemetry.admin.20260225051034@example.com",
+          "createdAt": "2026-02-25T05:10:34.380659Z",
+          "role": "admin",
+          "displayName": "Telemetry Test Admin",
+          "clientIds": [
+            "190eca12-5940-4b1c-9997-91231314c96d"
+          ]
+        },
+        {
+          "id": "f7b07254-b4ae-49b0-b0c0-21181f30a42b",
+          "email": "telemetry.admin.20260225051019@example.com",
+          "createdAt": "2026-02-25T05:10:19.471576Z",
+          "role": "client",
+          "displayName": "telemetry.admin.20260225051019@example.com",
+          "clientIds": []
+        },
+        {
+          "id": "6fe820fc-de99-4727-a084-7afbc26f9e15",
+          "email": "briansekibala@gmail.com",
+          "createdAt": "2026-02-03T17:34:32.869898Z",
+          "role": "admin",
+          "displayName": "briansekibala@gmail.com",
+          "clientIds": []
+        }
+      ]
+    },
+    {
+      "status": 200,
+      "url": "https://pkduhowdqvymmvboyivt.supabase.co/functions/v1/public-api/api/dashboard/kpis?startDate=2026-02-19T21%3A00%3A00.000Z&endDate=2026-02-26T18%3A06%3A30.645Z",
+      "body": {
+        "totalVehicles": 3,
+        "activeVehicles": 3,
+        "totalRefills": 0,
+        "totalThefts": 0,
+        "totalFuelUsed": 208.36499999999998,
+        "totalDistance": 406.73,
+        "totalEngineHours": 16.9575,
+        "fleetUtilization": 100,
+        "lastUpdated": "2026-02-26T18:06:34.853Z"
+      }
+    },
+    {
+      "status": 200,
+      "url": "https://pkduhowdqvymmvboyivt.supabase.co/functions/v1/public-api/api/admin/clients",
+      "body": [
+        {
+          "id": "255076e9-0553-47cf-8528-3a19672dcd48",
+          "name": "Globe Trotters Demo",
+          "created_at": "2026-02-26T15:44:34.735783"
+        },
+        {
+          "id": "190eca12-5940-4b1c-9997-91231314c96d",
+          "name": "MOVIT PRODUCTS LTD",
+          "created_at": "2026-02-26T08:09:45.579514"
+        }
+      ]
+    },
+    {
+      "status": 200,
+      "url": "https://pkduhowdqvymmvboyivt.supabase.co/functions/v1/public-api/api/vehicles?",
+      "body": [
+        {
+          "id": "a0acf213-7ed4-4643-b35d-476d45a8c1c6",
+          "clientId": "190eca12-5940-4b1c-9997-91231314c96d",
+          "assetId": "352592572072775",
+          "vehiclePlate": "SCANIA_UAS239L_CAN",
+          "driverName": "Unassigned",
+          "status": "Active",
+          "currentFuelLevel": 325,
+          "tankCapacity": 500,
+          "fuelEfficiency": 1.27,
+          "efficiencyRating": "Poor",
+          "totalDistance": 107.54,
+          "totalEngineHours": 5.44,
+          "totalFuelUsed": 85,
+          "workingDays": 0,
+          "parkingDays": 0,
+          "lastMaintenanceDate": null,
+          "maintenanceStatus": "N/A",
+          "theftIncidents": 0,
+          "costPerKm": 0,
+          "systemReliability": "Good",
+          "createdAt": "2026-02-26T15:10:05.5335",
+          "updatedAt": "2026-02-26T16:25:47.098"
+        },
+        {
+          "id": "8e9a1980-d9d0-4910-a16b-30963a8c784a",
+          "clientId": "190eca12-5940-4b1c-9997-91231314c96d",
+          "assetId": "353691845849792",
+          "vehiclePlate": "SCANIA_UAS239L_AF",
+          "driverName": "Unassigned",
+          "status": "Active",
+          "currentFuelLevel": 354.26,
+          "tankCapacity": 500,
+          "fuelEfficiency": 1.44,
+          "efficiencyRating": "Poor",
+          "totalDistance": 96.14,
+          "totalEngineHours": 5.00139,
+          "totalFuelUsed": 66.96,
+          "workingDays": 0,
+          "parkingDays": 0,
+          "lastMaintenanceDate": null,
+          "maintenanceStatus": "N/A",
+          "theftIncidents": 0,
+          "costPerKm": 0,
+          "systemReliability": "Good",
+          "createdAt": "2026-02-26T15:10:05.875308",
+          "updatedAt": "2026-02-26T16:25:47.098"
+        },
+        {
+          "id": "e62b532e-97b1-43f1-a4be-8ff4c843efcd",
+          "clientId": "255076e9-0553-47cf-8528-3a19672dcd48",
+          "assetId": "353201357628012",
+          "vehiclePlate": "FAW UBF493U",
+          "driverName": "0",
+          "status": "Active",
+          "currentFuelLevel": 211.68,
+          "tankCapacity": 590,
+          "fuelEfficiency": 3.6,
+          "efficiencyRating": "Poor",
+          "totalDistance": 203.05,
+          "totalEngineHours": 6.51611,
+          "totalFuelUsed": 56.405,
+          "workingDays": 0,
+          "parkingDays": 0,
+          "lastMaintenanceDate": null,
+          "maintenanceStatus": "N/A",
+          "theftIncidents": 0,
+          "costPerKm": 0,
+          "systemReliability": "Good",
+          "createdAt": "2026-02-26T15:19:03.481152",
+          "updatedAt": "2026-02-26T17:52:02.679664"
+        }
+      ]
+    },
+    {
+      "status": 200,
+      "url": "https://pkduhowdqvymmvboyivt.supabase.co/functions/v1/public-api/api/daily-metrics?startDate=2026-02-25T21%3A00%3A00.000Z&endDate=2026-02-26T20%3A59%3A59.999Z",
+      "body": []
+    },
+    {
+      "status": 200,
+      "url": "https://pkduhowdqvymmvboyivt.supabase.co/functions/v1/public-api/api/fuel-events?startDate=2026-02-25T21%3A00%3A00.000Z&endDate=2026-02-26T20%3A59%3A59.999Z",
+      "body": []
+    }
+  ],
+  "errors": [],
+  "visibleTextSample": "Teletrac Fuel\nDashboard\nFleet Assets\nAlerts\n3\nReports\nAdmin\nSettings\nT\nTelemetry Test Admin\nadmin\nSign out\n26 Feb 2026 | 21:06:38 EAT\nFleet Assets\n\nHigh-density overview of all fleet vehicles with key performance metrics\n\nTable View\nFocused View\nFilters\nKES\nAuto: 15s\nTotal Assets\n3\nAll Fleet Vehicles\nMoving\n3\nActive Assets\nParked\n0\nIdle Assets\nThefts\n0\nToday Volume: 0.0L\nRefills\n0\nToday Volume: 0.0L\nFleet Assets Overview\nExport\nAsset\tStatus\tCurrent Liters\tFuel Level\tTank Capacity (L)\tConsumption (L/km, Today)\tAlert Intelligence\tDistance (Today)\tEngine Hours (Today)\tLocation\tLast Update\tActions\n\nSCANIA_UAS239L_CAN\n65%\nof\n500L\n\tActive\t\n325 L\n\t\n65%\n\t\n500 L\n\t\n--\n\t\n\t\n--\n\t\n--\n\t\nUnknown\n\t\nNo updates in range\n\t\n\n\nSCANIA_UAS239L_AF\n71%\nof\n500L\n\tActive\t\n355 L\n\t\n71%\n\t\n500 L\n\t\n--\n\t\n\t\n--\n\t\n--\n\t\nUnknown\n\t\nNo updates in range\n\t\n\n\nFAW UBF493U\n36%\nof\n590L\n\tActive\t\n212 L\n\t\n36%\n\t\n590 L\n\t\n--\n\t\n\t\n--\n\t\n--\n\t\nUnknown\n\t\nNo updates in range\n\t"
+}

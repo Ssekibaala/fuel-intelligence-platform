@@ -1,0 +1,18 @@
+
+> fuel-platform-backend@1.0.0 dev
+> node --loader ts-node/esm src/index.ts
+
+✅ Connected to Supabase successfully!
+============================================================
+🚀 FUEL PLATFORM BACKEND - PRODUCTION READY
+============================================================
+📡 Server URL: http://localhost:5000
+🔧 Health check: http://localhost:5000/health
+🧪 Database test: http://localhost:5000/api/test-db
+🚗 Vehicles API: http://localhost:5000/api/vehicles
+⛽ Fuel Events API: http://localhost:5000/api/fuel-events
+📊 Dashboard API: http://localhost:5000/api/dashboard/kpis
+📈 Daily Metrics: http://localhost:5000/api/daily-metrics
+============================================================
+✅ Connected to Supabase Database
+============================================================

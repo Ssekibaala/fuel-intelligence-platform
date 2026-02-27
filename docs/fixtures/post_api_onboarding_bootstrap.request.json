@@ -1,0 +1,17 @@
+{
+  "operation": "POST /api/onboarding/bootstrap",
+  "summary": "POST /api/onboarding/bootstrap",
+  "method": "POST",
+  "path": "/api/onboarding/bootstrap",
+  "pathParams": {},
+  "query": {},
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "body": {
+    "email": "user@example.com",
+    "password": "string",
+    "displayName": "string",
+    "clientName": "string"
+  }
+}

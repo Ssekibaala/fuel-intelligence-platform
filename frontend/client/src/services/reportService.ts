@@ -1,83 +1,110 @@
-import { api } from '@/lib/api';
+import { getAuthToken } from "@/lib/authToken";
+import { config } from "@/lib/config";
+
+const buildAuthHeaders = () => {
+  const headers: Record<string, string> = {};
+  const token = getAuthToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
+};
 
 export const reportService = {
-  // Generate Daily Movement Report
   async generateDailyMovement(params: {
     date: string;
-    format: 'excel' | 'preview' | 'csv';
-    assetIds?: string[];
+    endDate?: string;
+    format: "excel" | "preview" | "csv";
+    vehicleId?: string;
+    vehicleIds?: string[];
   }) {
-    const response = await api.post('/reports/generate-daily-movement', params);
-
-    if (params.format === 'preview') {
-      return response.data;
-    } else {
-      // Handle file download
-      const blob = new Blob([response.data], {
-        type: params.format === 'excel'
-          ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-          : 'text/csv'
-      });
-
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `daily_movement_${params.date}.${params.format === 'excel' ? 'xlsx' : 'csv'}`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-
-      return { success: true };
+    const baseUrl = (import.meta.env.VITE_API_BASE_URL || config.api.baseURL || "").replace(/\/$/, "");
+    const url = new URL(`${baseUrl}/api/reports/generate`);
+    url.searchParams.set("format", params.format);
+    url.searchParams.set("start_date", params.date);
+    url.searchParams.set("report_type", "daily-movement");
+    if (params.endDate) {
+      url.searchParams.set("end_date", params.endDate);
     }
+    if (params.vehicleId) {
+      url.searchParams.set("vehicle_id", params.vehicleId);
+    }
+    if (params.vehicleIds && params.vehicleIds.length > 0) {
+      url.searchParams.set("vehicle_ids", params.vehicleIds.join(","));
+    }
+    const response = await fetch(url, {
+      method: "GET",
+      headers: buildAuthHeaders(),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to generate report: ${response.status}`);
+    }
+
+    if (params.format === "preview") {
+      return response.json();
+    }
+
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    const safeEndDate = params.endDate || params.date;
+    const rangeLabel = safeEndDate === params.date ? params.date : `${params.date}_${safeEndDate}`;
+    link.download = `daily_movement_${rangeLabel}.${params.format === "excel" ? "xlsx" : "csv"}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(downloadUrl);
+
+    return { success: true };
   },
 
-  // Generate Fuel/Temperature Report
   async generateFuelTemperature(params: {
     date: string;
-    format: 'pdf' | 'preview';
-    assetId?: string;
+    endDate?: string;
+    format: "pdf" | "preview" | "csv" | "excel";
+    vehicleId?: string;
+    vehicleIds?: string[];
   }) {
-    const response = await api.post('/reports/generate-fuel-temperature', params);
-
-    if (params.format === 'preview') {
-      return response.data;
-    } else {
-      // Handle PDF download
-      const blob = new Blob([response.data], { type: 'application/pdf' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `fuel_temperature_${params.date}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-
-      return { success: true };
+    const baseUrl = (import.meta.env.VITE_API_BASE_URL || config.api.baseURL || "").replace(/\/$/, "");
+    const url = new URL(`${baseUrl}/api/reports/generate`);
+    url.searchParams.set("format", params.format === "preview" ? "preview" : params.format);
+    url.searchParams.set("start_date", params.date);
+    url.searchParams.set("report_type", "fuel-temperature");
+    if (params.endDate) {
+      url.searchParams.set("end_date", params.endDate);
     }
-  },
-
-  // Upload existing reports
-  async uploadDailyMovement(file: File) {
-    const formData = new FormData();
-    formData.append('file', file);
-
-    const response = await api.post('/reports/upload-daily-movement', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
+    if (params.vehicleId) {
+      url.searchParams.set("vehicle_id", params.vehicleId);
+    }
+    if (params.vehicleIds && params.vehicleIds.length > 0) {
+      url.searchParams.set("vehicle_ids", params.vehicleIds.join(","));
+    }
+    const response = await fetch(url, {
+      method: "GET",
+      headers: buildAuthHeaders(),
     });
 
-    return response.data;
+    if (!response.ok) {
+      throw new Error(`Failed to generate report: ${response.status}`);
+    }
+
+    if (params.format === "preview") {
+      return response.json();
+    }
+
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    const safeEndDate = params.endDate || params.date;
+    const rangeLabel = safeEndDate === params.date ? params.date : `${params.date}_${safeEndDate}`;
+    const extension = params.format === "csv" ? "csv" : params.format === "excel" ? "xlsx" : "pdf";
+    link.download = `fuel_temperature_${rangeLabel}.${extension}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(downloadUrl);
+
+    return { success: true };
   },
-
-  async uploadFuelTemperature(file: File) {
-    const formData = new FormData();
-    formData.append('file', file);
-
-    const response = await api.post('/reports/upload-fuel-temperature', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    });
-
-    return response.data;
-  }
 };

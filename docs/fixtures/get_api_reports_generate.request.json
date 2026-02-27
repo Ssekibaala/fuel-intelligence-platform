@@ -1,0 +1,23 @@
+{
+  "operation": "GET /api/reports/generate",
+  "summary": "GET /api/reports/generate",
+  "method": "GET",
+  "path": "/api/reports/generate",
+  "pathParams": {},
+  "query": {
+    "format": "preview",
+    "report_type": "daily-movement",
+    "start_date": "2026-02-22",
+    "end_date": "2026-02-22",
+    "vehicle_id": "string",
+    "vehicle_ids": "string",
+    "client_id": "11111111-1111-1111-1111-111111111111",
+    "asset_id": 1,
+    "registration_number": "string",
+    "asset_name": "string"
+  },
+  "headers": {
+    "Authorization": "Bearer <token>"
+  },
+  "body": null
+}

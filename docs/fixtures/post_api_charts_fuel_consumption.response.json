@@ -1,0 +1,11 @@
+{
+  "operation": "POST /api/charts/fuel-consumption",
+  "status": 200,
+  "contentType": "application/json",
+  "body": [
+    {
+      "date": "string",
+      "value": 123.45
+    }
+  ]
+}

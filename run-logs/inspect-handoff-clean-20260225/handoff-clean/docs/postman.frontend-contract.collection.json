@@ -1,0 +1,2326 @@
+{
+  "info": {
+    "name": "Fuel Platform Frontend Contract",
+    "description": "Generated from docs/openapi.frontend-contract.yaml",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "GET /api/admin/clients",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer <token>"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/clients",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "clients"
+              ]
+            },
+            "description": "GET /api/admin/clients"
+          },
+          "response": [
+            {
+              "name": "200 example",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/admin/clients",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "admin",
+                    "clients"
+                  ]
+                },
+                "description": "GET /api/admin/clients"
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "[\n  {\n    \"id\": \"11111111-1111-1111-1111-111111111111\",\n    \"name\": \"string\",\n    \"created_at\": \"2026-02-22T12:00:00Z\"\n  }\n]",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "POST /api/admin/clients",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer <token>"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/clients",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "clients"
+              ]
+            },
+            "description": "POST /api/admin/clients",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "201 example",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/admin/clients",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "admin",
+                    "clients"
+                  ]
+                },
+                "description": "POST /api/admin/clients",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"string\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": \"11111111-1111-1111-1111-111111111111\",\n  \"name\": \"string\",\n  \"created_at\": \"2026-02-22T12:00:00Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "GET /api/admin/users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer <token>"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users"
+              ]
+            },
+            "description": "GET /api/admin/users"
+          },
+          "response": [
+            {
+              "name": "200 example",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/admin/users",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "admin",
+                    "users"
+                  ]
+                },
+                "description": "GET /api/admin/users"
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "[\n  {\n    \"id\": \"11111111-1111-1111-1111-111111111111\",\n    \"email\": \"string\",\n    \"createdAt\": \"2026-02-22T12:00:00Z\",\n    \"role\": \"admin\",\n    \"displayName\": \"string\",\n    \"clientIds\": [\n      \"11111111-1111-1111-1111-111111111111\"\n    ]\n  }\n]",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "POST /api/admin/users",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer <token>"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users"
+              ]
+            },
+            "description": "POST /api/admin/users",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"string\",\n  \"role\": \"admin\",\n  \"displayName\": \"string\",\n  \"clientIds\": [\n    \"11111111-1111-1111-1111-111111111111\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "201 example",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/admin/users",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "admin",
+                    "users"
+                  ]
+                },
+                "description": "POST /api/admin/users",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"string\",\n  \"role\": \"admin\",\n  \"displayName\": \"string\",\n  \"clientIds\": [\n    \"11111111-1111-1111-1111-111111111111\"\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": \"11111111-1111-1111-1111-111111111111\",\n  \"email\": \"user@example.com\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "GET /api/admin/assignments",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer <token>"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/assignments?userId={{userId}}&clientId={{clientId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "assignments"
+              ],
+              "query": [
+                {
+                  "key": "userId",
+                  "value": "11111111-1111-1111-1111-111111111111"
+                },
+                {
+                  "key": "clientId",
+                  "value": "11111111-1111-1111-1111-111111111111"
+                }
+              ]
+            },
+            "description": "GET /api/admin/assignments"
+          },
+          "response": [
+            {
+              "name": "200 example",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/admin/assignments?userId={{userId}}&clientId={{clientId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "admin",
+                    "assignments"
+                  ],
+                  "query": [
+                    {
+                      "key": "userId",
+                      "value": "11111111-1111-1111-1111-111111111111"
+                    },
+                    {
+                      "key": "clientId",
+                      "value": "11111111-1111-1111-1111-111111111111"
+                    }
+                  ]
+                },
+                "description": "GET /api/admin/assignments"
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "[\n  {\n    \"id\": \"11111111-1111-1111-1111-111111111111\",\n    \"user_id\": \"11111111-1111-1111-1111-111111111111\",\n    \"client_id\": \"11111111-1111-1111-1111-111111111111\",\n    \"clients\": {\n      \"name\": \"string\"\n    }\n  }\n]",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "POST /api/admin/assignments",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer <token>"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/assignments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "assignments"
+              ]
+            },
+            "description": "POST /api/admin/assignments",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"11111111-1111-1111-1111-111111111111\",\n  \"clientId\": \"11111111-1111-1111-1111-111111111111\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "201 example",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/admin/assignments",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "admin",
+                    "assignments"
+                  ]
+                },
+                "description": "POST /api/admin/assignments",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"userId\": \"11111111-1111-1111-1111-111111111111\",\n  \"clientId\": \"11111111-1111-1111-1111-111111111111\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": \"11111111-1111-1111-1111-111111111111\",\n  \"user_id\": \"11111111-1111-1111-1111-111111111111\",\n  \"client_id\": \"11111111-1111-1111-1111-111111111111\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "DELETE /api/admin/assignments/{id}",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer <token>"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/assignments/{{id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "assignments",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "11111111-1111-1111-1111-111111111111"
+                }
+              ]
+            },
+            "description": "DELETE /api/admin/assignments/{id}"
+          },
+          "response": [
+            {
+              "name": "204 example",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/admin/assignments/{{id}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "admin",
+                    "assignments",
+                    "{id}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": "11111111-1111-1111-1111-111111111111"
+                    }
+                  ]
+                },
+                "description": "DELETE /api/admin/assignments/{id}"
+              },
+              "status": "No Content",
+              "code": 204,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "",
+              "_postman_previewlanguage": "text"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "GET /api/me",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer <token>"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "me"
+              ]
+            },
+            "description": "GET /api/me"
+          },
+          "response": [
+            {
+              "name": "200 example",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/me",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "me"
+                  ]
+                },
+                "description": "GET /api/me"
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"user\": {\n    \"id\": \"11111111-1111-1111-1111-111111111111\",\n    \"email\": \"string\"\n  },\n  \"profile\": {\n    \"id\": \"11111111-1111-1111-1111-111111111111\",\n    \"role\": \"admin\",\n    \"display_name\": \"string\"\n  },\n  \"clientIds\": [\n    \"11111111-1111-1111-1111-111111111111\"\n  ],\n  \"clients\": [\n    {\n      \"id\": \"11111111-1111-1111-1111-111111111111\",\n      \"name\": \"string\"\n    }\n  ]\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Fleet",
+      "item": [
+        {
+          "name": "GET /api/vehicles",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer <token>"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/vehicles?status={{status}}&efficiencyRating={{efficiencyRating}}&driverName={{driverName}}&clientId={{clientId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "vehicles"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "Active"
+                },
+                {
+                  "key": "efficiencyRating",
+                  "value": "Excellent"
+                },
+                {
+                  "key": "driverName",
+                  "value": "string"
+                },
+                {
+                  "key": "clientId",
+                  "value": "11111111-1111-1111-1111-111111111111"
+                }
+              ]
+            },
+            "description": "GET /api/vehicles"
+          },
+          "response": [
+            {
+              "name": "200 example",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/vehicles?status={{status}}&efficiencyRating={{efficiencyRating}}&driverName={{driverName}}&clientId={{clientId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "vehicles"
+                  ],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "Active"
+                    },
+                    {
+                      "key": "efficiencyRating",
+                      "value": "Excellent"
+                    },
+                    {
+                      "key": "driverName",
+                      "value": "string"
+                    },
+                    {
+                      "key": "clientId",
+                      "value": "11111111-1111-1111-1111-111111111111"
+                    }
+                  ]
+                },
+                "description": "GET /api/vehicles"
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "[\n  {\n    \"id\": \"string\",\n    \"clientId\": \"11111111-1111-1111-1111-111111111111\",\n    \"assetId\": \"string\",\n    \"vehiclePlate\": \"string\",\n    \"driverName\": \"string\",\n    \"status\": \"Active\",\n    \"currentFuelLevel\": 123.45,\n    \"tankCapacity\": 123.45,\n    \"fuelEfficiency\": 123.45,\n    \"efficiencyRating\": \"Excellent\",\n    \"totalDistance\": 123.45,\n    \"totalEngineHours\": 123.45,\n    \"totalFuelUsed\": 123.45,\n    \"workingDays\": 1,\n    \"parkingDays\": 1,\n    \"lastMaintenanceDate\": \"2026-02-22T12:00:00Z\",\n    \"maintenanceStatus\": \"string\",\n    \"theftIncidents\": 1,\n    \"costPerKm\": 123.45,\n    \"systemReliability\": \"Excellent\",\n    \"createdAt\": \"2026-02-22T12:00:00Z\",\n    \"updatedAt\": \"2026-02-22T12:00:00Z\"\n  }\n]",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "POST /api/vehicles",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer <token>"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/vehicles",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "vehicles"
+              ]
+            },
+            "description": "POST /api/vehicles",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": \"11111111-1111-1111-1111-111111111111\",\n  \"assetId\": \"string\",\n  \"vehiclePlate\": \"string\",\n  \"driverName\": \"string\",\n  \"status\": \"Active\",\n  \"currentFuelLevel\": 123.45,\n  \"tankCapacity\": 123.45,\n  \"fuelEfficiency\": 123.45,\n  \"efficiencyRating\": \"Excellent\",\n  \"systemReliability\": \"Excellent\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "201 example",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/vehicles",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "vehicles"
+                  ]
+                },
+                "description": "POST /api/vehicles",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"clientId\": \"11111111-1111-1111-1111-111111111111\",\n  \"assetId\": \"string\",\n  \"vehiclePlate\": \"string\",\n  \"driverName\": \"string\",\n  \"status\": \"Active\",\n  \"currentFuelLevel\": 123.45,\n  \"tankCapacity\": 123.45,\n  \"fuelEfficiency\": 123.45,\n  \"efficiencyRating\": \"Excellent\",\n  \"systemReliability\": \"Excellent\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": \"string\",\n  \"clientId\": \"11111111-1111-1111-1111-111111111111\",\n  \"assetId\": \"string\",\n  \"vehiclePlate\": \"string\",\n  \"driverName\": \"string\",\n  \"status\": \"Active\",\n  \"currentFuelLevel\": 123.45,\n  \"tankCapacity\": 123.45,\n  \"fuelEfficiency\": 123.45,\n  \"efficiencyRating\": \"Excellent\",\n  \"totalDistance\": 123.45,\n  \"totalEngineHours\": 123.45,\n  \"totalFuelUsed\": 123.45,\n  \"workingDays\": 1,\n  \"parkingDays\": 1,\n  \"lastMaintenanceDate\": \"2026-02-22T12:00:00Z\",\n  \"maintenanceStatus\": \"string\",\n  \"theftIncidents\": 1,\n  \"costPerKm\": 123.45,\n  \"systemReliability\": \"Excellent\",\n  \"createdAt\": \"2026-02-22T12:00:00Z\",\n  \"updatedAt\": \"2026-02-22T12:00:00Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "GET /api/vehicles/{id}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer <token>"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/vehicles/{{id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "vehicles",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "string"
+                }
+              ]
+            },
+            "description": "GET /api/vehicles/{id}"
+          },
+          "response": [
+            {
+              "name": "200 example",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/vehicles/{{id}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "vehicles",
+                    "{id}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": "string"
+                    }
+                  ]
+                },
+                "description": "GET /api/vehicles/{id}"
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": \"string\",\n  \"clientId\": \"11111111-1111-1111-1111-111111111111\",\n  \"assetId\": \"string\",\n  \"vehiclePlate\": \"string\",\n  \"driverName\": \"string\",\n  \"status\": \"Active\",\n  \"currentFuelLevel\": 123.45,\n  \"tankCapacity\": 123.45,\n  \"fuelEfficiency\": 123.45,\n  \"efficiencyRating\": \"Excellent\",\n  \"totalDistance\": 123.45,\n  \"totalEngineHours\": 123.45,\n  \"totalFuelUsed\": 123.45,\n  \"workingDays\": 1,\n  \"parkingDays\": 1,\n  \"lastMaintenanceDate\": \"2026-02-22T12:00:00Z\",\n  \"maintenanceStatus\": \"string\",\n  \"theftIncidents\": 1,\n  \"costPerKm\": 123.45,\n  \"systemReliability\": \"Excellent\",\n  \"createdAt\": \"2026-02-22T12:00:00Z\",\n  \"updatedAt\": \"2026-02-22T12:00:00Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "PUT /api/vehicles/{id}",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer <token>"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/vehicles/{{id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "vehicles",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "string"
+                }
+              ]
+            },
+            "description": "PUT /api/vehicles/{id}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"key\": \"value\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 example",
+              "originalRequest": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/vehicles/{{id}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "vehicles",
+                    "{id}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": "string"
+                    }
+                  ]
+                },
+                "description": "PUT /api/vehicles/{id}",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"key\": \"value\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": \"string\",\n  \"clientId\": \"11111111-1111-1111-1111-111111111111\",\n  \"assetId\": \"string\",\n  \"vehiclePlate\": \"string\",\n  \"driverName\": \"string\",\n  \"status\": \"Active\",\n  \"currentFuelLevel\": 123.45,\n  \"tankCapacity\": 123.45,\n  \"fuelEfficiency\": 123.45,\n  \"efficiencyRating\": \"Excellent\",\n  \"totalDistance\": 123.45,\n  \"totalEngineHours\": 123.45,\n  \"totalFuelUsed\": 123.45,\n  \"workingDays\": 1,\n  \"parkingDays\": 1,\n  \"lastMaintenanceDate\": \"2026-02-22T12:00:00Z\",\n  \"maintenanceStatus\": \"string\",\n  \"theftIncidents\": 1,\n  \"costPerKm\": 123.45,\n  \"systemReliability\": \"Excellent\",\n  \"createdAt\": \"2026-02-22T12:00:00Z\",\n  \"updatedAt\": \"2026-02-22T12:00:00Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "DELETE /api/vehicles/{id}",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer <token>"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/vehicles/{{id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "vehicles",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "string"
+                }
+              ]
+            },
+            "description": "DELETE /api/vehicles/{id}"
+          },
+          "response": [
+            {
+              "name": "204 example",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/vehicles/{{id}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "vehicles",
+                    "{id}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": "string"
+                    }
+                  ]
+                },
+                "description": "DELETE /api/vehicles/{id}"
+              },
+              "status": "No Content",
+              "code": 204,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "",
+              "_postman_previewlanguage": "text"
+            }
+          ]
+        },
+        {
+          "name": "GET /api/fuel-events",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer <token>"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/fuel-events?vehicleId={{vehicleId}}&vehicleIds={{vehicleIds}}&eventType={{eventType}}&startDate={{startDate}}&endDate={{endDate}}&clientId={{clientId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "fuel-events"
+              ],
+              "query": [
+                {
+                  "key": "vehicleId",
+                  "value": "string"
+                },
+                {
+                  "key": "vehicleIds",
+                  "value": "string"
+                },
+                {
+                  "key": "eventType",
+                  "value": "refill"
+                },
+                {
+                  "key": "startDate",
+                  "value": "2026-02-22T12:00:00Z"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2026-02-22T12:00:00Z"
+                },
+                {
+                  "key": "clientId",
+                  "value": "11111111-1111-1111-1111-111111111111"
+                }
+              ]
+            },
+            "description": "GET /api/fuel-events"
+          },
+          "response": [
+            {
+              "name": "200 example",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/fuel-events?vehicleId={{vehicleId}}&vehicleIds={{vehicleIds}}&eventType={{eventType}}&startDate={{startDate}}&endDate={{endDate}}&clientId={{clientId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "fuel-events"
+                  ],
+                  "query": [
+                    {
+                      "key": "vehicleId",
+                      "value": "string"
+                    },
+                    {
+                      "key": "vehicleIds",
+                      "value": "string"
+                    },
+                    {
+                      "key": "eventType",
+                      "value": "refill"
+                    },
+                    {
+                      "key": "startDate",
+                      "value": "2026-02-22T12:00:00Z"
+                    },
+                    {
+                      "key": "endDate",
+                      "value": "2026-02-22T12:00:00Z"
+                    },
+                    {
+                      "key": "clientId",
+                      "value": "11111111-1111-1111-1111-111111111111"
+                    }
+                  ]
+                },
+                "description": "GET /api/fuel-events"
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "[\n  {\n    \"id\": \"string\",\n    \"vehicleId\": \"string\",\n    \"eventType\": \"refill\",\n    \"volumeLiters\": 123.45,\n    \"costKES\": 123.45,\n    \"costUGX\": 123.45,\n    \"location\": \"string\",\n    \"notes\": \"string\",\n    \"eventTimestamp\": \"2026-02-22T12:00:00Z\",\n    \"createdAt\": \"2026-02-22T12:00:00Z\"\n  }\n]",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "POST /api/fuel-events",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer <token>"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/fuel-events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "fuel-events"
+              ]
+            },
+            "description": "POST /api/fuel-events",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vehicleId\": \"string\",\n  \"eventType\": \"refill\",\n  \"volumeLiters\": 123.45,\n  \"costKES\": 123.45,\n  \"costUGX\": 123.45,\n  \"location\": \"string\",\n  \"notes\": \"string\",\n  \"eventTimestamp\": \"2026-02-22T12:00:00Z\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "201 example",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/fuel-events",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "fuel-events"
+                  ]
+                },
+                "description": "POST /api/fuel-events",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"vehicleId\": \"string\",\n  \"eventType\": \"refill\",\n  \"volumeLiters\": 123.45,\n  \"costKES\": 123.45,\n  \"costUGX\": 123.45,\n  \"location\": \"string\",\n  \"notes\": \"string\",\n  \"eventTimestamp\": \"2026-02-22T12:00:00Z\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": \"string\",\n  \"vehicleId\": \"string\",\n  \"eventType\": \"refill\",\n  \"volumeLiters\": 123.45,\n  \"costKES\": 123.45,\n  \"costUGX\": 123.45,\n  \"location\": \"string\",\n  \"notes\": \"string\",\n  \"eventTimestamp\": \"2026-02-22T12:00:00Z\",\n  \"createdAt\": \"2026-02-22T12:00:00Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "PUT /api/fuel-events/{id}",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer <token>"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/fuel-events/{{id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "fuel-events",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "string"
+                }
+              ]
+            },
+            "description": "PUT /api/fuel-events/{id}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"key\": \"value\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 example",
+              "originalRequest": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/fuel-events/{{id}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "fuel-events",
+                    "{id}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": "string"
+                    }
+                  ]
+                },
+                "description": "PUT /api/fuel-events/{id}",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"key\": \"value\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": \"string\",\n  \"vehicleId\": \"string\",\n  \"eventType\": \"refill\",\n  \"volumeLiters\": 123.45,\n  \"costKES\": 123.45,\n  \"costUGX\": 123.45,\n  \"location\": \"string\",\n  \"notes\": \"string\",\n  \"eventTimestamp\": \"2026-02-22T12:00:00Z\",\n  \"createdAt\": \"2026-02-22T12:00:00Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "DELETE /api/fuel-events/{id}",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer <token>"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/fuel-events/{{id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "fuel-events",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "string"
+                }
+              ]
+            },
+            "description": "DELETE /api/fuel-events/{id}"
+          },
+          "response": [
+            {
+              "name": "204 example",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/fuel-events/{{id}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "fuel-events",
+                    "{id}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": "string"
+                    }
+                  ]
+                },
+                "description": "DELETE /api/fuel-events/{id}"
+              },
+              "status": "No Content",
+              "code": 204,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "",
+              "_postman_previewlanguage": "text"
+            }
+          ]
+        },
+        {
+          "name": "GET /api/daily-metrics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer <token>"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/daily-metrics?vehicleId={{vehicleId}}&vehicleIds={{vehicleIds}}&startDate={{startDate}}&endDate={{endDate}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "daily-metrics"
+              ],
+              "query": [
+                {
+                  "key": "vehicleId",
+                  "value": "string"
+                },
+                {
+                  "key": "vehicleIds",
+                  "value": "string"
+                },
+                {
+                  "key": "startDate",
+                  "value": "2026-02-22T12:00:00Z"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2026-02-22T12:00:00Z"
+                }
+              ]
+            },
+            "description": "GET /api/daily-metrics"
+          },
+          "response": [
+            {
+              "name": "200 example",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/daily-metrics?vehicleId={{vehicleId}}&vehicleIds={{vehicleIds}}&startDate={{startDate}}&endDate={{endDate}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "daily-metrics"
+                  ],
+                  "query": [
+                    {
+                      "key": "vehicleId",
+                      "value": "string"
+                    },
+                    {
+                      "key": "vehicleIds",
+                      "value": "string"
+                    },
+                    {
+                      "key": "startDate",
+                      "value": "2026-02-22T12:00:00Z"
+                    },
+                    {
+                      "key": "endDate",
+                      "value": "2026-02-22T12:00:00Z"
+                    }
+                  ]
+                },
+                "description": "GET /api/daily-metrics"
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "[\n  {\n    \"id\": \"string\",\n    \"vehicleId\": \"string\",\n    \"metricDate\": \"2026-02-22T12:00:00Z\",\n    \"totalFuelConsumed\": 123.45,\n    \"totalDistanceTraveled\": 123.45,\n    \"totalEngineHours\": 123.45,\n    \"idleTimeHours\": 123.45,\n    \"numberOfRefills\": 1,\n    \"numberOfThefts\": 1,\n    \"operatingCostKES\": 123.45,\n    \"operatingCostUGX\": 123.45,\n    \"createdAt\": \"2026-02-22T12:00:00Z\"\n  }\n]",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "POST /api/daily-metrics",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer <token>"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/daily-metrics",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "daily-metrics"
+              ]
+            },
+            "description": "POST /api/daily-metrics",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"key\": \"value\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "201 example",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/daily-metrics",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "daily-metrics"
+                  ]
+                },
+                "description": "POST /api/daily-metrics",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"key\": \"value\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": \"string\",\n  \"vehicleId\": \"string\",\n  \"metricDate\": \"2026-02-22T12:00:00Z\",\n  \"totalFuelConsumed\": 123.45,\n  \"totalDistanceTraveled\": 123.45,\n  \"totalEngineHours\": 123.45,\n  \"idleTimeHours\": 123.45,\n  \"numberOfRefills\": 1,\n  \"numberOfThefts\": 1,\n  \"operatingCostKES\": 123.45,\n  \"operatingCostUGX\": 123.45,\n  \"createdAt\": \"2026-02-22T12:00:00Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "GET /api/dashboard/kpis",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer <token>"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/dashboard/kpis?vehicleIds={{vehicleIds}}&startDate={{startDate}}&endDate={{endDate}}&clientId={{clientId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "dashboard",
+                "kpis"
+              ],
+              "query": [
+                {
+                  "key": "vehicleIds",
+                  "value": "string"
+                },
+                {
+                  "key": "startDate",
+                  "value": "2026-02-22T12:00:00Z"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2026-02-22T12:00:00Z"
+                },
+                {
+                  "key": "clientId",
+                  "value": "11111111-1111-1111-1111-111111111111"
+                }
+              ]
+            },
+            "description": "GET /api/dashboard/kpis"
+          },
+          "response": [
+            {
+              "name": "200 example",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/dashboard/kpis?vehicleIds={{vehicleIds}}&startDate={{startDate}}&endDate={{endDate}}&clientId={{clientId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "dashboard",
+                    "kpis"
+                  ],
+                  "query": [
+                    {
+                      "key": "vehicleIds",
+                      "value": "string"
+                    },
+                    {
+                      "key": "startDate",
+                      "value": "2026-02-22T12:00:00Z"
+                    },
+                    {
+                      "key": "endDate",
+                      "value": "2026-02-22T12:00:00Z"
+                    },
+                    {
+                      "key": "clientId",
+                      "value": "11111111-1111-1111-1111-111111111111"
+                    }
+                  ]
+                },
+                "description": "GET /api/dashboard/kpis"
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"totalVehicles\": 1,\n  \"activeVehicles\": 1,\n  \"totalRefills\": 1,\n  \"totalThefts\": 1,\n  \"totalFuelUsed\": 123.45,\n  \"totalDistance\": 123.45,\n  \"totalEngineHours\": 123.45,\n  \"fleetUtilization\": 1,\n  \"lastUpdated\": \"2026-02-22T12:00:00Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "POST /api/charts/fuel-consumption",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer <token>"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/charts/fuel-consumption",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "charts",
+                "fuel-consumption"
+              ]
+            },
+            "description": "POST /api/charts/fuel-consumption",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vehicleIds\": [\n    \"string\"\n  ],\n  \"dateRange\": {\n    \"key\": \"value\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 example",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/charts/fuel-consumption",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "charts",
+                    "fuel-consumption"
+                  ]
+                },
+                "description": "POST /api/charts/fuel-consumption",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"vehicleIds\": [\n    \"string\"\n  ],\n  \"dateRange\": {\n    \"key\": \"value\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "[\n  {\n    \"date\": \"string\",\n    \"value\": 123.45\n  }\n]",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "POST /api/charts/performance-metrics",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer <token>"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/charts/performance-metrics",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "charts",
+                "performance-metrics"
+              ]
+            },
+            "description": "POST /api/charts/performance-metrics",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vehicleIds\": [\n    \"string\"\n  ],\n  \"dateRange\": {\n    \"key\": \"value\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 example",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/charts/performance-metrics",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "charts",
+                    "performance-metrics"
+                  ]
+                },
+                "description": "POST /api/charts/performance-metrics",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"vehicleIds\": [\n    \"string\"\n  ],\n  \"dateRange\": {\n    \"key\": \"value\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "[\n  {\n    \"date\": \"string\",\n    \"value\": 123.45\n  }\n]",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Public",
+      "item": [
+        {
+          "name": "GET /health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "GET /health"
+          },
+          "response": [
+            {
+              "name": "200 example",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/health",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "health"
+                  ]
+                },
+                "description": "GET /health"
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"status\": \"string\",\n  \"message\": \"string\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "GET /api/onboarding/status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/onboarding/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "onboarding",
+                "status"
+              ]
+            },
+            "description": "GET /api/onboarding/status"
+          },
+          "response": [
+            {
+              "name": "200 example",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/onboarding/status",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "onboarding",
+                    "status"
+                  ]
+                },
+                "description": "GET /api/onboarding/status"
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"hasAdmin\": true,\n  \"hasClient\": true,\n  \"needsOnboarding\": true\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "POST /api/onboarding/bootstrap",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/onboarding/bootstrap",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "onboarding",
+                "bootstrap"
+              ]
+            },
+            "description": "POST /api/onboarding/bootstrap",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"string\",\n  \"displayName\": \"string\",\n  \"clientName\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "201 example",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/onboarding/bootstrap",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "onboarding",
+                    "bootstrap"
+                  ]
+                },
+                "description": "POST /api/onboarding/bootstrap",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"string\",\n  \"displayName\": \"string\",\n  \"clientName\": \"string\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"adminId\": \"11111111-1111-1111-1111-111111111111\",\n  \"clientId\": \"11111111-1111-1111-1111-111111111111\",\n  \"clientName\": \"string\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Reports",
+      "item": [
+        {
+          "name": "GET /api/reports/generate",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer <token>"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/generate?format={{format}}&report_type={{report_type}}&start_date={{start_date}}&end_date={{end_date}}&vehicle_id={{vehicle_id}}&vehicle_ids={{vehicle_ids}}&client_id={{client_id}}&asset_id={{asset_id}}&registration_number={{registration_number}}&asset_name={{asset_name}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "generate"
+              ],
+              "query": [
+                {
+                  "key": "format",
+                  "value": "preview"
+                },
+                {
+                  "key": "report_type",
+                  "value": "daily-movement"
+                },
+                {
+                  "key": "start_date",
+                  "value": "2026-02-22"
+                },
+                {
+                  "key": "end_date",
+                  "value": "2026-02-22"
+                },
+                {
+                  "key": "vehicle_id",
+                  "value": "string"
+                },
+                {
+                  "key": "vehicle_ids",
+                  "value": "string"
+                },
+                {
+                  "key": "client_id",
+                  "value": "11111111-1111-1111-1111-111111111111"
+                },
+                {
+                  "key": "asset_id",
+                  "value": "1"
+                },
+                {
+                  "key": "registration_number",
+                  "value": "string"
+                },
+                {
+                  "key": "asset_name",
+                  "value": "string"
+                }
+              ]
+            },
+            "description": "GET /api/reports/generate"
+          },
+          "response": [
+            {
+              "name": "200 example",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/reports/generate?format={{format}}&report_type={{report_type}}&start_date={{start_date}}&end_date={{end_date}}&vehicle_id={{vehicle_id}}&vehicle_ids={{vehicle_ids}}&client_id={{client_id}}&asset_id={{asset_id}}&registration_number={{registration_number}}&asset_name={{asset_name}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "reports",
+                    "generate"
+                  ],
+                  "query": [
+                    {
+                      "key": "format",
+                      "value": "preview"
+                    },
+                    {
+                      "key": "report_type",
+                      "value": "daily-movement"
+                    },
+                    {
+                      "key": "start_date",
+                      "value": "2026-02-22"
+                    },
+                    {
+                      "key": "end_date",
+                      "value": "2026-02-22"
+                    },
+                    {
+                      "key": "vehicle_id",
+                      "value": "string"
+                    },
+                    {
+                      "key": "vehicle_ids",
+                      "value": "string"
+                    },
+                    {
+                      "key": "client_id",
+                      "value": "11111111-1111-1111-1111-111111111111"
+                    },
+                    {
+                      "key": "asset_id",
+                      "value": "1"
+                    },
+                    {
+                      "key": "registration_number",
+                      "value": "string"
+                    },
+                    {
+                      "key": "asset_name",
+                      "value": "string"
+                    }
+                  ]
+                },
+                "description": "GET /api/reports/generate"
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"date\": \"string\",\n  \"companyName\": \"string\",\n  \"reports\": [\n    {\n      \"assetDescription\": \"string\",\n      \"registrationNumber\": \"string\",\n      \"assetId\": 123.45,\n      \"siteName\": \"string\",\n      \"movements\": [\n        {\n          \"key\": \"value\"\n        }\n      ],\n      \"totals\": {\n        \"key\": \"value\"\n      },\n      \"averages\": {\n        \"key\": \"value\"\n      }\n    }\n  ]\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "GET /api/reports/preview-daily-movement/{date}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer <token>"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/preview-daily-movement/{{date}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "preview-daily-movement",
+                "{date}"
+              ],
+              "variable": [
+                {
+                  "key": "date",
+                  "value": "2026-02-22"
+                }
+              ]
+            },
+            "description": "GET /api/reports/preview-daily-movement/{date}"
+          },
+          "response": [
+            {
+              "name": "200 example",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/reports/preview-daily-movement/{{date}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "reports",
+                    "preview-daily-movement",
+                    "{date}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "date",
+                      "value": "2026-02-22"
+                    }
+                  ]
+                },
+                "description": "GET /api/reports/preview-daily-movement/{date}"
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"date\": \"string\",\n  \"companyName\": \"string\",\n  \"reports\": [\n    {\n      \"assetDescription\": \"string\",\n      \"registrationNumber\": \"string\",\n      \"assetId\": 123.45,\n      \"siteName\": \"string\",\n      \"movements\": [\n        {\n          \"key\": \"value\"\n        }\n      ],\n      \"totals\": {\n        \"key\": \"value\"\n      },\n      \"averages\": {\n        \"key\": \"value\"\n      }\n    }\n  ]\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        },
+        {
+          "name": "GET /api/reports/preview-fuel-temperature/{date}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer <token>"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/preview-fuel-temperature/{{date}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "preview-fuel-temperature",
+                "{date}"
+              ],
+              "variable": [
+                {
+                  "key": "date",
+                  "value": "2026-02-22"
+                }
+              ]
+            },
+            "description": "GET /api/reports/preview-fuel-temperature/{date}"
+          },
+          "response": [
+            {
+              "name": "200 example",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/reports/preview-fuel-temperature/{{date}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "reports",
+                    "preview-fuel-temperature",
+                    "{date}"
+                  ],
+                  "variable": [
+                    {
+                      "key": "date",
+                      "value": "2026-02-22"
+                    }
+                  ]
+                },
+                "description": "GET /api/reports/preview-fuel-temperature/{date}"
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"date\": \"string\",\n  \"reportDate\": \"string\",\n  \"reportTitle\": \"string\",\n  \"assetName\": \"string\",\n  \"fromDatetime\": \"2026-02-22T12:00:00Z\",\n  \"toDatetime\": \"2026-02-22T12:00:00Z\",\n  \"generatedOn\": \"2026-02-22T12:00:00Z\",\n  \"totalDistance\": 123.45,\n  \"totalRefills\": 123.45,\n  \"totalDrains\": 123.45,\n  \"fuelUsed\": 123.45,\n  \"fuelConsumption\": 123.45,\n  \"refuelEvents\": [\n    {\n      \"time\": \"string\",\n      \"initial_fuel\": 123.45,\n      \"final_fuel\": 123.45,\n      \"refilled\": 123.45,\n      \"location\": \"string\",\n      \"latitude\": 123.45,\n      \"longitude\": 123.45\n    }\n  ],\n  \"rawSensorData\": [\n    {\n      \"timestamp\": \"string\",\n      \"fuel\": 123.45,\n      \"altitude\": 123.45,\n      \"odometer\": 123.45,\n      \"speed\": 123.45,\n      \"temperature\": 123.45\n    }\n  ]\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    }
+  ]
+}

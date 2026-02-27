@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-02-26T18:05:13.812Z",
+  "baseUrl": "http://localhost:3000",
+  "loginOk": true,
+  "onFleetPage": true,
+  "headers": {
+    "hasTankCapacity": true,
+    "hasConsumptionLPerKm": true
+  },
+  "firstRow": null,
+  "screenshot": "run-logs\\fleet-ui-validation.png",
+  "errors": []
+}

@@ -12,7 +12,7 @@ interface PageTitlesMap {
 
 export const pageTitles: PageTitlesMap = {
   dashboard: {
-    title: "Fleet Sentinel Dashboard",
+    title: "Teletrac Fuel",
     subtitle: "Fleet Totals - Professional Data Density"
   },
   assets: {
@@ -31,15 +31,20 @@ export const pageTitles: PageTitlesMap = {
     title: "Reports Center",
     subtitle: "Generate professional, branded reports for stakeholders and compliance"
   },
+  admin: {
+    title: "Administration",
+    subtitle: "Manage users, roles, and client access assignments"
+  },
   settings: {
     title: "System Configuration",
-    subtitle: "Customize and manage your Fleet Sentinel preferences"
+    subtitle: "Customize and manage your Teletrac Fuel preferences"
   }
 };
 
 export const getPageTitle = (pageId: string): PageTitleConfig => {
   return pageTitles[pageId] || {
-    title: "Fleet Sentinel",
+    title: "Teletrac Fuel",
     subtitle: "Advanced Fleet Monitoring"
   };
 };
+

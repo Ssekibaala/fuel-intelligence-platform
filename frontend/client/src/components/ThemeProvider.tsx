@@ -10,7 +10,7 @@ type ThemeProviderContextType = {
 const ThemeProviderContext = createContext<ThemeProviderContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>("dark"); // Default to dark for Fleet Sentinel
+  const [theme, setTheme] = useState<Theme>("dark"); // Default to dark for Teletrac Fuel
 
   useEffect(() => {
     const storedTheme = localStorage.getItem("fleet-sentinel-theme") as Theme;

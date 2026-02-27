@@ -1,0 +1,14 @@
+{
+  "operation": "GET /api/vehicles/{id}",
+  "summary": "GET /api/vehicles/{id}",
+  "method": "GET",
+  "path": "/api/vehicles/{id}",
+  "pathParams": {
+    "id": "string"
+  },
+  "query": {},
+  "headers": {
+    "Authorization": "Bearer <token>"
+  },
+  "body": null
+}

@@ -1,0 +1,49 @@
+{
+  "timestamp": "2026-02-26T16:21:48.814Z",
+  "today": "2026-02-26",
+  "asset": "SCANIA_UAS239L_AF",
+  "latestReport147": {
+    "id": "fa37591c-3b6c-4371-9163-63bf63959840",
+    "status": "processed",
+    "received_at": "2026-02-26T16:08:13.004622+00:00",
+    "report_name": "Copy of Fuel Summary Report 19|MOVIT PRODUCTS LTD",
+    "end_date": "2026-02-25T23:59:59",
+    "generated_date": "2026-02-26T19:07:47.1900838",
+    "item": {
+      "hrs": 5.592777777777778,
+      "asset": "SCANIA_UAS239L_AF",
+      "distance": 138.87,
+      "fuel_unit": " L",
+      "fuel_used": 77.48000000000002,
+      "asset_make": "  ",
+      "asset_type": "Vehicle",
+      "final_fuel": 422.52,
+      "analog_type": 1,
+      "drain_count": 0,
+      "engine_size": "0",
+      "sensor_name": "Fuel",
+      "total_drain": 0,
+      "fuel_economy": "1.79  km/l",
+      "initial_fuel": 500,
+      "refill_count": 0,
+      "total_refill": 0,
+      "tank_capacity": "500"
+    }
+  },
+  "rule": {
+    "qualifiesTodayByEndDate": false,
+    "summaryFieldsShouldBeNull": true,
+    "tankCapacityRemains": true
+  },
+  "vehicleRow": {
+    "id": "8e9a1980-d9d0-4910-a16b-30963a8c784a",
+    "vehicle_plate": "SCANIA_UAS239L_AF",
+    "current_fuel_level": 422.52,
+    "tank_capacity": 500,
+    "fuel_efficiency": null,
+    "total_distance": null,
+    "total_engine_hours": null,
+    "total_fuel_used": null,
+    "last_summary_generated_at": "2026-02-26T19:07:47.19+00:00"
+  }
+}

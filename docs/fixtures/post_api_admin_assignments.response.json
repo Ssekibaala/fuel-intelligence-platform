@@ -1,0 +1,10 @@
+{
+  "operation": "POST /api/admin/assignments",
+  "status": 201,
+  "contentType": "application/json",
+  "body": {
+    "id": "11111111-1111-1111-1111-111111111111",
+    "user_id": "11111111-1111-1111-1111-111111111111",
+    "client_id": "11111111-1111-1111-1111-111111111111"
+  }
+}

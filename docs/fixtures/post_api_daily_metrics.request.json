@@ -1,0 +1,15 @@
+{
+  "operation": "POST /api/daily-metrics",
+  "summary": "POST /api/daily-metrics",
+  "method": "POST",
+  "path": "/api/daily-metrics",
+  "pathParams": {},
+  "query": {},
+  "headers": {
+    "Authorization": "Bearer <token>",
+    "Content-Type": "application/json"
+  },
+  "body": {
+    "key": "value"
+  }
+}

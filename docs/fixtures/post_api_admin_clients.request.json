@@ -1,0 +1,15 @@
+{
+  "operation": "POST /api/admin/clients",
+  "summary": "POST /api/admin/clients",
+  "method": "POST",
+  "path": "/api/admin/clients",
+  "pathParams": {},
+  "query": {},
+  "headers": {
+    "Authorization": "Bearer <token>",
+    "Content-Type": "application/json"
+  },
+  "body": {
+    "name": "string"
+  }
+}

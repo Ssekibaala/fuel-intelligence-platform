@@ -1,0 +1,40 @@
+{
+  "operation": "GET /api/reports/preview-fuel-temperature/{date}",
+  "status": 200,
+  "contentType": "application/json",
+  "body": {
+    "date": "string",
+    "reportDate": "string",
+    "reportTitle": "string",
+    "assetName": "string",
+    "fromDatetime": "2026-02-22T12:00:00Z",
+    "toDatetime": "2026-02-22T12:00:00Z",
+    "generatedOn": "2026-02-22T12:00:00Z",
+    "totalDistance": 123.45,
+    "totalRefills": 123.45,
+    "totalDrains": 123.45,
+    "fuelUsed": 123.45,
+    "fuelConsumption": 123.45,
+    "refuelEvents": [
+      {
+        "time": "string",
+        "initial_fuel": 123.45,
+        "final_fuel": 123.45,
+        "refilled": 123.45,
+        "location": "string",
+        "latitude": 123.45,
+        "longitude": 123.45
+      }
+    ],
+    "rawSensorData": [
+      {
+        "timestamp": "string",
+        "fuel": 123.45,
+        "altitude": 123.45,
+        "odometer": 123.45,
+        "speed": 123.45,
+        "temperature": 123.45
+      }
+    ]
+  }
+}

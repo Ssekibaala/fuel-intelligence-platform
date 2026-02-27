@@ -14,6 +14,17 @@ interface VehicleMultiSelectProps {
   className?: string;
 }
 
+function getVehicleDisplayLabel(vehicle: Partial<Vehicle>) {
+  const plate = typeof vehicle.vehiclePlate === "string" ? vehicle.vehiclePlate.trim() : "";
+  if (plate) return plate;
+  const asset = typeof vehicle.assetId === "string" ? vehicle.assetId.trim() : "";
+  if (asset) return asset;
+  const driver = typeof vehicle.driverName === "string" ? vehicle.driverName.trim() : "";
+  if (driver) return driver;
+  const id = typeof vehicle.id === "string" ? vehicle.id : "";
+  return id ? `Vehicle ${id.slice(0, 8)}` : "Unknown Vehicle";
+}
+
 export function VehicleMultiSelect({ 
   selectedVehicleIds, 
   onSelectionChange,
@@ -30,9 +41,10 @@ export function VehicleMultiSelect({
 
   // Filter vehicles based on search query
   const filteredVehicles = vehicles.filter(vehicle => 
-    vehicle.assetId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    vehicle.vehiclePlate.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    vehicle.driverName.toLowerCase().includes(searchQuery.toLowerCase())
+    getVehicleDisplayLabel(vehicle).toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (vehicle.assetId || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (vehicle.vehiclePlate || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (vehicle.driverName || "").toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   // Get selected vehicles for display
@@ -72,7 +84,7 @@ export function VehicleMultiSelect({
       return "All vehicles";
     } else if (selectedVehicleIds.length === 1) {
       const vehicle = selectedVehicles[0];
-      return vehicle ? vehicle.assetId : "1 vehicle";
+      return vehicle ? getVehicleDisplayLabel(vehicle) : "1 vehicle";
     } else {
       return `${selectedVehicleIds.length} vehicles`;
     }
@@ -172,7 +184,7 @@ export function VehicleMultiSelect({
                         value={vehicle.id}
                         onSelect={() => handleSelectVehicle(vehicle.id)}
                         className="cursor-pointer hover-elevate"
-                        data-testid={`option-vehicle-${vehicle.assetId}`}
+                        data-testid={`option-vehicle-${getVehicleDisplayLabel(vehicle)}`}
                       >
                         <div className="flex items-center justify-between w-full gap-3">
                           <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -182,13 +194,13 @@ export function VehicleMultiSelect({
                             
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2">
-                                <span className="font-medium text-sm">{vehicle.assetId}</span>
+                                <span className="font-medium text-sm">{getVehicleDisplayLabel(vehicle)}</span>
                                 <Badge variant="outline" className={`text-xs px-1.5 py-0.5 ${getStatusColor(vehicle.status)}`}>
                                   {vehicle.status}
                                 </Badge>
                               </div>
                               <div className="text-xs text-muted-foreground">
-                                {vehicle.vehiclePlate} â€¢ {vehicle.driverName}
+                                {(vehicle.assetId || "-")} • {(vehicle.driverName || "Unassigned")}
                               </div>
                             </div>
                           </div>
@@ -220,14 +232,14 @@ export function VehicleMultiSelect({
                     variant="secondary"
                     className="text-xs py-1 pl-2 pr-1 flex items-center gap-1"
                   >
-                    {vehicle.assetId}
+                    {getVehicleDisplayLabel(vehicle)}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         handleSelectVehicle(vehicle.id);
                       }}
                       className="ml-1 hover:bg-destructive/20 rounded-sm p-0.5"
-                      data-testid={`button-remove-vehicle-${vehicle.assetId}`}
+                      data-testid={`button-remove-vehicle-${getVehicleDisplayLabel(vehicle)}`}
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -241,3 +253,4 @@ export function VehicleMultiSelect({
     </Popover>
   );
 }
+
