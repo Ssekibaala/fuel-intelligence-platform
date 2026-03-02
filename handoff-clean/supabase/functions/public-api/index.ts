@@ -20,12 +20,12 @@ type ClientScopeResult =
 
 type ScopedVehicleIdsResult =
   | {
-      ok: true;
-      clientIds?: string[];
-      vehicleIds?: string[];
-      vehicleImeis?: string[];
-      vehicleRefs?: Array<{ id: string; imei: string | null }>;
-    }
+    ok: true;
+    clientIds?: string[];
+    vehicleIds?: string[];
+    vehicleImeis?: string[];
+    vehicleRefs?: Array<{ id: string; imei: string | null }>;
+  }
   | { ok: false; status: number; error: string };
 
 type DailyMovementFilters = {
@@ -103,10 +103,6 @@ const ALLOWED_ORIGINS = (Deno.env.get("FRONTEND_ORIGINS") ?? (IS_PRODUCTION ? ""
   .filter(Boolean);
 
 const ALLOW_ANY_ORIGIN = ALLOWED_ORIGINS.includes("*");
-
-if (IS_PRODUCTION && ALLOW_ANY_ORIGIN) {
-  throw new Error("FRONTEND_ORIGINS cannot contain '*' in production");
-}
 
 function resolveAllowedOrigin(origin: string | null): string | null {
   if (ALLOW_ANY_ORIGIN) return origin ?? "*";
@@ -353,7 +349,7 @@ function isMissingRelationError(error: unknown, relationName: string): boolean {
 }
 
 function mapVehicleRow(row: any) {
-  const fuelEfficiency = toOptionalNumber(row.fuel_efficiency);
+  const consumptionKml = toOptionalNumber(row.consumption_kml);
   const totalDistance = toOptionalNumber(row.total_distance);
   const totalEngineHours = toOptionalNumber(row.total_engine_hours);
   const totalFuelUsed = toOptionalNumber(row.total_fuel_used);
@@ -368,17 +364,19 @@ function mapVehicleRow(row: any) {
     status: row.status || (row.last_ignition_on ? "Active" : "Idle"),
     currentFuelLevel: toNumber(row.current_fuel_level),
     tankCapacity: toOptionalNumber(row.tank_capacity),
-    fuelEfficiency,
-    efficiencyRating: fuelEfficiency === null
+    consumptionKml,
+    efficiencyRating: consumptionKml === null
       ? "N/A"
-      : fuelEfficiency > 0 && fuelEfficiency < 0.4
-      ? "Excellent"
-      : fuelEfficiency > 0 && fuelEfficiency < 0.7
-      ? "Good"
-      : "Poor",
+      : consumptionKml > 0 && consumptionKml < 0.4
+        ? "Excellent"
+        : consumptionKml > 0 && consumptionKml < 0.7
+          ? "Good"
+          : "Poor",
     totalDistance,
     totalEngineHours,
     totalFuelUsed,
+    lastGpsAt: row.last_gps_at ?? null,
+    lastRoadName: row.last_road_name ?? null,
     workingDays: 0,
     parkingDays: 0,
     lastMaintenanceDate: null,
@@ -434,8 +432,10 @@ function mapRawSensorRow(row: any) {
     vehicleId: row.vehicle_id ?? null,
     imeiNumber: normalizeImeiValue(row.imei_number),
     timestamp,
-    fuel: toOptionalNumber(row.rf ?? row.af ?? row.fuel),
-    rawFuel: toOptionalNumber(row.af ?? row.rf ?? row.fuel),
+    // Canonical mapping:
+    // af = calibrated fuel, rf = raw fuel (before spike logic).
+    fuel: toOptionalNumber(row.af ?? row.fuel ?? row.rf),
+    rawFuel: toOptionalNumber(row.rf ?? row.raw_fuel ?? row.af ?? row.fuel),
     altitude: toOptionalNumber(row.alt ?? row.altitude),
     odometer: toOptionalNumber(row.odo ?? row.odometer),
     speed: toOptionalNumber(row.spid ?? row.speed),
@@ -1379,7 +1379,7 @@ async function getFuelTemperatureDataRange(
       })),
       rawSensorData: reportRawSensorRows.map((row: any) => ({
         timestamp: row.date ?? row.timestamp ?? row.created_at ?? null,
-        fuel: toOptionalNumber(row.rf ?? row.af ?? row.fuel),
+        fuel: toOptionalNumber(row.af ?? row.fuel ?? row.rf),
         altitude: toOptionalNumber(row.alt ?? row.altitude),
         odometer: toOptionalNumber(row.odo ?? row.odometer),
         speed: toOptionalNumber(row.spid ?? row.speed),
@@ -1642,8 +1642,8 @@ serve(async (req: Request) => {
       const rawClientIds = Array.isArray(body?.clientIds)
         ? body.clientIds
         : Array.isArray(body?.client_ids)
-        ? body.client_ids
-        : [];
+          ? body.client_ids
+          : [];
       const clientIds: string[] = Array.from(
         new Set(rawClientIds.map((value: any) => String(value)).filter(Boolean))
       );

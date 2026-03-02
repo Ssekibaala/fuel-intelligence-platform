@@ -54,10 +54,10 @@ function looksLikeTripRecord(value: any): boolean {
   if (!value || typeof value !== "object") return false;
   return Boolean(
     toCleanString(value?.asset) ||
-      toCleanString(value?.start_time) ||
-      toCleanString(value?.end_time) ||
-      toCleanString(value?.date) ||
-      normalizeImei(value?.imei)
+    toCleanString(value?.start_time) ||
+    toCleanString(value?.end_time) ||
+    toCleanString(value?.date) ||
+    normalizeImei(value?.imei)
   );
 }
 
@@ -407,16 +407,20 @@ async function upsertDailyMetricsFromReport50(
 
   if (
     metricError &&
-    String(metricError?.message ?? "").toLowerCase().includes("no unique or exclusion constraint")
+    isNoUniqueConstraintError(metricError)
   ) {
-    ({ error: metricError } = await executeWithMissingColumnFallback(
-      "daily_metrics",
-      metricPayload,
-      async (candidatePayload) =>
-        await supabaseAdmin.from("daily_metrics").upsert(candidatePayload, {
-          onConflict: "raw_inbound_id"
-        })
-    ));
+    try {
+      await replaceDailyMetricWithoutUniqueConstraint(
+        supabaseAdmin,
+        metricPayload,
+        metricDay,
+        normalizedImei,
+        vehicleId
+      );
+      metricError = null;
+    } catch (fallbackError) {
+      metricError = fallbackError;
+    }
   }
 
   if (metricError) throw metricError;
@@ -509,6 +513,128 @@ function parseDdMmYyyyHhMmSs(value: unknown): string | null {
 function isNoUniqueConstraintError(error: any): boolean {
   const message = String(error?.message ?? "").toLowerCase();
   return message.includes("no unique or exclusion constraint");
+}
+
+function addUtcDays(yyyyMmDd: string, days: number): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(yyyyMmDd)) return null;
+  const parsed = new Date(`${yyyyMmDd}T00:00:00.000Z`);
+  if (Number.isNaN(parsed.getTime())) return null;
+  parsed.setUTCDate(parsed.getUTCDate() + days);
+  return parsed.toISOString();
+}
+
+async function replaceDailyMetricWithoutUniqueConstraint(
+  supabaseAdmin: any,
+  metricPayload: Record<string, any>,
+  metricDay: string,
+  normalizedImei: string | null,
+  vehicleId: string | null
+): Promise<void> {
+  const tryDeleteByMetricDay = async (includeReportType: boolean) => {
+    let query = supabaseAdmin.from("daily_metrics").delete();
+    if (normalizedImei) {
+      query = query.eq("imei_number", normalizedImei);
+    } else if (vehicleId) {
+      query = query.eq("vehicle_id", vehicleId);
+    }
+    query = query.eq("metric_day", metricDay);
+    if (includeReportType) query = query.eq("report_type", "50");
+    return await query;
+  };
+
+  const dayStartIso = addUtcDays(metricDay, 0);
+  const dayEndIso = addUtcDays(metricDay, 1);
+
+  const tryDeleteByMetricDate = async (includeReportType: boolean) => {
+    if (!dayStartIso || !dayEndIso) return { error: null };
+    let query = supabaseAdmin
+      .from("daily_metrics")
+      .delete()
+      .gte("metric_date", dayStartIso)
+      .lt("metric_date", dayEndIso);
+    if (normalizedImei) {
+      query = query.eq("imei_number", normalizedImei);
+    } else if (vehicleId) {
+      query = query.eq("vehicle_id", vehicleId);
+    }
+    if (includeReportType) query = query.eq("report_type", "50");
+    return await query;
+  };
+
+  let deleted = false;
+  const deleteAttempts: Array<() => Promise<{ error: any }>> = [
+    () => tryDeleteByMetricDay(true),
+    () => tryDeleteByMetricDay(false),
+    () => tryDeleteByMetricDate(true),
+    () => tryDeleteByMetricDate(false)
+  ];
+
+  for (const attempt of deleteAttempts) {
+    const { error } = await attempt();
+    if (!error) {
+      deleted = true;
+      break;
+    }
+    const missingColumn = extractMissingColumn(error, "daily_metrics");
+    if (missingColumn) continue;
+    throw error;
+  }
+
+  if (!deleted) {
+    // If schema probing failed, continue with insert fallback; this still avoids hard failure.
+    console.warn("daily_metrics duplicate replacement ran without a successful pre-delete attempt.");
+  }
+
+  const { error: insertError } = await executeWithMissingColumnFallback(
+    "daily_metrics",
+    metricPayload,
+    async (candidatePayload) => await supabaseAdmin.from("daily_metrics").insert(candidatePayload)
+  );
+  if (insertError) throw insertError;
+}
+
+async function replaceTripRowsWithoutUniqueConstraint(
+  supabaseAdmin: any,
+  rows: any[]
+): Promise<void> {
+  if (!rows.length) return;
+
+  const sourceTripKeys = Array.from(
+    new Set(
+      rows
+        .map((record: any) => toOriginalText(record?.source_trip_key))
+        .filter((value): value is string => Boolean(value))
+    )
+  );
+
+  if (sourceTripKeys.length > 0) {
+    const vehicleIds = Array.from(
+      new Set(
+        rows
+          .map((record: any) => toOriginalText(record?.vehicle_id))
+          .filter((value): value is string => Boolean(value))
+      )
+    );
+
+    let deleteQuery = supabaseAdmin.from(TRIP_REPORT_TABLE).delete().in("source_trip_key", sourceTripKeys);
+    if (vehicleIds.length > 0) {
+      deleteQuery = deleteQuery.in("vehicle_id", vehicleIds);
+    }
+
+    let { error: deleteError } = await deleteQuery;
+    if (deleteError && extractMissingColumn(deleteError, TRIP_REPORT_TABLE) === "vehicle_id") {
+      ({ error: deleteError } = await supabaseAdmin
+        .from(TRIP_REPORT_TABLE)
+        .delete()
+        .in("source_trip_key", sourceTripKeys));
+    }
+
+    if (deleteError && extractMissingColumn(deleteError, TRIP_REPORT_TABLE) !== "source_trip_key") {
+      throw deleteError;
+    }
+  }
+
+  await insertRowsWithFallback(supabaseAdmin, TRIP_REPORT_TABLE, rows, 500);
 }
 
 function buildTripSourceKey(context: any, payload: any): string {
@@ -895,12 +1021,12 @@ function ensureDailyMovementRequiredFields(transformed: any, context: any, paylo
   if (!transformed.report_date) {
     transformed.report_date = toDateOnly(
       context?.report_date ??
-        context?.date ??
-        context?.generated_date ??
-        context?.start_time ??
-        payload?.generated_date ??
-        payload?.start_date ??
-        payload?.date
+      context?.date ??
+      context?.generated_date ??
+      context?.start_time ??
+      payload?.generated_date ??
+      payload?.start_date ??
+      payload?.date
     );
   }
 
@@ -1211,11 +1337,11 @@ function extractSensorRows(
   const summary = {
     fuel: toNumeric(
       context?.fuel ??
-        context?.fuel_level ??
-        context?.fuelUsed ??
-        context?.fuel_used ??
-        context?.final_fuel_reading ??
-        context?.initial_reading
+      context?.fuel_level ??
+      context?.fuelUsed ??
+      context?.fuel_used ??
+      context?.final_fuel_reading ??
+      context?.initial_reading
     ),
     altitude: toNumeric(context?.altitude),
     odometer: toNumeric(context?.odometer ?? context?.kilometers ?? context?.distance),
@@ -1302,13 +1428,13 @@ async function upsertFuelNormalizedTables(
     const reportTimestamp =
       toIsoTimestamp(
         entry.context?.date ??
-          entry.context?.generated_date ??
-          entry.context?.start_time ??
-          payload?.date ??
-          payload?.generated_date ??
-          payload?.start_time ??
-          row.request_timestamp ??
-          row.received_at
+        entry.context?.generated_date ??
+        entry.context?.start_time ??
+        payload?.date ??
+        payload?.generated_date ??
+        payload?.start_time ??
+        row.request_timestamp ??
+        row.received_at
       ) ?? new Date().toISOString();
 
     const normalizedImei =
@@ -1343,10 +1469,10 @@ async function upsertFuelNormalizedTables(
     const fromDatetime =
       toIsoTimestamp(
         entry.context?.from_datetime ??
-          entry.context?.start_time ??
-          payload?.from_datetime ??
-          payload?.start_time ??
-          payload?.start_date
+        entry.context?.start_time ??
+        payload?.from_datetime ??
+        payload?.start_time ??
+        payload?.start_date
       ) ?? reportTimestamp;
     const toDatetime =
       toIsoTimestamp(
@@ -1357,18 +1483,18 @@ async function upsertFuelNormalizedTables(
     );
     const fuelUsedLitres = toNumeric(
       summary?.fuel_used ??
-        entry.context?.fuelUsed ??
-        entry.context?.fuel_used_litres ??
-        entry.context?.fuel_used ??
-        entry.context?.refuel_volume_litres
+      entry.context?.fuelUsed ??
+      entry.context?.fuel_used_litres ??
+      entry.context?.fuel_used ??
+      entry.context?.refuel_volume_litres
     );
     const totalRefillsLitres = toNumeric(
       summary?.total_refilled ??
-        refillDetails?.total_refills ??
-        entry.context?.total_refills ??
-        entry.context?.refilled ??
-        entry.context?.refill_volume_litres ??
-        fuelUsedLitres
+      refillDetails?.total_refills ??
+      entry.context?.total_refills ??
+      entry.context?.refilled ??
+      entry.context?.refill_volume_litres ??
+      fuelUsedLitres
     );
     const totalDrainsLitres = toNumeric(
       summary?.total_drained ?? drainDetails?.total_drains ?? entry.context?.total_drains ?? entry.context?.drain_volume_litres ?? 0
@@ -1514,9 +1640,9 @@ async function upsertFuelNormalizedTables(
       if (!refuelRows.length) {
         const fallbackFuelVolume = toNumeric(
           entry.context?.fuelUsed ??
-            entry.context?.fuel_used_litres ??
-            entry.context?.fuel_used ??
-            entry.context?.refuel_volume_litres
+          entry.context?.fuel_used_litres ??
+          entry.context?.fuel_used ??
+          entry.context?.refuel_volume_litres
         );
         if (fallbackFuelVolume !== null) {
           refuelRows.push({
@@ -1709,12 +1835,20 @@ async function upsertVehiclesFromProfilePayload(supabaseAdmin: any, row: any, pa
         vehiclePatch.total_distance = item.distance;
         vehiclePatch.total_engine_hours = item.hours;
         vehiclePatch.total_fuel_used = item.fuelUsed;
-        vehiclePatch.fuel_efficiency = item.consumptionNumeric;
+        vehiclePatch.consumption_kml = item.consumptionNumeric;
+        vehiclePatch.refill_count = item.refillCount ?? 0;
+        vehiclePatch.total_refill_volume = item.totalRefills ?? 0;
+        vehiclePatch.drain_count = item.drainCount ?? 0;
+        vehiclePatch.total_drain_volume = item.totalDrains ?? 0;
       } else {
         vehiclePatch.total_distance = null;
         vehiclePatch.total_engine_hours = null;
         vehiclePatch.total_fuel_used = null;
-        vehiclePatch.fuel_efficiency = null;
+        vehiclePatch.consumption_kml = null;
+        vehiclePatch.refill_count = 0;
+        vehiclePatch.total_refill_volume = 0;
+        vehiclePatch.drain_count = 0;
+        vehiclePatch.total_drain_volume = 0;
       }
     }
 
@@ -1741,14 +1875,14 @@ async function upsertVehicleLatestFromReport0(
   const imei =
     normalizeImei(
       payload?.Imei ??
-        payload?.imei ??
-        payload?.imei_number ??
-        payload?.imeiNumber ??
-        payload?.source_imei ??
-        extractImeiFromPayload(payload) ??
-        payloadSingleImei ??
-        reportNameImei ??
-        row.source_imei
+      payload?.imei ??
+      payload?.imei_number ??
+      payload?.imeiNumber ??
+      payload?.source_imei ??
+      extractImeiFromPayload(payload) ??
+      payloadSingleImei ??
+      reportNameImei ??
+      row.source_imei
     ) ??
     null;
 
@@ -1769,10 +1903,10 @@ async function upsertVehicleLatestFromReport0(
   const assignedAsset =
     toOriginalText(
       payload?.asset ??
-        payload?.Asset ??
-        payload?.registration_number ??
-        payload?.vehicle_plate ??
-        payload?.VehiclePlate
+      payload?.Asset ??
+      payload?.registration_number ??
+      payload?.vehicle_plate ??
+      payload?.VehiclePlate
     ) ??
     vehicleIdentity?.assignedAsset ??
     imei;
@@ -1869,12 +2003,12 @@ async function upsertDailyMovementFromTripReport(
     const imei =
       normalizeImei(
         context?.imei ??
-          context?.imei_number ??
-          context?.imeiNumber ??
-          context?.source_imei ??
-          context?.sourceImei ??
-          transformed?.source_imei ??
-          transformed?.sourceImei
+        context?.imei_number ??
+        context?.imeiNumber ??
+        context?.source_imei ??
+        context?.sourceImei ??
+        transformed?.source_imei ??
+        transformed?.sourceImei
       ) ??
       extractImeiFromPayload(context) ??
       extractSingleImeiFromPayload(context) ??
@@ -1972,11 +2106,12 @@ async function upsertDailyMovementFromTripReport(
   );
 
   if (isNoUniqueConstraintError(upsertError)) {
-    ({ error: upsertError } = await executeWithMissingColumnFallback(
-      TRIP_REPORT_TABLE,
-      deduped,
-      async (candidatePayload) => await supabaseAdmin.from(TRIP_REPORT_TABLE).insert(candidatePayload)
-    ));
+    try {
+      await replaceTripRowsWithoutUniqueConstraint(supabaseAdmin, deduped);
+      upsertError = null;
+    } catch (fallbackError) {
+      upsertError = fallbackError;
+    }
   }
 
   if (upsertError) throw upsertError;
@@ -2149,12 +2284,12 @@ serve(async (req: Request) => {
           const resolvedClientName =
             toOriginalText(
               transformed.client_name ??
-                transformed.source_client_name ??
-                transformed.company_name ??
-                context?.client_name ??
-                context?.client ??
-                payload?.client_name ??
-                payload?.client
+              transformed.source_client_name ??
+              transformed.company_name ??
+              context?.client_name ??
+              context?.client ??
+              payload?.client_name ??
+              payload?.client
             ) ?? parseClientFromReportName(resolvedReportName);
 
           if (resolvedClientName) {

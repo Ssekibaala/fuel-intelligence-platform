@@ -4,12 +4,64 @@
 
 NODE_ENV: development
 app env: development
-Re-optimizing dependencies because vite config has changed
-8:05:51 AM [express] serving on port 3000
-[2m10:32:12 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/@fs/C:/Users/brian/OneDrive/Dev/Fuel-platform/frontend/client/src/components/VehiclesPage.tsx, /@fs/C:/Users/brian/OneDrive/Dev/Fuel-platform/frontend/client/src/index.css?v=_FKWX2TaxY5ofZiTX0EbK[22m
-[2m10:32:12 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/@fs/C:/Users/brian/OneDrive/Dev/Fuel-platform/frontend/client/src/components/VehiclesPage.tsx, /@fs/C:/Users/brian/OneDrive/Dev/Fuel-platform/frontend/client/src/index.css?v=_FKWX2TaxY5ofZiTX0EbK[22m
-[2m10:36:55 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/@fs/C:/Users/brian/OneDrive/Dev/Fuel-platform/frontend/client/src/components/VehiclesPage.tsx, /@fs/C:/Users/brian/OneDrive/Dev/Fuel-platform/frontend/client/src/index.css?v=_FKWX2TaxY5ofZiTX0EbK[22m
-[2m10:39:57 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/@fs/C:/Users/brian/OneDrive/Dev/Fuel-platform/frontend/client/src/components/VehiclesPage.tsx, /@fs/C:/Users/brian/OneDrive/Dev/Fuel-platform/frontend/client/src/index.css?v=_FKWX2TaxY5ofZiTX0EbK[22m
-[2m10:42:59 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/@fs/C:/Users/brian/OneDrive/Dev/Fuel-platform/frontend/client/src/components/VehiclesPage.tsx, /@fs/C:/Users/brian/OneDrive/Dev/Fuel-platform/frontend/client/src/index.css?v=_FKWX2TaxY5ofZiTX0EbK[22m
-[2m10:55:05 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/@fs/C:/Users/brian/OneDrive/Dev/Fuel-platform/frontend/client/src/components/VehiclesPage.tsx, /@fs/C:/Users/brian/OneDrive/Dev/Fuel-platform/frontend/client/src/index.css?v=_FKWX2TaxY5ofZiTX0EbK[22m
-[2m10:55:57 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/@fs/C:/Users/brian/OneDrive/Dev/Fuel-platform/frontend/client/src/components/VehiclesPage.tsx, /@fs/C:/Users/brian/OneDrive/Dev/Fuel-platform/frontend/client/src/index.css?v=_FKWX2TaxY5ofZiTX0EbK[22m
+12:40:20 AM [express] serving on port 3000
+12:50:41 AM [express] GET /api/daily-metrics 401 in 34ms :: {"error":"Missing Authorization token"}
+12:51:02 AM [express] GET /api/daily-metrics 401 in 1ms :: {"error":"Missing Authorization token"}
+[2m8:38:32 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/GlobalFilterContext.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m8:38:33 AM[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/src/components/GlobalFilterContext.tsx[22m Could not Fast Refresh ("getDateRangeFromPreset" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m8:38:33 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx?v=j6x7dLfYhtRQGz_tJH10X, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X, /src/components/Dashboard.tsx, /src/components/AlertsPage.tsx, /src/components/SettingsPage.tsx, /src/components/VehiclesPage.tsx, /src/components/FilterControls.tsx, /src/components/CountUpAnimation.tsx, /src/components/DateRangePicker.tsx[22m
+[2m8:39:42 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/VehiclesPage.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m8:44:08 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/Dashboard.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m10:31:57 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/Dashboard.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m10:32:15 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/Dashboard.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m10:32:28 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/Dashboard.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m10:32:50 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/Dashboard.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m10:33:11 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/Dashboard.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m10:33:37 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/Dashboard.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m10:34:02 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/Dashboard.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m10:34:23 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/Dashboard.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m10:35:05 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/Dashboard.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m11:02:45 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/VehiclesPage.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m11:09:24 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/VehiclesPage.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m11:24:23 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/GlobalFilterContext.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m11:24:24 AM[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/src/components/GlobalFilterContext.tsx[22m Could not Fast Refresh ("getDateRangeFromPreset" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m11:24:24 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx?v=j6x7dLfYhtRQGz_tJH10X, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X, /src/components/Dashboard.tsx, /src/components/AlertsPage.tsx, /src/components/SettingsPage.tsx, /src/components/VehiclesPage.tsx, /src/components/FilterControls.tsx, /src/components/CountUpAnimation.tsx, /src/components/DateRangePicker.tsx[22m
+[2m11:24:40 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/VehiclesPage.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m12:23:07 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/VehiclesPage.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m12:29:20 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/VehiclesPage.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m12:29:26 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/VehiclesPage.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m12:29:40 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/VehiclesPage.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m12:29:46 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/VehiclesPage.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m12:29:56 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/VehiclesPage.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m12:30:07 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/VehiclesPage.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m12:30:21 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/VehiclesPage.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m12:37:48 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/VehiclesPage.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m12:42:42 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/VehiclesPage.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m12:56:08 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/VehiclesPage.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m12:56:27 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/VehiclesPage.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m1:09:09 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/VehiclesPage.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m1:09:09 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/VehiclesPage.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m1:09:31 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/VehiclesPage.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m1:09:50 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/VehiclesPage.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m1:12:10 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/VehiclesPage.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m1:12:30 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/VehiclesPage.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m1:13:08 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/VehiclesPage.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m1:13:16 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/VehiclesPage.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m1:19:59 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/GlobalFilterContext.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m1:19:59 PM[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/src/components/GlobalFilterContext.tsx[22m Could not Fast Refresh ("getDateRangeFromPreset" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m1:19:59 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx?v=j6x7dLfYhtRQGz_tJH10X, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X, /src/components/Dashboard.tsx, /src/components/AlertsPage.tsx, /src/components/SettingsPage.tsx, /src/components/VehiclesPage.tsx, /src/components/FilterControls.tsx, /src/components/CountUpAnimation.tsx, /src/components/DateRangePicker.tsx[22m
+[2m1:20:20 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/GlobalFilterContext.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m1:20:20 PM[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/src/components/GlobalFilterContext.tsx[22m Could not Fast Refresh ("getDateRangeFromPreset" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m1:20:20 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx?v=j6x7dLfYhtRQGz_tJH10X, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X, /src/components/Dashboard.tsx, /src/components/AlertsPage.tsx, /src/components/SettingsPage.tsx, /src/components/VehiclesPage.tsx, /src/components/FilterControls.tsx, /src/components/CountUpAnimation.tsx, /src/components/DateRangePicker.tsx[22m
+[2m1:21:00 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/SettingsPage.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m1:21:32 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/VehiclesPage.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m1:21:40 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/VehiclesPage.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m1:21:49 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/VehiclesPage.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m1:21:54 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/VehiclesPage.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m1:22:07 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/VehiclesPage.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m1:22:17 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/VehiclesPage.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m1:22:33 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/SettingsPage.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m1:23:23 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/GlobalFilterContext.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m
+[2m1:23:23 PM[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/src/components/GlobalFilterContext.tsx[22m Could not Fast Refresh ("getDateRangeFromPreset" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m1:23:23 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx?v=j6x7dLfYhtRQGz_tJH10X, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X, /src/components/Dashboard.tsx, /src/components/AlertsPage.tsx, /src/components/SettingsPage.tsx, /src/components/VehiclesPage.tsx, /src/components/FilterControls.tsx, /src/components/CountUpAnimation.tsx, /src/components/DateRangePicker.tsx[22m
+[2m1:27:10 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/Dashboard.tsx, /src/index.css?v=j6x7dLfYhtRQGz_tJH10X[22m

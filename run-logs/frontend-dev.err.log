@@ -3,3 +3,70 @@ Browserslist: browsers data (caniuse-lite) is 16 months old. Please run:
   Why you should do it regularly: https://github.com/browserslist/update-db#readme
 
 A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+[2m1:27:10 PM[22m [31m[1m[vite][22m[39m [31mInternal server error: C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\client\src\components\Dashboard.tsx: Unexpected token (670:180)
+
+[0m [90m 668 |[31m             [33m<[31m[33m/[31m[33mdiv[31m[33m>[31m
+ [90m 669 |[31m             [33m<[31m[33mdiv[31m className[33m=[31m[32m"mt-2 text-[11px] text-muted-foreground"[31m[33m>[31m
+[31m[1m>[22m[31m[90m 670 |[31m               [33mThresholds[31m[33m:[31m [33mExcellent[31m [33m>=[31m {[33mNumber[31m(filterState[33m.[31mconsumptionExcellentThreshold)[33m.[31mtoFixed(filterState[33m.[31mconsumptionUnit [33m===[31m [32m"KM/L"[31m [33m?[31m [35m1[31m [33m:[31m [35m2[31m)} {consumptionUnitLabel} [33m|[31m [33mAlert[31m [33m<[31m {[33mNumber[31m(filterState[33m.[31mconsumptionAlertThreshold)[33m.[31mtoFixed(filterState[33m.[31mconsumptionUnit [33m===[31m [32m"KM/L"[31m [33m?[31m [35m1[31m [33m:[31m [35m2[31m)} {consumptionUnitLabel}
+ [90m     |[31m                                                                                                                                                                                     [31m[1m^[22m[31m
+ [90m 671 |[31m             [33m<[31m[33m/[31m[33mdiv[31m[33m>[31m
+ [90m 672 |[31m
+ [90m 673 |[31m           [33m<[31m[33m/[31m[33mGlassCard[31m[33m>[31m[0m[39m
+  Plugin: [35mvite:react-babel[39m
+  File: [36mC:/Users/brian/OneDrive/Dev/Fuel-platform/frontend/client/src/components/Dashboard.tsx[39m:670:180
+[33m  668|              </div>
+  669|              <div className="mt-2 text-[11px] text-muted-foreground">
+  670|                Thresholds: Excellent >= {Number(filterState.consumptionExcellentThreshold).toFixed(filterState.consumptionUnit === "KM/L" ? 1 : 2)} {consumptionUnitLabel} | Alert < {Number(filterState.consumptionAlertThreshold).toFixed(filterState.consumptionUnit === "KM/L" ? 1 : 2)} {consumptionUnitLabel}
+     |                                                                                                                                                                                      ^
+  671|              </div>
+  672|  [39m
+      at toParseError (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\parse-error.ts:95:45)
+      at TypeScriptParserMixin.raise (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\tokenizer\index.ts:1503:19)
+      at TypeScriptParserMixin.unexpected (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\tokenizer\index.ts:1543:16)
+      at TypeScriptParserMixin.jsxParseIdentifier (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\plugins\jsx\index.ts:278:14)
+      at TypeScriptParserMixin.jsxParseNamespacedName (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\plugins\jsx\index.ts:288:25)
+      at TypeScriptParserMixin.jsxParseElementName (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\plugins\jsx\index.ts:306:14)
+      at TypeScriptParserMixin.jsxParseOpeningElementAt (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\plugins\jsx\index.ts:429:24)
+      at TypeScriptParserMixin.jsxParseElementAt (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\plugins\jsx\index.ts:470:35)
+      at TypeScriptParserMixin.jsxParseElementAt (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\plugins\jsx\index.ts:483:34)
+      at TypeScriptParserMixin.jsxParseElementAt (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\plugins\jsx\index.ts:483:34)
+      at TypeScriptParserMixin.jsxParseElementAt (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\plugins\jsx\index.ts:483:34)
+      at TypeScriptParserMixin.jsxParseElementAt (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\plugins\jsx\index.ts:483:34)
+      at TypeScriptParserMixin.jsxParseElementAt (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\plugins\jsx\index.ts:483:34)
+      at TypeScriptParserMixin.jsxParseElement (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\plugins\jsx\index.ts:559:19)
+      at TypeScriptParserMixin.parseExprAtom (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\plugins\jsx\index.ts:573:21)
+      at TypeScriptParserMixin.parseExprSubscripts (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\parser\expression.ts:734:23)
+      at TypeScriptParserMixin.parseUpdate (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\parser\expression.ts:713:21)
+      at TypeScriptParserMixin.parseMaybeUnary (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\parser\expression.ts:675:23)
+      at TypeScriptParserMixin.parseMaybeUnary (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\plugins\typescript\index.ts:3855:20)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\parser\expression.ts:409:14)
+      at TypeScriptParserMixin.parseExprOps (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\parser\expression.ts:421:23)
+      at TypeScriptParserMixin.parseMaybeConditional (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\parser\expression.ts:376:23)
+      at TypeScriptParserMixin.parseMaybeAssign (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\parser\expression.ts:301:21)
+      at fn (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\plugins\typescript\index.ts:3708:23)
+      at TypeScriptParserMixin.tryParse (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\parser\util.ts:174:20)
+      at TypeScriptParserMixin.parseMaybeAssign (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\plugins\typescript\index.ts:3707:20)
+      at callback (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\parser\expression.ts:257:12)
+      at TypeScriptParserMixin.allowInAnd (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\parser\expression.ts:3192:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\parser\expression.ts:256:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\parser\expression.ts:3306:17)
+      at TypeScriptParserMixin.parseParenAndDistinguishExpression (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\parser\expression.ts:1813:16)
+      at TypeScriptParserMixin.parseExprAtom (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\parser\expression.ts:1162:21)
+      at TypeScriptParserMixin.parseExprAtom (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\plugins\jsx\index.ts:583:22)
+      at TypeScriptParserMixin.parseExprSubscripts (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\parser\expression.ts:734:23)
+      at TypeScriptParserMixin.parseUpdate (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\parser\expression.ts:713:21)
+      at TypeScriptParserMixin.parseMaybeUnary (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\parser\expression.ts:675:23)
+      at TypeScriptParserMixin.parseMaybeUnary (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\plugins\typescript\index.ts:3855:20)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\parser\expression.ts:409:14)
+      at TypeScriptParserMixin.parseExprOps (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\parser\expression.ts:421:23)
+      at TypeScriptParserMixin.parseMaybeConditional (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\parser\expression.ts:376:23)
+      at TypeScriptParserMixin.parseMaybeAssign (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\parser\expression.ts:301:21)
+      at TypeScriptParserMixin.parseMaybeAssign (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\plugins\typescript\index.ts:3727:22)
+      at TypeScriptParserMixin.parseExpressionBase (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\parser\expression.ts:226:23)
+      at callback (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\parser\expression.ts:217:39)
+      at TypeScriptParserMixin.allowInAnd (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\parser\expression.ts:3187:16)
+      at TypeScriptParserMixin.parseExpression (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\parser\expression.ts:217:17)
+      at TypeScriptParserMixin.parseReturnStatement (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\parser\statement.ts:1110:28)
+      at TypeScriptParserMixin.parseStatementContent (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\parser\statement.ts:538:21)
+      at TypeScriptParserMixin.parseStatementContent (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\plugins\typescript\index.ts:3185:20)
+      at TypeScriptParserMixin.parseStatementLike (C:\Users\brian\OneDrive\Dev\Fuel-platform\frontend\node_modules\@babel\parser\src\parser\statement.ts:477:17)

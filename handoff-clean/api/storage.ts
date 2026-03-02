@@ -59,11 +59,13 @@ const mapVehicleRow = (row: any): Vehicle => ({
   efficiencyRating: (toNumber(row.fuel_efficiency) > 0 && toNumber(row.fuel_efficiency) < 0.4)
     ? "Excellent"
     : (toNumber(row.fuel_efficiency) > 0 && toNumber(row.fuel_efficiency) < 0.7)
-    ? "Good"
-    : "Poor",
+      ? "Good"
+      : "Poor",
   totalDistance: toNumber(row.total_distance, toNumber(row.last_odometer_km)),
   totalEngineHours: toNumber(row.total_engine_hours, toNumber(row.last_engine_hours)),
   totalFuelUsed: toNumber(row.total_fuel_used),
+  lastGpsAt: row.last_gps_at ? new Date(row.last_gps_at) : null,
+  lastRoadName: row.last_road_name ?? null,
   workingDays: 0,
   parkingDays: 0,
   lastMaintenanceDate: null,
@@ -87,7 +89,7 @@ const mapVehicleInsert = (vehicle: InsertVehicle) => ({
   status: vehicle.status || "Idle",
   current_fuel_level: toNumber(vehicle.currentFuelLevel),
   tank_capacity: toNumber(vehicle.tankCapacity),
-  fuel_efficiency: toNumber(vehicle.fuelEfficiency),
+  consumption_kml: toNumber(vehicle.consumptionKml),
   total_distance: toNumber(vehicle.totalDistance),
   total_engine_hours: toNumber(vehicle.totalEngineHours),
   total_fuel_used: toNumber(vehicle.totalFuelUsed),
@@ -580,38 +582,38 @@ export class SupabaseStorage implements IStorage {
 
     const metricsTotals = (parsedStartDate && parsedEndDate)
       ? await this.aggregateDailyMetrics({
-          vehicleIds: filters.vehicleIds,
-          startDate: parsedStartDate,
-          endDate: parsedEndDate,
-        })
+        vehicleIds: filters.vehicleIds,
+        startDate: parsedStartDate,
+        endDate: parsedEndDate,
+      })
       : null;
 
     const totals = metricsTotals
       ? {
-          totalEngineHours: metricsTotals.totalEngineHours,
-          totalDistance: metricsTotals.totalDistance,
-          totalFuelUsed: metricsTotals.totalFuelConsumed,
-        }
+        totalEngineHours: metricsTotals.totalEngineHours,
+        totalDistance: metricsTotals.totalDistance,
+        totalFuelUsed: metricsTotals.totalFuelConsumed,
+      }
       : scopedVehicles.reduce(
-          (acc, vehicle) => ({
-            totalEngineHours: acc.totalEngineHours + vehicle.totalEngineHours,
-            totalDistance: acc.totalDistance + vehicle.totalDistance,
-            totalFuelUsed: acc.totalFuelUsed + vehicle.totalFuelUsed,
-          }),
-          { totalEngineHours: 0, totalDistance: 0, totalFuelUsed: 0 }
-        );
+        (acc, vehicle) => ({
+          totalEngineHours: acc.totalEngineHours + vehicle.totalEngineHours,
+          totalDistance: acc.totalDistance + vehicle.totalDistance,
+          totalFuelUsed: acc.totalFuelUsed + vehicle.totalFuelUsed,
+        }),
+        { totalEngineHours: 0, totalDistance: 0, totalFuelUsed: 0 }
+      );
 
     const systemReliability = scopedVehicles.length > 0
       ? scopedVehicles.reduce((sum, v) => {
-          const score = v.systemReliability === "Excellent"
-            ? 95
-            : v.systemReliability === "Good"
+        const score = v.systemReliability === "Excellent"
+          ? 95
+          : v.systemReliability === "Good"
             ? 80
             : v.systemReliability === "Warning"
-            ? 60
-            : 40;
-          return sum + score;
-        }, 0) / scopedVehicles.length
+              ? 60
+              : 40;
+        return sum + score;
+      }, 0) / scopedVehicles.length
       : 85.2;
 
     const fuelEvents = await this.getFuelEvents({

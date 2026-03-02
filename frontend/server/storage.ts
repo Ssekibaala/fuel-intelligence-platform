@@ -21,6 +21,17 @@ const toIso = (value?: Date | string | null) => {
   return value;
 };
 
+/** Extract a YYYY-MM-DD key in UTC from any date-like value.
+ *  Using UTC consistently prevents off-by-one day when the server is in a
+ *  non-UTC timezone. Supabase timestamps are stored as UTC. */
+const toUtcDateKey = (value?: Date | string | null): string => {
+  if (!value) return "";
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10);
+};
+
+
 const mapVehicleRow = (row: any): Vehicle => ({
   id: row.id,
   clientId: row.client_id,
@@ -30,11 +41,17 @@ const mapVehicleRow = (row: any): Vehicle => ({
   status: row.status,
   currentFuelLevel: row.current_fuel_level,
   tankCapacity: row.tank_capacity,
-  fuelEfficiency: row.fuel_efficiency,
+  consumptionKml: row.consumption_kml,
+  refillCount: row.refill_count ?? 0,
+  totalRefillVolume: row.total_refill_volume ?? 0,
+  drainCount: row.drain_count ?? 0,
+  totalDrainVolume: row.total_drain_volume ?? 0,
   efficiencyRating: row.efficiency_rating,
   totalDistance: row.total_distance,
   totalEngineHours: row.total_engine_hours,
   totalFuelUsed: row.total_fuel_used,
+  lastGpsAt: row.last_gps_at ? new Date(row.last_gps_at) : null,
+  lastRoadName: row.last_road_name ?? null,
   workingDays: row.working_days,
   parkingDays: row.parking_days,
   lastMaintenanceDate: row.last_maintenance_date ? new Date(row.last_maintenance_date) : null,
@@ -57,7 +74,7 @@ const mapVehicleInsert = (vehicle: InsertVehicle) => ({
   status: vehicle.status,
   current_fuel_level: vehicle.currentFuelLevel,
   tank_capacity: vehicle.tankCapacity,
-  fuel_efficiency: vehicle.fuelEfficiency,
+  consumptionKml: vehicle.consumptionKml,
   efficiency_rating: vehicle.efficiencyRating,
   total_distance: vehicle.totalDistance,
   total_engine_hours: vehicle.totalEngineHours,
@@ -537,38 +554,38 @@ export class SupabaseStorage implements IStorage {
 
     const metricsTotals = (parsedStartDate && parsedEndDate)
       ? await this.aggregateDailyMetrics({
-          vehicleIds: filters.vehicleIds,
-          startDate: parsedStartDate,
-          endDate: parsedEndDate,
-        })
+        vehicleIds: filters.vehicleIds,
+        startDate: parsedStartDate,
+        endDate: parsedEndDate,
+      })
       : null;
 
     const totals = metricsTotals
       ? {
-          totalEngineHours: metricsTotals.totalEngineHours,
-          totalDistance: metricsTotals.totalDistance,
-          totalFuelUsed: metricsTotals.totalFuelConsumed,
-        }
+        totalEngineHours: metricsTotals.totalEngineHours,
+        totalDistance: metricsTotals.totalDistance,
+        totalFuelUsed: metricsTotals.totalFuelConsumed,
+      }
       : scopedVehicles.reduce(
-          (acc, vehicle) => ({
-            totalEngineHours: acc.totalEngineHours + (vehicle.totalEngineHours ?? 0),
-            totalDistance: acc.totalDistance + (vehicle.totalDistance ?? 0),
-            totalFuelUsed: acc.totalFuelUsed + (vehicle.totalFuelUsed ?? 0),
-          }),
-          { totalEngineHours: 0, totalDistance: 0, totalFuelUsed: 0 }
-        );
+        (acc, vehicle) => ({
+          totalEngineHours: acc.totalEngineHours + (vehicle.totalEngineHours ?? 0),
+          totalDistance: acc.totalDistance + (vehicle.totalDistance ?? 0),
+          totalFuelUsed: acc.totalFuelUsed + (vehicle.totalFuelUsed ?? 0),
+        }),
+        { totalEngineHours: 0, totalDistance: 0, totalFuelUsed: 0 }
+      );
 
     const systemReliability = scopedVehicles.length > 0
       ? scopedVehicles.reduce((sum, v) => {
-          const score = v.systemReliability === "Excellent"
-            ? 95
-            : v.systemReliability === "Good"
+        const score = v.systemReliability === "Excellent"
+          ? 95
+          : v.systemReliability === "Good"
             ? 80
             : v.systemReliability === "Warning"
-            ? 60
-            : 40;
-          return sum + score;
-        }, 0) / scopedVehicles.length
+              ? 60
+              : 40;
+        return sum + score;
+      }, 0) / scopedVehicles.length
       : 85.2;
 
     const fuelEvents = await this.getFuelEvents({
@@ -577,13 +594,13 @@ export class SupabaseStorage implements IStorage {
       endDate: parsedEndDate,
     });
     const totalRefills = fuelEvents.filter((e) => e.eventType === "refill").length;
-    const totalFuelThefts = fuelEvents.filter((e) => e.eventType === "theft").length;
+    const totalThefts = fuelEvents.filter((e) => e.eventType === "theft").length;
 
     return {
       ...totals,
       systemReliability,
       totalRefills,
-      totalFuelThefts,
+      totalFuelThefts: totalThefts,
     };
   }
 
@@ -605,7 +622,7 @@ export class SupabaseStorage implements IStorage {
 
     const grouped = new Map<string, number>();
     metrics.forEach((metric) => {
-      const dateKey = new Date(metric.metricDate).toISOString().split("T")[0];
+      const dateKey = toUtcDateKey(metric.metricDate);
       const value = chartType === "fuel-consumption"
         ? metric.totalFuelConsumed
         : metric.totalDistanceTraveled;

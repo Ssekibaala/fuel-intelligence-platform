@@ -1,11 +1,11 @@
 import { sql } from "drizzle-orm";
-import { 
-  pgTable, 
-  text, 
-  varchar, 
-  timestamp, 
-  decimal, 
-  integer, 
+import {
+  pgTable,
+  text,
+  varchar,
+  timestamp,
+  decimal,
+  integer,
   boolean,
   json,
   uuid,
@@ -64,6 +64,10 @@ export type FuelEventType = z.infer<typeof fuelEventTypeEnum>;
 export const currencyEnum = z.enum(["KES", "UGX", "USD"]);
 export type Currency = z.infer<typeof currencyEnum>;
 
+// Consumption Unit Enum
+export const consumptionUnitEnum = z.enum(["KM/L", "HRS/L"]);
+export type ConsumptionUnit = z.infer<typeof consumptionUnitEnum>;
+
 // System Reliability Enum
 export const systemReliabilityEnum = z.enum(["Excellent", "Good", "Warning", "Critical"]);
 export type SystemReliability = z.infer<typeof systemReliabilityEnum>;
@@ -86,11 +90,18 @@ export const vehicles = pgTable("vehicles", {
   status: text("status").notNull().$type<VehicleStatus>(), // "Active", "Idle", "Maintenance"
   currentFuelLevel: real("current_fuel_level").notNull(), // Liters
   tankCapacity: real("tank_capacity").notNull().default(300), // Liters
-  fuelEfficiency: real("fuel_efficiency").notNull(), // L/100km
+  consumptionKml: real("consumption_kml").notNull().default(0), // Report 147 value
+  refillCount: integer("refill_count").notNull().default(0), // report_type=147 summary
+  totalRefillVolume: real("total_refill_volume").notNull().default(0), // report_type=147 summary
+  drainCount: integer("drain_count").notNull().default(0), // report_type=147 summary
+  totalDrainVolume: real("total_drain_volume").notNull().default(0), // report_type=147 summary
   efficiencyRating: text("efficiency_rating").notNull().$type<EfficiencyRating>(), // "Excellent", "Good", "Poor"
   totalDistance: real("total_distance").notNull().default(0), // Kilometers
   totalEngineHours: real("total_engine_hours").notNull().default(0), // Hours
   totalFuelUsed: real("total_fuel_used").notNull().default(0), // Liters
+  // report_type=0 live snapshot fields (always latest)
+  lastGpsAt: timestamp("last_gps_at"),
+  lastRoadName: text("last_road_name"),
   workingDays: integer("working_days").notNull().default(0), // This period
   parkingDays: integer("parking_days").notNull().default(0), // This period
   lastMaintenanceDate: timestamp("last_maintenance_date"),
@@ -140,7 +151,7 @@ export const kpiAggregates = pgTable("kpi_aggregates", {
   rangeStart: timestamp("range_start").notNull(), // Start of aggregation period
   rangeEnd: timestamp("range_end").notNull(), // End of aggregation period
   aggregateScope: text("aggregate_scope").notNull().$type<AggregateScope>(), // "fleet", "vehicle", "period"
-  
+
   // KPI Metrics
   totalEngineHours: real("total_engine_hours").notNull().default(0),
   totalDistance: real("total_distance").notNull().default(0), // Kilometers
@@ -243,7 +254,11 @@ export const globalFilterSchema = z.object({
   dateRange: dateRangeSchema,
   currency: currencyEnum.default("KES"),
   fuelCostPerLiter: z.number().default(145.50), // Cost per liter in selected currency
-  refreshInterval: z.number().default(30000) // Milliseconds
+  refreshInterval: z.number().default(30000), // Milliseconds
+  consumptionUnit: consumptionUnitEnum.default("KM/L"),
+  consumptionExcellentThreshold: z.number().default(3.0),
+  consumptionAcceptableThreshold: z.number().default(1.5),
+  consumptionAlertThreshold: z.number().default(1.0)
 });
 
 export type GlobalFilter = z.infer<typeof globalFilterSchema>;

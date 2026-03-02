@@ -16,9 +16,10 @@ import { getStoredBrandLogo, setStoredBrandLogo } from "@/lib/branding";
 interface SettingsData {
   fuelCostPerLiter: number;
   defaultCurrency: string;
-  excellentThreshold: number;
-  acceptableThreshold: number;
-  theftAlertThreshold: number;
+  consumptionUnit: "KM/L" | "HRS/L";
+  consumptionExcellentThreshold: number;
+  consumptionAcceptableThreshold: number;
+  consumptionAlertThreshold: number;
   companyLogo: string | null;
   defaultTheme: string;
   defaultLandingPage: string;
@@ -30,6 +31,27 @@ interface SettingsPageProps {
   pageId?: string;
 }
 
+const getConsumptionThresholdConfig = (unit: "KM/L" | "HRS/L") =>
+  unit === "KM/L"
+    ? {
+      unitLabel: "Km/L",
+      min: 0.5,
+      maxExcellent: 10,
+      maxAcceptable: 8,
+      maxAlert: 6,
+      step: 0.1,
+      hint: "Higher is better. More distance per liter means better consumption."
+    }
+    : {
+      unitLabel: "Hrs/L",
+      min: 0.05,
+      maxExcellent: 2,
+      maxAcceptable: 1.5,
+      maxAlert: 1,
+      step: 0.01,
+      hint: "Higher is better. More working hours per liter means better consumption."
+    };
+
 export function SettingsPage({ pageId }: SettingsPageProps) {
   const { toast } = useToast();
   const { state: filterState, actions } = useGlobalFilter();
@@ -37,9 +59,10 @@ export function SettingsPage({ pageId }: SettingsPageProps) {
   const [settings, setSettings] = useState<SettingsData>({
     fuelCostPerLiter: filterState.fuelCostPerLiter,
     defaultCurrency: filterState.currency,
-    excellentThreshold: 8.0,
-    acceptableThreshold: 12.0,
-    theftAlertThreshold: 15.0,
+    consumptionUnit: filterState.consumptionUnit,
+    consumptionExcellentThreshold: filterState.consumptionExcellentThreshold,
+    consumptionAcceptableThreshold: filterState.consumptionAcceptableThreshold,
+    consumptionAlertThreshold: filterState.consumptionAlertThreshold,
     companyLogo: getStoredBrandLogo(),
     defaultTheme: "dark",
     defaultLandingPage: "dashboard",
@@ -73,6 +96,12 @@ export function SettingsPage({ pageId }: SettingsPageProps) {
     // Update global settings
     actions.setCurrency(settings.defaultCurrency as "KES" | "UGX" | "USD");
     actions.setFuelCostPerLiter(settings.fuelCostPerLiter);
+    actions.setConsumptionUnit(settings.consumptionUnit);
+    actions.setConsumptionThresholds({
+      excellent: settings.consumptionExcellentThreshold,
+      acceptable: settings.consumptionAcceptableThreshold,
+      alert: settings.consumptionAlertThreshold
+    });
     
     // Simulate API call
     setTimeout(() => {
@@ -125,11 +154,54 @@ export function SettingsPage({ pageId }: SettingsPageProps) {
   };
 
   const updateSetting = <K extends keyof SettingsData>(key: K, value: SettingsData[K]) => {
+    if (key === "consumptionUnit") {
+      const nextUnit = value as SettingsData["consumptionUnit"];
+      const config = getConsumptionThresholdConfig(nextUnit);
+
+      setSettings((prev) => {
+        const excellent = Math.min(Math.max(prev.consumptionExcellentThreshold, config.min), config.maxExcellent);
+        const acceptableMax = Math.min(config.maxAcceptable, excellent);
+        const acceptable = Math.min(Math.max(prev.consumptionAcceptableThreshold, config.min), acceptableMax);
+        const alertMax = Math.min(config.maxAlert, acceptable);
+        const alert = Math.min(Math.max(prev.consumptionAlertThreshold, config.min), alertMax);
+
+        return {
+          ...prev,
+          consumptionUnit: nextUnit,
+          consumptionExcellentThreshold: excellent,
+          consumptionAcceptableThreshold: acceptable,
+          consumptionAlertThreshold: alert,
+        };
+      });
+      return;
+    }
+
     setSettings(prev => ({
       ...prev,
       [key]: value
     }));
   };
+
+  const updateConsumptionThreshold = (
+    key: "consumptionExcellentThreshold" | "consumptionAcceptableThreshold" | "consumptionAlertThreshold",
+    value: number
+  ) => {
+    setSettings((prev) => {
+      const next = { ...prev, [key]: value };
+
+      if (next.consumptionExcellentThreshold < next.consumptionAcceptableThreshold) {
+        next.consumptionAcceptableThreshold = next.consumptionExcellentThreshold;
+      }
+
+      if (next.consumptionAcceptableThreshold < next.consumptionAlertThreshold) {
+        next.consumptionAlertThreshold = next.consumptionAcceptableThreshold;
+      }
+
+      return next;
+    });
+  };
+
+  const thresholdConfig = getConsumptionThresholdConfig(settings.consumptionUnit);
 
   const currentHeadingLogo = settings.companyLogo || teletracLogo;
 
@@ -222,74 +294,97 @@ export function SettingsPage({ pageId }: SettingsPageProps) {
         <GlassCard className="p-6" hover={false}>
           <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
             <Gauge className="w-5 h-5 text-primary" />
-            Efficiency Thresholds
+            Consumption Thresholds
           </h2>
           
           <div className="space-y-6">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-foreground">Consumption Unit</Label>
+              <Select
+                value={settings.consumptionUnit}
+                onValueChange={(value) => updateSetting("consumptionUnit", value as "KM/L" | "HRS/L")}
+              >
+                <SelectTrigger data-testid="select-consumption-unit">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="KM/L">Km/L</SelectItem>
+                  <SelectItem value="HRS/L">Hrs/L</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">{thresholdConfig.hint}</p>
+            </div>
+
             <div className="space-y-4">
               <div className="space-y-3">
                 <Label className="text-sm font-medium text-foreground">
-                  Excellent Efficiency (L/100km)
+                  Excellent Consumption ({thresholdConfig.unitLabel})
                 </Label>
                 <div className="px-3">
                   <Slider
-                    value={[settings.excellentThreshold]}
-                    onValueChange={(value) => updateSetting('excellentThreshold', value[0])}
-                    max={15}
-                    min={5}
-                    step={0.5}
+                    value={[settings.consumptionExcellentThreshold]}
+                    onValueChange={(value) => updateConsumptionThreshold('consumptionExcellentThreshold', value[0])}
+                    max={thresholdConfig.maxExcellent}
+                    min={thresholdConfig.min}
+                    step={thresholdConfig.step}
                     className="w-full"
                     data-testid="slider-excellent-threshold"
                   />
                 </div>
                 <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>5.0</span>
-                  <span className="font-medium text-primary">Current: {settings.excellentThreshold.toFixed(1)}</span>
-                  <span>15.0</span>
+                  <span>{thresholdConfig.min.toFixed(settings.consumptionUnit === "KM/L" ? 1 : 2)}</span>
+                  <span className="font-medium text-primary">
+                    Current: {settings.consumptionExcellentThreshold.toFixed(settings.consumptionUnit === "KM/L" ? 1 : 2)}
+                  </span>
+                  <span>{thresholdConfig.maxExcellent.toFixed(settings.consumptionUnit === "KM/L" ? 1 : 2)}</span>
                 </div>
               </div>
 
               <div className="space-y-3">
                 <Label className="text-sm font-medium text-foreground">
-                  Acceptable Efficiency (L/100km)
+                  Acceptable Consumption ({thresholdConfig.unitLabel})
                 </Label>
                 <div className="px-3">
                   <Slider
-                    value={[settings.acceptableThreshold]}
-                    onValueChange={(value) => updateSetting('acceptableThreshold', value[0])}
-                    max={20}
-                    min={8}
-                    step={0.5}
+                    value={[settings.consumptionAcceptableThreshold]}
+                    onValueChange={(value) => updateConsumptionThreshold('consumptionAcceptableThreshold', value[0])}
+                    max={thresholdConfig.maxAcceptable}
+                    min={thresholdConfig.min}
+                    step={thresholdConfig.step}
                     className="w-full"
                     data-testid="slider-acceptable-threshold"
                   />
                 </div>
                 <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>8.0</span>
-                  <span className="font-medium text-accent-foreground">Current: {settings.acceptableThreshold.toFixed(1)}</span>
-                  <span>20.0</span>
+                  <span>{thresholdConfig.min.toFixed(settings.consumptionUnit === "KM/L" ? 1 : 2)}</span>
+                  <span className="font-medium text-accent-foreground">
+                    Current: {settings.consumptionAcceptableThreshold.toFixed(settings.consumptionUnit === "KM/L" ? 1 : 2)}
+                  </span>
+                  <span>{thresholdConfig.maxAcceptable.toFixed(settings.consumptionUnit === "KM/L" ? 1 : 2)}</span>
                 </div>
               </div>
 
               <div className="space-y-3">
                 <Label className="text-sm font-medium text-foreground">
-                  Theft Alert Threshold (L/100km)
+                  Alert Threshold ({thresholdConfig.unitLabel})
                 </Label>
                 <div className="px-3">
                   <Slider
-                    value={[settings.theftAlertThreshold]}
-                    onValueChange={(value) => updateSetting('theftAlertThreshold', value[0])}
-                    max={25}
-                    min={12}
-                    step={0.5}
+                    value={[settings.consumptionAlertThreshold]}
+                    onValueChange={(value) => updateConsumptionThreshold('consumptionAlertThreshold', value[0])}
+                    max={thresholdConfig.maxAlert}
+                    min={thresholdConfig.min}
+                    step={thresholdConfig.step}
                     className="w-full"
                     data-testid="slider-theft-threshold"
                   />
                 </div>
                 <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>12.0</span>
-                  <span className="font-medium text-destructive">Current: {settings.theftAlertThreshold.toFixed(1)}</span>
-                  <span>25.0</span>
+                  <span>{thresholdConfig.min.toFixed(settings.consumptionUnit === "KM/L" ? 1 : 2)}</span>
+                  <span className="font-medium text-destructive">
+                    Current: {settings.consumptionAlertThreshold.toFixed(settings.consumptionUnit === "KM/L" ? 1 : 2)}
+                  </span>
+                  <span>{thresholdConfig.maxAlert.toFixed(settings.consumptionUnit === "KM/L" ? 1 : 2)}</span>
                 </div>
               </div>
             </div>
@@ -297,7 +392,8 @@ export function SettingsPage({ pageId }: SettingsPageProps) {
             <div className="p-4 bg-accent/5 border border-accent/20 rounded-lg">
               <div className="text-sm text-accent-foreground dark:text-accent-foreground font-medium mb-2">Threshold Impact</div>
               <div className="text-xs text-muted-foreground">
-                Assets consuming above {settings.theftAlertThreshold.toFixed(1)} L/100km will trigger theft alerts. Between {settings.excellentThreshold.toFixed(1)}-{settings.acceptableThreshold.toFixed(1)} L/100km is considered normal operation.
+                Assets below {settings.consumptionAlertThreshold.toFixed(settings.consumptionUnit === "KM/L" ? 1 : 2)} {thresholdConfig.unitLabel} are flagged for alerting.
+                Between {settings.consumptionAcceptableThreshold.toFixed(settings.consumptionUnit === "KM/L" ? 1 : 2)} and {settings.consumptionExcellentThreshold.toFixed(settings.consumptionUnit === "KM/L" ? 1 : 2)} {thresholdConfig.unitLabel} is normal.
               </div>
             </div>
           </div>
