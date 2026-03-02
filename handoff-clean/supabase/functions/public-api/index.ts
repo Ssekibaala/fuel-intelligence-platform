@@ -235,6 +235,11 @@ function parseRequestedVehicleIds(url: URL): string[] {
   return Array.from(new Set(values.filter(Boolean)));
 }
 
+function hasFuelTankCapacity(vehicle: { tankCapacity?: unknown }) {
+  const capacity = Number(vehicle.tankCapacity ?? 0);
+  return Number.isFinite(capacity) && capacity > 10;
+}
+
 function normalizeImeiValue(value: unknown): string | null {
   if (value === null || value === undefined) return null;
   const digitsOnly = String(value).replace(/\D/g, "");
@@ -726,7 +731,7 @@ async function getScopedVehicleIds(
 
   let vehiclesQuery = supabaseAdmin
     .from("vehicles")
-    .select("id, imei");
+    .select("id, imei, tank_capacity");
 
   if (scope.clientIds?.length) {
     vehiclesQuery = vehiclesQuery.in("client_id", scope.clientIds);
@@ -741,7 +746,8 @@ async function getScopedVehicleIds(
   const allowedRows = (data ?? []).map((row: any) => ({
     id: String(row.id),
     imei: normalizeImeiValue(row.imei),
-  }));
+    tankCapacity: toOptionalNumber(row.tank_capacity),
+  })).filter((row) => hasFuelTankCapacity({ tankCapacity: row.tankCapacity }));
   const requestedSet = new Set(requestedVehicleIds ?? []);
   const vehicleRefs = requestedVehicleIds?.length
     ? allowedRows.filter((row) => requestedSet.has(row.id))
@@ -1786,7 +1792,10 @@ serve(async (req: Request) => {
       const { data, error } = await query;
       if (error) return jsonResponse({ error: "Failed to fetch vehicles" }, 500, origin);
 
-      return jsonResponse((data ?? []).map(mapVehicleRow), 200, origin);
+      const vehicles = (data ?? [])
+        .map(mapVehicleRow)
+        .filter(hasFuelTankCapacity);
+      return jsonResponse(vehicles, 200, origin);
     }
 
     const vehicleIdMatch = route.match(/^\/api\/vehicles\/([^/]+)$/);
@@ -1800,6 +1809,9 @@ serve(async (req: Request) => {
 
       if (error) return jsonResponse({ error: "Failed to fetch vehicle" }, 500, origin);
       if (!vehicle) return jsonResponse({ error: "Vehicle not found" }, 404, origin);
+      if (!hasFuelTankCapacity(mapVehicleRow(vehicle))) {
+        return jsonResponse({ error: "Vehicle not found" }, 404, origin);
+      }
 
       if (auth.profile.role !== "admin" && !auth.clientIds.includes(vehicle.client_id)) {
         return jsonResponse({ error: "Vehicle not found" }, 404, origin);

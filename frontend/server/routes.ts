@@ -68,7 +68,7 @@ function parseSensorTimestamp(row: any): string | null {
 
 function hasFuelTankCapacity(vehicle: { tankCapacity?: unknown }) {
   const capacity = Number(vehicle.tankCapacity ?? 0);
-  return Number.isFinite(capacity) && capacity > 0;
+  return Number.isFinite(capacity) && capacity > 10;
 }
 
 function getRequestedClientId(req: Request): string | undefined {

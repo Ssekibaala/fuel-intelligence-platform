@@ -60,13 +60,6 @@ async function getScopedVehicleIds(
   const scope = await getClientScope(req, res);
   if (!scope) return null;
 
-  if (!scope.clientIds) {
-    return {
-      ...scope,
-      vehicleIds: requestedVehicleIds?.length ? requestedVehicleIds : undefined,
-    };
-  }
-
   const vehicles = await storage.getVehicles({ clientIds: scope.clientIds });
   const allowedIds = vehicles.map((v) => v.id);
 

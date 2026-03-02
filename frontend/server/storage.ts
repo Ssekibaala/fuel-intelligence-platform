@@ -63,6 +63,11 @@ const mapVehicleRow = (row: any): Vehicle => ({
   updatedAt: row.updated_at ? new Date(row.updated_at) : new Date(),
 });
 
+const hasFuelTankCapacity = (vehicle: { tankCapacity?: unknown }) => {
+  const tankCapacity = Number(vehicle.tankCapacity ?? 0);
+  return Number.isFinite(tankCapacity) && tankCapacity > 10;
+};
+
 const cleanPayload = (payload: Record<string, any>) =>
   Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined));
 
@@ -312,7 +317,7 @@ export class SupabaseStorage implements IStorage {
     const { data, error } = await query;
     if (error) throw error;
 
-    return (data || []).map(mapVehicleRow);
+    return (data || []).map(mapVehicleRow).filter(hasFuelTankCapacity);
   }
 
   async getVehicle(id: string): Promise<Vehicle | undefined> {
@@ -322,7 +327,8 @@ export class SupabaseStorage implements IStorage {
       .eq("id", id)
       .maybeSingle();
     if (error || !data) return undefined;
-    return mapVehicleRow(data);
+    const vehicle = mapVehicleRow(data);
+    return hasFuelTankCapacity(vehicle) ? vehicle : undefined;
   }
 
   async getVehicleByAssetId(assetId: string): Promise<Vehicle | undefined> {
@@ -332,7 +338,8 @@ export class SupabaseStorage implements IStorage {
       .eq("asset_id", assetId)
       .maybeSingle();
     if (error || !data) return undefined;
-    return mapVehicleRow(data);
+    const vehicle = mapVehicleRow(data);
+    return hasFuelTankCapacity(vehicle) ? vehicle : undefined;
   }
 
   async createVehicle(vehicle: InsertVehicle): Promise<Vehicle> {
