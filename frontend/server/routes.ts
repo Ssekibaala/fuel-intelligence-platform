@@ -21,6 +21,24 @@ const sourceOfTruthUpload = multer({
   limits: { fileSize: 20 * 1024 * 1024 },
 });
 
+const brandingLogoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024 },
+});
+
+const BRANDING_LOGO_BUCKET = "client-branding";
+const BRANDING_LOGO_OBJECT_NAME = "heading-logo";
+const BRANDING_LOGO_SIGNED_URL_TTL_SECONDS = 60 * 60 * 24 * 30;
+const ALLOWED_BRANDING_MIME_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/jpg",
+  "image/webp",
+  "image/svg+xml",
+]);
+
+let brandingBucketReady = false;
+
 function parseList(value: any): string[] {
   if (!value) return [];
   if (Array.isArray(value)) return value.map(String);
@@ -32,6 +50,60 @@ function parseDate(value: any): Date | undefined {
   if (!value) return undefined;
   const date = new Date(value);
   return isNaN(date.getTime()) ? undefined : date;
+}
+
+function parseClientIdValue(value: unknown): string | undefined {
+  if (!value) return undefined;
+  const parsed = Array.isArray(value) ? String(value[0]) : String(value);
+  const trimmed = parsed.trim();
+  if (!trimmed || trimmed.toLowerCase() === "all") return undefined;
+  return trimmed;
+}
+
+function brandingObjectPath(clientId: string) {
+  return `${clientId}/${BRANDING_LOGO_OBJECT_NAME}`;
+}
+
+function isStorageAlreadyExistsError(error: any): boolean {
+  const statusCode = Number(error?.statusCode || error?.status || 0);
+  const text = `${error?.message || ""}`.toLowerCase();
+  return statusCode === 409 || text.includes("already exists");
+}
+
+async function ensureBrandingBucket() {
+  if (brandingBucketReady) return;
+  const { error } = await supabaseAdmin.storage.createBucket(BRANDING_LOGO_BUCKET, {
+    public: false,
+    fileSizeLimit: "2MB",
+    allowedMimeTypes: Array.from(ALLOWED_BRANDING_MIME_TYPES),
+  });
+  if (error && !isStorageAlreadyExistsError(error)) throw error;
+  brandingBucketReady = true;
+}
+
+async function fetchBrandingLogo(clientId: string) {
+  await ensureBrandingBucket();
+
+  const { data: objects, error: listError } = await supabaseAdmin.storage
+    .from(BRANDING_LOGO_BUCKET)
+    .list(clientId, { limit: 100 });
+  if (listError) throw listError;
+
+  const logoObject = (objects || []).find((entry: any) => entry.name === BRANDING_LOGO_OBJECT_NAME);
+  if (!logoObject) {
+    return { logoUrl: null as string | null, updatedAt: null as string | null };
+  }
+
+  const fullPath = brandingObjectPath(clientId);
+  const { data: signedUrlData, error: signedUrlError } = await supabaseAdmin.storage
+    .from(BRANDING_LOGO_BUCKET)
+    .createSignedUrl(fullPath, BRANDING_LOGO_SIGNED_URL_TTL_SECONDS);
+  if (signedUrlError) throw signedUrlError;
+
+  return {
+    logoUrl: signedUrlData?.signedUrl ?? null,
+    updatedAt: logoObject.updated_at || logoObject.created_at || null,
+  };
 }
 
 function isMissingColumnError(error: any): boolean {
@@ -73,8 +145,31 @@ function hasFuelTankCapacity(vehicle: { tankCapacity?: unknown }) {
 
 function getRequestedClientId(req: Request): string | undefined {
   const value = req.query.clientId || req.query.client_id;
-  if (!value) return undefined;
-  return Array.isArray(value) ? String(value[0]) : String(value);
+  return parseClientIdValue(value);
+}
+
+function getRequestedBrandingClientId(req: Request): string | undefined {
+  const fromQuery = parseClientIdValue(req.query.clientId || req.query.client_id);
+  if (fromQuery) return fromQuery;
+  return parseClientIdValue((req as any).body?.clientId || (req as any).body?.client_id);
+}
+
+function resolveBrandingClientId(req: Request, requestedClientId?: string): string | null {
+  const isAdmin = req.auth?.profile?.role === "admin";
+  const assignedClientIds = req.auth?.clientIds || [];
+
+  if (requestedClientId) {
+    if (!isAdmin && !assignedClientIds.includes(requestedClientId)) {
+      return null;
+    }
+    return requestedClientId;
+  }
+
+  if (!isAdmin && assignedClientIds.length === 1) {
+    return assignedClientIds[0];
+  }
+
+  return null;
 }
 
 async function getClientScope(req: Request, res: Response) {
@@ -385,6 +480,112 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       res.status(500).json({ error: "Failed to load user profile" });
+    }
+  });
+
+  // =============================================================================
+  // BRANDING SETTINGS ROUTES
+  // =============================================================================
+
+  app.get("/api/settings/branding/logo", async (req, res) => {
+    try {
+      const requestedClientId = getRequestedBrandingClientId(req);
+      const clientId = resolveBrandingClientId(req, requestedClientId);
+
+      if (requestedClientId && !clientId) {
+        return res.status(403).json({ error: "Requested client is not assigned to this user" });
+      }
+
+      if (!clientId) {
+        return res.json({
+          clientId: null,
+          logoUrl: null,
+          updatedAt: null,
+          requiresClientSelection: true,
+        });
+      }
+
+      const logo = await fetchBrandingLogo(clientId);
+      return res.json({
+        clientId,
+        logoUrl: logo.logoUrl,
+        updatedAt: logo.updatedAt,
+        requiresClientSelection: false,
+      });
+    } catch (error: any) {
+      return res.status(500).json({ error: error?.message || "Failed to fetch branding logo" });
+    }
+  });
+
+  app.post("/api/settings/branding/logo", brandingLogoUpload.single("file"), async (req, res) => {
+    try {
+      const uploaded = req.file;
+      if (!uploaded || !uploaded.buffer || !uploaded.originalname) {
+        return res.status(400).json({ error: "Logo file is required." });
+      }
+
+      if (!ALLOWED_BRANDING_MIME_TYPES.has(uploaded.mimetype)) {
+        return res.status(400).json({ error: "Unsupported logo format. Use PNG, JPG, WEBP, or SVG." });
+      }
+
+      const requestedClientId = getRequestedBrandingClientId(req);
+      const clientId = resolveBrandingClientId(req, requestedClientId);
+      if (!clientId) {
+        if (requestedClientId) {
+          return res.status(403).json({ error: "Requested client is not assigned to this user" });
+        }
+        return res.status(400).json({ error: "Select a specific client before uploading a logo." });
+      }
+
+      await ensureBrandingBucket();
+      const fullPath = brandingObjectPath(clientId);
+      const { error: uploadError } = await supabaseAdmin.storage
+        .from(BRANDING_LOGO_BUCKET)
+        .upload(fullPath, uploaded.buffer, {
+          upsert: true,
+          contentType: uploaded.mimetype,
+          cacheControl: "3600",
+        });
+      if (uploadError) throw uploadError;
+
+      const logo = await fetchBrandingLogo(clientId);
+      return res.json({
+        clientId,
+        logoUrl: logo.logoUrl,
+        updatedAt: logo.updatedAt,
+        requiresClientSelection: false,
+      });
+    } catch (error: any) {
+      return res.status(400).json({ error: error?.message || "Failed to upload branding logo" });
+    }
+  });
+
+  app.delete("/api/settings/branding/logo", async (req, res) => {
+    try {
+      const requestedClientId = getRequestedBrandingClientId(req);
+      const clientId = resolveBrandingClientId(req, requestedClientId);
+      if (!clientId) {
+        if (requestedClientId) {
+          return res.status(403).json({ error: "Requested client is not assigned to this user" });
+        }
+        return res.status(400).json({ error: "Select a specific client before resetting a logo." });
+      }
+
+      await ensureBrandingBucket();
+      const fullPath = brandingObjectPath(clientId);
+      const { error: removeError } = await supabaseAdmin.storage
+        .from(BRANDING_LOGO_BUCKET)
+        .remove([fullPath]);
+      if (removeError) throw removeError;
+
+      return res.json({
+        clientId,
+        logoUrl: null,
+        updatedAt: null,
+        requiresClientSelection: false,
+      });
+    } catch (error: any) {
+      return res.status(400).json({ error: error?.message || "Failed to reset branding logo" });
     }
   });
 

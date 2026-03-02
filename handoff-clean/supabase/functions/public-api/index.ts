@@ -240,6 +240,20 @@ function hasFuelTankCapacity(vehicle: { tankCapacity?: unknown }) {
   return Number.isFinite(capacity) && capacity > 10;
 }
 
+const BRANDING_LOGO_BUCKET = "client-branding";
+const BRANDING_LOGO_OBJECT_NAME = "heading-logo";
+const BRANDING_LOGO_SIGNED_URL_TTL_SECONDS = 60 * 60 * 24 * 30;
+const BRANDING_LOGO_MAX_BYTES = 2 * 1024 * 1024;
+const ALLOWED_BRANDING_MIME_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/jpg",
+  "image/webp",
+  "image/svg+xml",
+]);
+
+let brandingBucketReady = false;
+
 function normalizeImeiValue(value: unknown): string | null {
   if (value === null || value === undefined) return null;
   const digitsOnly = String(value).replace(/\D/g, "");
@@ -577,6 +591,77 @@ function requireAdmin(auth: AuthContext, origin: string | null): Response | null
     return jsonResponse({ error: "Admin access required" }, 403, origin);
   }
   return null;
+}
+
+function brandingObjectPath(clientId: string): string {
+  return `${clientId}/${BRANDING_LOGO_OBJECT_NAME}`;
+}
+
+function isStorageAlreadyExistsError(error: unknown): boolean {
+  const statusCode = Number((error as any)?.statusCode ?? (error as any)?.status ?? 0);
+  const message = String((error as any)?.message ?? "").toLowerCase();
+  return statusCode === 409 || message.includes("already exists");
+}
+
+async function ensureBrandingBucket() {
+  if (brandingBucketReady) return;
+  const { error } = await supabaseAdmin.storage.createBucket(BRANDING_LOGO_BUCKET, {
+    public: false,
+    fileSizeLimit: BRANDING_LOGO_MAX_BYTES,
+    allowedMimeTypes: Array.from(ALLOWED_BRANDING_MIME_TYPES),
+  });
+  if (error && !isStorageAlreadyExistsError(error)) throw error;
+  brandingBucketReady = true;
+}
+
+async function fetchBrandingLogo(clientId: string) {
+  await ensureBrandingBucket();
+
+  const { data: objects, error: listError } = await supabaseAdmin.storage
+    .from(BRANDING_LOGO_BUCKET)
+    .list(clientId, { limit: 100 });
+  if (listError) throw listError;
+
+  const logoObject = (objects ?? []).find((entry: any) => entry.name === BRANDING_LOGO_OBJECT_NAME);
+  if (!logoObject) {
+    return {
+      logoUrl: null as string | null,
+      updatedAt: null as string | null,
+    };
+  }
+
+  const fullPath = brandingObjectPath(clientId);
+  const { data: signedUrlData, error: signedUrlError } = await supabaseAdmin.storage
+    .from(BRANDING_LOGO_BUCKET)
+    .createSignedUrl(fullPath, BRANDING_LOGO_SIGNED_URL_TTL_SECONDS);
+  if (signedUrlError) throw signedUrlError;
+
+  return {
+    logoUrl: signedUrlData?.signedUrl ?? null,
+    updatedAt: logoObject.updated_at ?? logoObject.created_at ?? null,
+  };
+}
+
+function resolveBrandingClientId(auth: AuthContext, requestedClientId?: string): {
+  clientId: string | null;
+  status?: number;
+  error?: string;
+} {
+  const isAdmin = auth.profile.role === "admin";
+  const assignedClientIds = auth.clientIds ?? [];
+
+  if (requestedClientId) {
+    if (!isAdmin && !assignedClientIds.includes(requestedClientId)) {
+      return { clientId: null, status: 403, error: "Requested client is not assigned to this user" };
+    }
+    return { clientId: requestedClientId };
+  }
+
+  if (!isAdmin && assignedClientIds.length === 1) {
+    return { clientId: assignedClientIds[0] };
+  }
+
+  return { clientId: null };
 }
 
 function normalizeClientName(value: unknown): string | null {
@@ -1568,6 +1653,135 @@ serve(async (req: Request) => {
         200,
         origin
       );
+    }
+
+    if (req.method === "GET" && route === "/api/settings/branding/logo") {
+      const requestedClientId = parseStringParam(url.searchParams.get("clientId") ?? url.searchParams.get("client_id"));
+      const resolved = resolveBrandingClientId(auth, requestedClientId);
+      if (resolved.error) {
+        return jsonResponse({ error: resolved.error }, resolved.status ?? 403, origin);
+      }
+
+      if (!resolved.clientId) {
+        return jsonResponse(
+          {
+            clientId: null,
+            logoUrl: null,
+            updatedAt: null,
+            requiresClientSelection: true,
+          },
+          200,
+          origin
+        );
+      }
+
+      try {
+        const logo = await fetchBrandingLogo(resolved.clientId);
+        return jsonResponse(
+          {
+            clientId: resolved.clientId,
+            logoUrl: logo.logoUrl,
+            updatedAt: logo.updatedAt,
+            requiresClientSelection: false,
+          },
+          200,
+          origin
+        );
+      } catch (error: any) {
+        return jsonResponse({ error: error?.message || "Failed to fetch branding logo" }, 500, origin);
+      }
+    }
+
+    if (req.method === "POST" && route === "/api/settings/branding/logo") {
+      let formData: FormData;
+      try {
+        formData = await req.formData();
+      } catch {
+        return jsonResponse({ error: "Invalid multipart form data" }, 400, origin);
+      }
+
+      const uploaded = formData.get("file");
+      if (!(uploaded instanceof File)) {
+        return jsonResponse({ error: "Logo file is required." }, 400, origin);
+      }
+
+      if (!ALLOWED_BRANDING_MIME_TYPES.has(uploaded.type)) {
+        return jsonResponse({ error: "Unsupported logo format. Use PNG, JPG, WEBP, or SVG." }, 400, origin);
+      }
+
+      if (uploaded.size > BRANDING_LOGO_MAX_BYTES) {
+        return jsonResponse({ error: "Logo must be 2MB or smaller." }, 400, origin);
+      }
+
+      const requestedClientId = parseStringParam(
+        String(formData.get("clientId") ?? formData.get("client_id") ?? "")
+      );
+      const resolved = resolveBrandingClientId(auth, requestedClientId);
+      if (resolved.error) {
+        return jsonResponse({ error: resolved.error }, resolved.status ?? 403, origin);
+      }
+      if (!resolved.clientId) {
+        return jsonResponse({ error: "Select a specific client before uploading a logo." }, 400, origin);
+      }
+
+      try {
+        await ensureBrandingBucket();
+        const fileBytes = new Uint8Array(await uploaded.arrayBuffer());
+        const { error: uploadError } = await supabaseAdmin.storage
+          .from(BRANDING_LOGO_BUCKET)
+          .upload(brandingObjectPath(resolved.clientId), fileBytes, {
+            upsert: true,
+            contentType: uploaded.type,
+            cacheControl: "3600",
+          });
+        if (uploadError) throw uploadError;
+
+        const logo = await fetchBrandingLogo(resolved.clientId);
+        return jsonResponse(
+          {
+            clientId: resolved.clientId,
+            logoUrl: logo.logoUrl,
+            updatedAt: logo.updatedAt,
+            requiresClientSelection: false,
+          },
+          200,
+          origin
+        );
+      } catch (error: any) {
+        return jsonResponse({ error: error?.message || "Failed to upload branding logo" }, 400, origin);
+      }
+    }
+
+    if (req.method === "DELETE" && route === "/api/settings/branding/logo") {
+      const requestedClientId = parseStringParam(url.searchParams.get("clientId") ?? url.searchParams.get("client_id"));
+      const resolved = resolveBrandingClientId(auth, requestedClientId);
+      if (resolved.error) {
+        return jsonResponse({ error: resolved.error }, resolved.status ?? 403, origin);
+      }
+      if (!resolved.clientId) {
+        return jsonResponse({ error: "Select a specific client before resetting a logo." }, 400, origin);
+      }
+
+      try {
+        await ensureBrandingBucket();
+        const { error: removeError } = await supabaseAdmin.storage
+          .from(BRANDING_LOGO_BUCKET)
+          .remove([brandingObjectPath(resolved.clientId)]);
+        if (removeError) throw removeError;
+
+        return jsonResponse(
+          {
+            clientId: resolved.clientId,
+            logoUrl: null,
+            updatedAt: null,
+            requiresClientSelection: false,
+          },
+          200,
+          origin
+        );
+      } catch (error: any) {
+        return jsonResponse({ error: error?.message || "Failed to reset branding logo" }, 400, origin);
+      }
     }
 
     if (req.method === "GET" && route === "/api/admin/clients") {

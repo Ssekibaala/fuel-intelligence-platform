@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "./PageHeader";
 import { GlassCard } from "./GlassCard";
 import { Button } from "@/components/ui/button";
@@ -10,8 +11,10 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { DollarSign, Gauge, Palette, Upload, Save, X } from "lucide-react";
 import { useGlobalFilter } from "./GlobalFilterContext";
+import { useAuth } from "./AuthProvider";
+import { api } from "@/lib/api";
 import teletracLogo from "@/assets/teletrac-logo.png";
-import { getStoredBrandLogo, setStoredBrandLogo } from "@/lib/branding";
+import { resolveBrandingClientId, setStoredBrandLogo } from "@/lib/branding";
 
 interface SettingsData {
   fuelCostPerLiter: number;
@@ -30,6 +33,13 @@ interface SettingsData {
 interface SettingsPageProps {
   pageId?: string;
 }
+
+type BrandingLogoResponse = {
+  clientId: string | null;
+  logoUrl: string | null;
+  updatedAt?: string | null;
+  requiresClientSelection?: boolean;
+};
 
 const getConsumptionThresholdConfig = (unit: "KM/L" | "HRS/L") =>
   unit === "KM/L"
@@ -55,6 +65,12 @@ const getConsumptionThresholdConfig = (unit: "KM/L" | "HRS/L") =>
 export function SettingsPage({ pageId }: SettingsPageProps) {
   const { toast } = useToast();
   const { state: filterState, actions } = useGlobalFilter();
+  const { clientIds } = useAuth();
+  const queryClient = useQueryClient();
+  const brandingClientId = useMemo(
+    () => resolveBrandingClientId(filterState.selectedClientId, clientIds),
+    [filterState.selectedClientId, clientIds]
+  );
   
   const [settings, setSettings] = useState<SettingsData>({
     fuelCostPerLiter: filterState.fuelCostPerLiter,
@@ -63,7 +79,7 @@ export function SettingsPage({ pageId }: SettingsPageProps) {
     consumptionExcellentThreshold: filterState.consumptionExcellentThreshold,
     consumptionAcceptableThreshold: filterState.consumptionAcceptableThreshold,
     consumptionAlertThreshold: filterState.consumptionAlertThreshold,
-    companyLogo: getStoredBrandLogo(),
+    companyLogo: null,
     defaultTheme: "dark",
     defaultLandingPage: "dashboard",
     enableNotifications: true,
@@ -71,6 +87,24 @@ export function SettingsPage({ pageId }: SettingsPageProps) {
   });
 
   const [isSaving, setIsSaving] = useState(false);
+  const brandingQuery = useQuery<BrandingLogoResponse>({
+    queryKey: ["/api/settings/branding/logo", brandingClientId ?? "none"],
+    enabled: Boolean(brandingClientId),
+    queryFn: () => api.getBrandingLogo({ clientId: brandingClientId || undefined }),
+    staleTime: 60 * 1000,
+  });
+
+  useEffect(() => {
+    if (!brandingClientId) {
+      setSettings((prev) => ({ ...prev, companyLogo: null }));
+      return;
+    }
+    if (!brandingQuery.isSuccess) return;
+
+    const logoUrl = brandingQuery.data?.logoUrl ?? null;
+    setSettings((prev) => ({ ...prev, companyLogo: logoUrl }));
+    setStoredBrandLogo(logoUrl, brandingClientId);
+  }, [brandingClientId, brandingQuery.data?.logoUrl, brandingQuery.isSuccess]);
 
   const currencies = [
     { value: "KES", label: "KES (Kenyan Shilling)" },
@@ -113,44 +147,86 @@ export function SettingsPage({ pageId }: SettingsPageProps) {
     }, 1500);
   };
 
-  const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    if (!brandingClientId) {
+      toast({
+        variant: "destructive",
+        title: "Select a client first",
+        description: "Choose a specific client in filters before uploading a logo.",
+      });
+      event.target.value = "";
+      return;
+    }
     if (!file.type.startsWith("image/")) {
       toast({
         variant: "destructive",
         title: "Invalid file",
         description: "Please upload an image file.",
       });
+      event.target.value = "";
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast({
+        variant: "destructive",
+        title: "File too large",
+        description: "Logo must be 2MB or smaller.",
+      });
+      event.target.value = "";
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const nextLogo = (e.target?.result as string) || null;
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("clientId", brandingClientId);
+      const response = await api.uploadBrandingLogo(formData);
+      const nextLogo = response?.logoUrl ?? null;
       setSettings((prev) => ({
         ...prev,
         companyLogo: nextLogo,
       }));
-      setStoredBrandLogo(nextLogo);
+      setStoredBrandLogo(nextLogo, brandingClientId);
+      queryClient.setQueryData(["/api/settings/branding/logo", brandingClientId], response);
       toast({
         title: "Logo uploaded",
-        description: "Logo updated. It now appears in page headings across the app.",
+        description: "Logo saved permanently for this client and applied across the app.",
       });
-    };
-    reader.readAsDataURL(file);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Upload failed",
+        description: error?.message || "Could not upload logo. Please try again.",
+      });
+    } finally {
+      event.target.value = "";
+    }
   };
 
-  const handleResetLogo = () => {
-    setSettings((prev) => ({
-      ...prev,
-      companyLogo: null,
-    }));
-    setStoredBrandLogo(null);
-    toast({
-      title: "Logo reset",
-      description: "Default Teletrac logo restored in page headings.",
-    });
+  const handleResetLogo = async () => {
+    if (!brandingClientId) return;
+    try {
+      const response = await api.deleteBrandingLogo({ clientId: brandingClientId });
+      const nextLogo = response?.logoUrl ?? null;
+      setSettings((prev) => ({
+        ...prev,
+        companyLogo: nextLogo,
+      }));
+      setStoredBrandLogo(nextLogo, brandingClientId);
+      queryClient.setQueryData(["/api/settings/branding/logo", brandingClientId], response);
+      toast({
+        title: "Logo reset",
+        description: "Default Teletrac logo restored in page headings.",
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Reset failed",
+        description: error?.message || "Could not reset logo. Please try again.",
+      });
+    }
   };
 
   const updateSetting = <K extends keyof SettingsData>(key: K, value: SettingsData[K]) => {
@@ -204,6 +280,8 @@ export function SettingsPage({ pageId }: SettingsPageProps) {
   const thresholdConfig = getConsumptionThresholdConfig(settings.consumptionUnit);
 
   const currentHeadingLogo = settings.companyLogo || teletracLogo;
+  const requiresSpecificClientSelection =
+    !brandingClientId && (filterState.selectedClientId === "all" || !filterState.selectedClientId) && clientIds.length !== 1;
 
   return (
     <div className="space-y-8">
@@ -429,6 +507,7 @@ export function SettingsPage({ pageId }: SettingsPageProps) {
                   <Button 
                     variant="outline" 
                     onClick={() => document.getElementById('logo-upload')?.click()}
+                    disabled={requiresSpecificClientSelection}
                     className="flex items-center gap-2"
                   >
                     <Upload className="w-4 h-4" />
@@ -438,6 +517,7 @@ export function SettingsPage({ pageId }: SettingsPageProps) {
                     <Button
                       variant="ghost"
                       onClick={handleResetLogo}
+                      disabled={requiresSpecificClientSelection}
                       className="ml-2"
                     >
                       <X className="w-4 h-4 mr-1" />
@@ -447,6 +527,14 @@ export function SettingsPage({ pageId }: SettingsPageProps) {
                   <p className="text-xs text-muted-foreground mt-1">
                     Upload your brand logo here. It will appear in the page heading on each page.
                   </p>
+                  {requiresSpecificClientSelection && (
+                    <p className="text-xs text-amber-600 mt-1">
+                      Select a specific client in filters to manage branding.
+                    </p>
+                  )}
+                  {!requiresSpecificClientSelection && brandingQuery.isFetching && (
+                    <p className="text-xs text-muted-foreground mt-1">Loading saved logo...</p>
+                  )}
                 </div>
               </div>
             </div>

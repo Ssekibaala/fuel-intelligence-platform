@@ -287,6 +287,12 @@ export const api = {
       return deleteAssignmentWithSupabaseFallback(id);
     }
   },
+  getBrandingLogo: (filters?: { clientId?: string }) =>
+    apiRequest("GET", `/api/settings/branding/logo?${buildQueryParams(filters)}`),
+  uploadBrandingLogo: (formData: FormData) =>
+    apiRequest("POST", "/api/settings/branding/logo", formData),
+  deleteBrandingLogo: (filters?: { clientId?: string }) =>
+    apiRequest("DELETE", `/api/settings/branding/logo?${buildQueryParams(filters)}`),
   uploadAdminSourceOfTruth: (formData: FormData) =>
     apiRequestLocalJson("POST", "/api/admin/source-of-truth/upload", formData),
   previewAdminSourceOfTruth: (formData: FormData) =>

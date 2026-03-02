@@ -14,8 +14,7 @@ import {
   LogOut
 } from "lucide-react";
 import { useAuth } from "./AuthProvider";
-import teletracLogo from "@/assets/teletrac-logo.png";
-import { BRAND_LOGO_UPDATED_EVENT, getStoredBrandLogo } from "@/lib/branding";
+import { useBrandingLogo } from "@/hooks/use-branding-logo";
 
 interface NavItem {
   key: string;
@@ -34,7 +33,7 @@ interface SidebarProps {
 export function Sidebar({ activePage, onNavigate, theme, toggleTheme }: SidebarProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [currentDateTime, setCurrentDateTime] = useState("");
-  const [brandLogo, setBrandLogo] = useState<string>(() => getStoredBrandLogo() || teletracLogo);
+  const { logoSrc: brandLogo } = useBrandingLogo();
   const { user, profile, isAdmin, signOut } = useAuth();
 
   const updateDateTime = () => {
@@ -57,20 +56,6 @@ export function Sidebar({ activePage, onNavigate, theme, toggleTheme }: SidebarP
     updateDateTime();
     const interval = setInterval(updateDateTime, 1000);
     return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    const syncLogo = () => {
-      setBrandLogo(getStoredBrandLogo() || teletracLogo);
-    };
-
-    syncLogo();
-    window.addEventListener(BRAND_LOGO_UPDATED_EVENT, syncLogo as EventListener);
-    window.addEventListener("storage", syncLogo);
-    return () => {
-      window.removeEventListener(BRAND_LOGO_UPDATED_EVENT, syncLogo as EventListener);
-      window.removeEventListener("storage", syncLogo);
-    };
   }, []);
 
   // todo: remove mock data - navigation items
