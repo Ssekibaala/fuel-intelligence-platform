@@ -37,6 +37,35 @@ npm --prefix frontend run dev
 
 The app and API will run on the same port (default `3000`).
 
+## Go Live Immediately (Free)
+### Option A: Instant public URL (in 1-2 minutes)
+Use a quick tunnel from your local machine while the app is running:
+
+```bash
+npm --prefix frontend run dev
+npx cloudflared tunnel --url http://localhost:3000
+```
+
+This gives you a public URL instantly (great for demos/UAT).  
+Keep your terminal running while sharing.
+
+### Option B: Free hosted deployment (Render)
+This repo includes `render.yaml` for one-click setup.
+
+1. Push this repo to GitHub.
+2. In Render, create a new Blueprint service from the repo.
+3. Set these env vars in Render:
+   - `SUPABASE_URL`
+   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `SUPABASE_ANON_KEY`
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
+   - `DATABASE_URL`
+4. Leave `VITE_API_BASE_URL` empty (same-domain API).
+5. Deploy.
+
+Render will build from `frontend/` and serve both API + frontend from one service.
+
 ## Admin Panel
 Admins can:
 - Create client accounts
@@ -51,3 +80,12 @@ Client users will only see data for their assigned clients.
 - Use `VITE_API_BASE_URL` only if you deploy the API separately.
 - Enable RLS in Supabase if you allow direct client queries.
   - The provided `supabase/schema.sql` already enables RLS with safe policies.
+
+## Duplicate Cleanup (Recommended)
+If you already have duplicate telemetry rows, run:
+
+`frontend/DEDUPE_AND_UNIQUES.sql`
+
+in Supabase SQL Editor. It does two things:
+- Removes existing duplicates in `trip_reports`, `daily_metrics`, `fuel_events`, and `raw_sensor_data`
+- Adds uniqueness indexes so duplicates are blocked going forward

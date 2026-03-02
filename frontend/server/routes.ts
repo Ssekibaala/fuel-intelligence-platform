@@ -1,9 +1,11 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
+import multer from "multer";
 import { storage } from "./storage";
 import { setupReportsRoutes } from "./reports";
 import { requireAuth, requireAdmin } from "./auth";
 import { supabaseAdmin } from "./supabase";
+import { importSourceOfTruthFile } from "./sourceOfTruthImport";
 import {
   insertVehicleSchema,
   insertFuelEventSchema,
@@ -13,6 +15,11 @@ import {
   fuelEventTypeEnum,
   globalFilterSchema,
 } from "@shared/schema";
+
+const sourceOfTruthUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 },
+});
 
 function parseList(value: any): string[] {
   if (!value) return [];
@@ -72,8 +79,9 @@ function getRequestedClientId(req: Request): string | undefined {
 
 async function getClientScope(req: Request, res: Response) {
   const isAdmin = req.auth?.profile?.role === "admin";
+  const requestedClientId = getRequestedClientId(req);
+
   if (isAdmin) {
-    const requestedClientId = getRequestedClientId(req);
     return {
       isAdmin,
       clientIds: requestedClientId ? [requestedClientId] : undefined,
@@ -84,6 +92,16 @@ async function getClientScope(req: Request, res: Response) {
   if (clientIds.length === 0) {
     res.status(403).json({ error: "No client assigned" });
     return null;
+  }
+
+  if (requestedClientId) {
+    const hasAccess = clientIds.some((clientId) => String(clientId) === String(requestedClientId));
+    if (!hasAccess) {
+      res.status(403).json({ error: "Requested client is not assigned to this user" });
+      return null;
+    }
+
+    return { isAdmin, clientIds: [requestedClientId] };
   }
 
   return { isAdmin, clientIds };
@@ -506,6 +524,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.status(204).send();
   });
 
+  app.post(
+    "/api/admin/source-of-truth/preview",
+    requireAdmin,
+    sourceOfTruthUpload.single("file"),
+    async (req, res) => {
+      try {
+        const uploaded = req.file;
+        if (!uploaded || !uploaded.buffer || !uploaded.originalname) {
+          return res.status(400).json({ error: "File is required. Upload a CSV or XLSX file." });
+        }
+
+        const result = await importSourceOfTruthFile(uploaded.originalname, uploaded.buffer, {
+          dryRun: true,
+          previewLimit: 8,
+        });
+        res.json(result);
+      } catch (error: any) {
+        const message = error?.message || "Failed to preview source-of-truth upload";
+        res.status(400).json({ error: message });
+      }
+    }
+  );
+
+  app.post(
+    "/api/admin/source-of-truth/upload",
+    requireAdmin,
+    sourceOfTruthUpload.single("file"),
+    async (req, res) => {
+      try {
+        const uploaded = req.file;
+        if (!uploaded || !uploaded.buffer || !uploaded.originalname) {
+          return res.status(400).json({ error: "File is required. Upload a CSV or XLSX file." });
+        }
+
+        const expectedFingerprint =
+          typeof req.body?.expectedFingerprint === "string"
+            ? req.body.expectedFingerprint.trim()
+            : "";
+        const result = await importSourceOfTruthFile(uploaded.originalname, uploaded.buffer, {
+          expectedFingerprint: expectedFingerprint || undefined,
+        });
+        res.json(result);
+      } catch (error: any) {
+        const message = error?.message || "Failed to process source-of-truth upload";
+        const statusCode = String(message).toLowerCase().includes("fingerprint mismatch") ? 409 : 400;
+        res.status(statusCode).json({ error: message });
+      }
+    }
+  );
+
   // =============================================================================
   // VEHICLES API ROUTES
   // =============================================================================
@@ -808,21 +876,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const mapped = rows
         .map((row) => {
           const timestamp = parseSensorTimestamp(row);
+          // Canonical sensor mapping:
+          // - AF (or fuel alias) = calibrated fuel.
+          // - RF (or rawFuel alias) = raw fuel without spike correction.
           const fuel = Number(
-            row?.rf ??
-              row?.fuel ??
-              row?.af ??
-              row?.payload?.rf ??
-              row?.payload?.fuel ??
-              row?.payload?.af
-          );
-          const rawFuel = Number(
             row?.af ??
-              row?.rf ??
               row?.fuel ??
               row?.payload?.af ??
-              row?.payload?.rf ??
               row?.payload?.fuel
+          );
+          const rawFuel = Number(
+            row?.rf ??
+              row?.rawFuel ??
+              row?.payload?.rf ??
+              row?.payload?.rawFuel
           );
           const odometer = Number(row?.odo ?? row?.odometer ?? row?.payload?.odo ?? row?.payload?.odometer);
           const speed = Number(row?.spid ?? row?.speed ?? row?.payload?.spid ?? row?.payload?.speed);
@@ -899,18 +966,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/dashboard/kpis", async (req, res) => {
     try {
-      const isAdmin = req.auth?.profile?.role === "admin";
-      const requestedClientId = (req.query.clientId || req.query.client_id) as string | undefined;
-      const rawClientIds = isAdmin
-        ? requestedClientId
-          ? [requestedClientId]
-          : []
-        : req.auth?.clientIds || [];
-      const clientIds = isAdmin && rawClientIds.length === 0 ? undefined : rawClientIds;
-
-      if (!isAdmin && rawClientIds.length === 0) {
-        return res.status(403).json({ error: "No client assigned" });
-      }
+      const scope = await getClientScope(req, res);
+      if (!scope) return;
+      const clientIds = scope.clientIds;
 
       const requestedVehicleIds = parseList(req.query.vehicleIds || req.query.vehicle_ids);
       let vehicleIdsFilter: string[] | undefined = requestedVehicleIds.length ? requestedVehicleIds : undefined;

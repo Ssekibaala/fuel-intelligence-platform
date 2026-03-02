@@ -10,6 +10,11 @@ function buildUrl(path: string) {
   return `${BASE_URL}${path}`;
 }
 
+function buildLocalApiUrl(path: string) {
+  if (path.startsWith("http")) return path;
+  return path;
+}
+
 class ApiRequestError extends Error {
   status: number;
   body: string;
@@ -86,6 +91,76 @@ async function apiRequest(method: string, url: string, data?: unknown): Promise<
   return res.text();
 }
 
+async function apiRequestLocal(method: string, url: string, data?: unknown): Promise<any> {
+  const token = getAuthToken();
+  const isFormData = data instanceof FormData;
+  const requestUrl = buildLocalApiUrl(url);
+
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  if (data && !isFormData) headers["Content-Type"] = "application/json";
+
+  const res = await fetch(requestUrl, {
+    method,
+    headers: Object.keys(headers).length > 0 ? headers : undefined,
+    body: data ? (isFormData ? data : JSON.stringify(data)) : undefined,
+    credentials: resolveCredentials(requestUrl),
+  });
+
+  if (!res.ok) {
+    const text = (await res.text()) || res.statusText;
+    throw new ApiRequestError(res.status, text);
+  }
+
+  if (res.status === 204) return null;
+
+  const contentType = res.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) {
+    return res.json();
+  }
+
+  return res.text();
+}
+
+async function apiRequestLocalJson(method: string, url: string, data?: unknown): Promise<any> {
+  const token = getAuthToken();
+  const isFormData = data instanceof FormData;
+  const requestUrl = buildLocalApiUrl(url);
+
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  if (data && !isFormData) headers["Content-Type"] = "application/json";
+
+  const res = await fetch(requestUrl, {
+    method,
+    headers: Object.keys(headers).length > 0 ? headers : undefined,
+    body: data ? (isFormData ? data : JSON.stringify(data)) : undefined,
+    credentials: resolveCredentials(requestUrl),
+  });
+
+  const contentType = res.headers.get("content-type") || "";
+  const bodyText = await res.text();
+
+  if (!res.ok) {
+    throw new ApiRequestError(res.status, bodyText || res.statusText);
+  }
+
+  if (res.status === 204) return null;
+
+  const looksLikeJson = bodyText.trim().startsWith("{") || bodyText.trim().startsWith("[");
+  if (contentType.includes("application/json") || looksLikeJson) {
+    try {
+      return bodyText ? JSON.parse(bodyText) : null;
+    } catch {
+      throw new Error(`Invalid JSON response from ${requestUrl} (status ${res.status}).`);
+    }
+  }
+
+  throw new Error(
+    `Expected JSON from ${requestUrl} but got content-type "${contentType || "unknown"}" (status ${res.status}).`
+  );
+}
+
 function shouldUseAssignmentsFallback(error: unknown): boolean {
   if (!(error instanceof ApiRequestError)) return false;
   return error.status === 404 || error.status === 405 || error.status === 501;
@@ -116,6 +191,7 @@ async function deleteAssignmentWithSupabaseFallback(id: string) {
 // Helper to convert global filter to API parameters
 export function globalFilterToApiParams(filterState: GlobalFilter) {
   return {
+    clientId: filterState.selectedClientId !== "all" ? filterState.selectedClientId : undefined,
     vehicleIds: filterState.selectedVehicles.length > 0 ? filterState.selectedVehicles : undefined,
     startDate: filterState.dateRange.startDate,
     endDate: filterState.dateRange.endDate,
@@ -132,7 +208,7 @@ export const api = {
   getMe: () => apiRequest("GET", "/api/me"),
 
   // Dashboard API with filters
-  getDashboardKPIs: (filters?: { vehicleIds?: string[]; startDate?: string; endDate?: string }) =>
+  getDashboardKPIs: (filters?: { clientId?: string; vehicleIds?: string[]; startDate?: string; endDate?: string }) =>
     apiRequest("GET", `/api/dashboard/kpis?${buildQueryParams(filters)}`),
 
   // Vehicles API with filters
@@ -159,6 +235,7 @@ export const api = {
 
   // Daily Metrics API with filters
   getDailyMetrics: (filters?: {
+    clientId?: string;
     vehicleId?: string;
     vehicleIds?: string[];
     startDate?: string;
@@ -210,4 +287,8 @@ export const api = {
       return deleteAssignmentWithSupabaseFallback(id);
     }
   },
+  uploadAdminSourceOfTruth: (formData: FormData) =>
+    apiRequestLocalJson("POST", "/api/admin/source-of-truth/upload", formData),
+  previewAdminSourceOfTruth: (formData: FormData) =>
+    apiRequestLocalJson("POST", "/api/admin/source-of-truth/preview", formData),
 };

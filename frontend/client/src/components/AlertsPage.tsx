@@ -4,9 +4,11 @@ import { PageHeader } from "./PageHeader";
 import { GlassCard } from "./GlassCard";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FilterControls } from "./FilterControls";
 import { useGlobalFilter } from "./GlobalFilterContext";
 import { api, globalFilterToApiParams } from "../lib/api";
+import { toast } from "@/hooks/use-toast";
 import {
   Shield,
   AlertTriangle,
@@ -40,21 +42,29 @@ export function AlertsPage({ pageId }: AlertsPageProps) {
   const [selectedSeverity, setSelectedSeverity] = useState("all");
   const [selectedType, setSelectedType] = useState("all");
   const [selectedStatus, setSelectedStatus] = useState("all");
+  const [acknowledgedIds, setAcknowledgedIds] = useState<Set<string>>(new Set());
   const { state: filterState } = useGlobalFilter();
+  const refreshIntervalMs = filterState.refreshInterval > 0 ? filterState.refreshInterval : false;
 
   const filterParams = globalFilterToApiParams(filterState);
 
   const { data: vehicles = [] } = useQuery({
-    queryKey: ["/api/vehicles", filterState.selectedVehicles],
-    queryFn: () => api.getVehicles(),
+    queryKey: ["/api/vehicles", filterState.selectedClientId, filterState.selectedVehicles],
+    queryFn: () =>
+      api.getVehicles({
+        clientId: filterState.selectedClientId !== "all" ? filterState.selectedClientId : undefined,
+      }),
     staleTime: 30 * 1000,
+    refetchInterval: refreshIntervalMs,
+    refetchIntervalInBackground: true,
   });
 
   const { data: fuelEvents = [] } = useQuery({
-    queryKey: ["/api/fuel-events", filterState.selectedVehicles, filterState.dateRange],
+    queryKey: ["/api/fuel-events", filterState.selectedClientId, filterState.selectedVehicles, filterState.dateRange],
     queryFn: () => api.getFuelEvents(filterParams),
     staleTime: 10 * 1000,
-    refetchInterval: filterState.refreshInterval,
+    refetchInterval: refreshIntervalMs,
+    refetchIntervalInBackground: true,
   });
 
   const vehicleLabelById = useMemo(() => {
@@ -90,6 +100,7 @@ export function AlertsPage({ pageId }: AlertsPageProps) {
         const eventTime = event.eventTimestamp ? new Date(event.eventTimestamp).getTime() : 0;
         const isRecent = eventTime ? Date.now() - eventTime < 6 * 60 * 60 * 1000 : false;
 
+        const baseStatus: Alert["status"] = isTheft ? (isRecent ? "active" : "acknowledged") : "resolved";
         return {
           id: event.id,
           title: isTheft ? "Fuel Theft Detected" : "Fuel Refill Logged",
@@ -100,10 +111,10 @@ export function AlertsPage({ pageId }: AlertsPageProps) {
           type: isTheft ? "theft" : "refill",
           asset: assetLabel,
           timestamp: formatRelativeTime(event.eventTimestamp),
-          status: isTheft ? (isRecent ? "active" : "acknowledged") : "resolved",
+          status: acknowledgedIds.has(event.id) ? "acknowledged" : baseStatus,
         };
       });
-  }, [fuelEvents, vehicleLabelById]);
+  }, [fuelEvents, vehicleLabelById, acknowledgedIds]);
 
   const summary = useMemo(() => {
     const theftEvents = fuelEvents.filter((event: any) => event.eventType === "theft" || event.eventType === "leak");
@@ -158,12 +169,58 @@ export function AlertsPage({ pageId }: AlertsPageProps) {
       {/* Alert Command Center Header */}
       <div className="mb-6 flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
         <PageHeader pageId={pageId || "alerts"} className="mb-0" />
-        <div className="flex items-center gap-3">
-          <Button variant="outline" size="sm">
-            <Filter className="w-4 h-4 mr-2" />
-            Filters
-          </Button>
+        <FilterControls />
+      </div>
+
+      {/* Alert Filters */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+          <Filter className="w-3 h-3" />
+          <span>Filter:</span>
         </div>
+        <Select value={selectedSeverity} onValueChange={setSelectedSeverity}>
+          <SelectTrigger className="h-8 w-32 text-xs bg-card/40 backdrop-blur-sm border-border/30">
+            <SelectValue placeholder="Severity" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Severities</SelectItem>
+            <SelectItem value="critical">Critical</SelectItem>
+            <SelectItem value="high">High</SelectItem>
+            <SelectItem value="medium">Medium</SelectItem>
+            <SelectItem value="low">Low</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={selectedType} onValueChange={setSelectedType}>
+          <SelectTrigger className="h-8 w-28 text-xs bg-card/40 backdrop-blur-sm border-border/30">
+            <SelectValue placeholder="Type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Types</SelectItem>
+            <SelectItem value="theft">Theft</SelectItem>
+            <SelectItem value="refill">Refill</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+          <SelectTrigger className="h-8 w-32 text-xs bg-card/40 backdrop-blur-sm border-border/30">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="acknowledged">Acknowledged</SelectItem>
+            <SelectItem value="resolved">Resolved</SelectItem>
+          </SelectContent>
+        </Select>
+        {(selectedSeverity !== "all" || selectedType !== "all" || selectedStatus !== "all") && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 text-xs"
+            onClick={() => { setSelectedSeverity("all"); setSelectedType("all"); setSelectedStatus("all"); }}
+          >
+            Clear filters
+          </Button>
+        )}
       </div>
 
       {/* Alerts Overview */}
@@ -231,9 +288,6 @@ export function AlertsPage({ pageId }: AlertsPageProps) {
               <AlertTriangle className="w-5 h-5 text-primary" />
               Alert History & Management
             </h3>
-
-            {/* Dynamic Filter Controls */}
-            <FilterControls />
           </div>
 
           {/* Alert List */}
@@ -258,8 +312,8 @@ export function AlertsPage({ pageId }: AlertsPageProps) {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-3 mb-2">
                         <h4 className="font-semibold text-foreground">{alert.title}</h4>
-                        <Badge 
-                          variant="outline" 
+                        <Badge
+                          variant="outline"
                           className={`text-xs ${getSeverityColor(alert.severity)}`}
                         >
                           {alert.severity.toUpperCase()}
@@ -273,9 +327,9 @@ export function AlertsPage({ pageId }: AlertsPageProps) {
                           </Badge>
                         )}
                       </div>
-                      
+
                       <p className="text-sm text-muted-foreground mb-3">{alert.description}</p>
-                      
+
                       <div className="flex items-center gap-4 text-xs text-muted-foreground">
                         <div className="flex items-center gap-1">
                           <Clock className="w-3 h-3" />
@@ -290,12 +344,33 @@ export function AlertsPage({ pageId }: AlertsPageProps) {
 
                     {/* Action Buttons */}
                     <div className="flex items-center gap-2">
-                      <Button variant="outline" size="sm" className="h-8">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8"
+                        onClick={() =>
+                          toast({
+                            title: `Investigating: ${alert.title}`,
+                            description: `Asset: ${alert.asset} · ${alert.description}`,
+                          })
+                        }
+                      >
                         <Eye className="w-3 h-3 mr-1" />
                         Investigate
                       </Button>
                       {alert.status === "active" && (
-                        <Button variant="outline" size="sm" className="h-8">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8"
+                          onClick={() => {
+                            setAcknowledgedIds((prev) => new Set([...prev, alert.id]));
+                            toast({
+                              title: "Alert Acknowledged",
+                              description: `${alert.title} for ${alert.asset} has been acknowledged.`,
+                            });
+                          }}
+                        >
                           Acknowledge
                         </Button>
                       )}

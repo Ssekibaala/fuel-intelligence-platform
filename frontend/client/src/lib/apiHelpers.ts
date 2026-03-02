@@ -42,6 +42,7 @@ export function buildApiUrl(
 // Helper to convert global filter to API parameters
 export function globalFilterToApiParams(filterState: GlobalFilter) {
   return {
+    clientId: filterState.selectedClientId !== "all" ? filterState.selectedClientId : undefined,
     vehicleIds: filterState.selectedVehicles.length > 0 ? filterState.selectedVehicles : undefined,
     startDate: filterState.dateRange.startDate,
     endDate: filterState.dateRange.endDate

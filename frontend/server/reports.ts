@@ -10,6 +10,8 @@ const debugLog = (...args: unknown[]) => {
   }
 };
 
+// Use UTC midnight boundaries so report day ranges are consistent regardless of server TZ.
+// Node.js servers default to UTC, but this guards against any TZ env variable being set.
 function getDateRangeBounds(startDate: string, endDate?: string) {
   const startInput = new Date(startDate);
   if (Number.isNaN(startInput.getTime())) {
@@ -22,11 +24,11 @@ function getDateRangeBounds(startDate: string, endDate?: string) {
   }
 
   const start = new Date(startInput);
-  start.setHours(0, 0, 0, 0);
+  start.setUTCHours(0, 0, 0, 0);
 
   const end = new Date(endInput);
-  end.setHours(0, 0, 0, 0);
-  end.setDate(end.getDate() + 1);
+  end.setUTCHours(0, 0, 0, 0);
+  end.setUTCDate(end.getUTCDate() + 1);
 
   return {
     start: start.toISOString(),
@@ -42,6 +44,7 @@ function parseAssetId(value: any): number | undefined {
   const parsed = Number(raw);
   return Number.isFinite(parsed) ? parsed : undefined;
 }
+
 
 function parseStringParam(value: any): string | undefined {
   if (!value) return undefined;
@@ -68,8 +71,9 @@ type ReportScope = {
 
 function getReportScope(req: Request, res: Response): ReportScope | null {
   const isAdmin = req.auth?.profile?.role === "admin";
+  const requestedClientId = parseStringParam(req.query.client_id || req.query.clientId);
+
   if (isAdmin) {
-    const requestedClientId = parseStringParam(req.query.client_id || req.query.clientId);
     return {
       isAdmin,
       clientIds: requestedClientId ? [requestedClientId] : undefined,
@@ -80,6 +84,16 @@ function getReportScope(req: Request, res: Response): ReportScope | null {
   if (clientIds.length === 0) {
     res.status(403).json({ error: "No client assigned" });
     return null;
+  }
+
+  if (requestedClientId) {
+    const hasAccess = clientIds.some((clientId) => String(clientId) === String(requestedClientId));
+    if (!hasAccess) {
+      res.status(403).json({ error: "Requested client is not assigned to this user" });
+      return null;
+    }
+
+    return { isAdmin, clientIds: [requestedClientId] };
   }
 
   return { isAdmin, clientIds };
@@ -113,13 +127,13 @@ function isMissingRelationError(error: any, tableName: string): boolean {
 class DailyMovementGenerator {
   async generateExcel(startDate: string, filters: DailyMovementFilters = {}, endDate?: string) {
     debugLog('🔍 DEBUG: Starting Excel workbook creation');
-    
+
     const workbook = new ExcelJS.Workbook();
     debugLog('🔍 DEBUG: Workbook created successfully');
-    
+
     const worksheet = workbook.addWorksheet('Daily Movement Report');
     debugLog('🔍 DEBUG: Worksheet added successfully');
-    
+
     // Disable gridlines for clean, professional appearance matching preview
     worksheet.views = [
       {
@@ -175,7 +189,7 @@ class DailyMovementGenerator {
 
     for (const assetGroup of assets) {
       const { asset, trips } = assetGroup;
-      
+
       // Asset Registration Number header
       const regRow = worksheet.addRow(['Registration Number', '', asset.registration_number]);
       regRow.getCell(1).font = { bold: true };
@@ -249,9 +263,9 @@ class DailyMovementGenerator {
           standing_time_at_location: this.formatStandingTimeForExcel(trip.standing_time_at_location),
           fuel_used_litres: this.safeNumber(trip.fuel_used_litres)
         };
-        
+
         debugLog('🔍 DEBUG: Processing trip data (safe):', safeData);
-        
+
         const dataRow = worksheet.addRow([
           safeData.driver, // Driver
           safeData.departure_date, // Departure Date
@@ -266,7 +280,7 @@ class DailyMovementGenerator {
           safeData.standing_time_at_location, // Standing Time at Location (formatted)
           safeData.fuel_used_litres // Fuel Used
         ]);
-        
+
         debugLog('🔍 DEBUG: Data row added successfully');
 
         // Apply conditional formatting based on standing time
@@ -331,7 +345,7 @@ class DailyMovementGenerator {
         this.safeString(assetGroup.totals.standingTime), // Standing Time at Location
         '' // Fuel Used (empty)
       ]);
-      
+
       // Format totals row
       totalsRow.getCell(1).value = 'Totals';
       worksheet.mergeCells(`A${currentRow}:D${currentRow}`);
@@ -339,7 +353,7 @@ class DailyMovementGenerator {
       totalsMergeCell.value = 'Totals';
       totalsMergeCell.font = { bold: true };
       totalsMergeCell.alignment = { horizontal: 'right' };
-      
+
       // Apply formatting to all cells in totals row
       for (let col = 1; col <= 12; col++) {
         const cell = totalsRow.getCell(col);
@@ -349,13 +363,13 @@ class DailyMovementGenerator {
           pattern: 'solid',
           fgColor: { argb: 'FFF2F2F2' }
         };
-        
+
         // Right align numeric cells
         if ([6, 12].includes(col)) { // Distance, Fuel Used
           cell.alignment = { horizontal: 'right' };
           cell.numFmt = '0.00';
         }
-        
+
         // Center align time cells
         if ([5, 11].includes(col)) { // Driving Time, Standing Time at Location
           cell.alignment = { horizontal: 'center' };
@@ -374,7 +388,7 @@ class DailyMovementGenerator {
         this.safeString(assetGroup.averages.standingTime), // Standing Time at Location
         '' // Fuel Used (empty)
       ]);
-      
+
       // Format averages row
       averagesRow.getCell(1).value = 'Averages';
       worksheet.mergeCells(`A${currentRow}:D${currentRow}`);
@@ -382,7 +396,7 @@ class DailyMovementGenerator {
       averagesMergeCell.value = 'Averages';
       averagesMergeCell.font = { bold: true };
       averagesMergeCell.alignment = { horizontal: 'right' };
-      
+
       // Apply formatting to all cells in averages row
       for (let col = 1; col <= 12; col++) {
         const cell = averagesRow.getCell(col);
@@ -392,13 +406,13 @@ class DailyMovementGenerator {
           pattern: 'solid',
           fgColor: { argb: 'FFF2F2F2' }
         };
-        
+
         // Right align numeric cells
         if ([6, 12].includes(col)) { // Distance, Fuel Used
           cell.alignment = { horizontal: 'right' };
           cell.numFmt = '0.00';
         }
-        
+
         // Center align time cells
         if ([5, 11].includes(col)) { // Driving Time, Standing Time at Location
           cell.alignment = { horizontal: 'center' };
@@ -565,7 +579,7 @@ class DailyMovementGenerator {
     }
     return String(value);
   }
-  
+
   // Helper method to safely convert values to numbers for Excel
   safeNumber(value: any): number {
     if (value === null || value === undefined) {
@@ -583,28 +597,28 @@ class DailyMovementGenerator {
     }
     return 0;
   }
-  
+
   // Helper method to format standing time for Excel export
   formatStandingTimeForExcel(standingTime: string): string {
     // If already in HH:MM:SS format, return as-is
     if (/^\d{2}:\d{2}:\d{2}$/.test(standingTime)) {
       return standingTime;
     }
-     
+
     // Handle formats like "00027AR" (27 seconds)
     const timeMatch = standingTime.match(/^(\d{3})(\d{2})/);
     if (timeMatch) {
       const totalSeconds = parseInt(timeMatch[1]);
       const additionalSeconds = parseInt(timeMatch[2]);
       const total = totalSeconds + additionalSeconds;
-       
+
       const hours = Math.floor(total / 3600);
       const minutes = Math.floor((total % 3600) / 60);
       const seconds = total % 60;
-       
+
       return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
     }
-     
+
     // Handle formats like "00637-42" (637 minutes and 42 seconds)
     const dashMatch = standingTime.match(/^(\d{3})(\d{2})-(\d{2})/);
     if (dashMatch) {
@@ -612,14 +626,14 @@ class DailyMovementGenerator {
       const seconds = parseInt(dashMatch[2]);
       const additionalSeconds = parseInt(dashMatch[3]);
       const totalSeconds = minutes * 60 + seconds + additionalSeconds;
-       
+
       const hours = Math.floor(totalSeconds / 3600);
       const remainingMinutes = Math.floor((totalSeconds % 3600) / 60);
       const remainingSeconds = totalSeconds % 60;
-       
+
       return `${hours.toString().padStart(2, '0')}:${remainingMinutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
     }
-     
+
     // Default fallback - ensure it's a string
     return this.safeString(standingTime);
   }
@@ -1599,7 +1613,7 @@ export function setupReportsRoutes(app: Express) {
         }
       }
       debugLog('🔍 DEBUG: Starting Excel generation for date:', date);
-      
+
       const reportBuffer = (await dailyMovementGenerator.generateExcel(date, {
         vehicleId,
         vehicleIds,
@@ -1607,11 +1621,11 @@ export function setupReportsRoutes(app: Express) {
         registrationNumber,
         clientIds: scope.clientIds,
       }, endDate)) as any;
-      
+
       debugLog('🔍 DEBUG: Excel buffer generated, size:', reportBuffer?.length || 0);
       debugLog('🔍 DEBUG: Buffer type:', typeof reportBuffer);
       debugLog('🔍 DEBUG: Buffer is Buffer:', Buffer.isBuffer(reportBuffer));
-      
+
       // Check if buffer is valid
       if (!reportBuffer || reportBuffer.length === 0) {
         console.error('🔍 ERROR: Generated Excel buffer is empty or null');
@@ -1623,13 +1637,13 @@ export function setupReportsRoutes(app: Express) {
       const fileRangeLabel = endDate && endDate !== date ? `${date}_${endDate}` : date;
       res.setHeader('Content-Disposition', `attachment; filename=daily_movement_${fileRangeLabel}.xlsx`);
       res.setHeader('Content-Length', reportBuffer.length);
-      
+
       debugLog('🔍 DEBUG: Sending response with headers:', {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'Content-Disposition': `attachment; filename=daily_movement_${fileRangeLabel}.xlsx`,
         'Content-Length': reportBuffer.length
       });
-      
+
       res.send(reportBuffer);
       debugLog('🔍 DEBUG: Response sent successfully');
     } catch (error: any) {
