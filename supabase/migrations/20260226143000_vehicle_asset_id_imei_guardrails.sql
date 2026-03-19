@@ -3,7 +3,6 @@
 -- Safe to run multiple times.
 
 create extension if not exists pgcrypto;
-
 create or replace function public.sync_vehicle_from_fuel_report(
   p_assigned_asset text,
   p_client_name text default null,
@@ -292,7 +291,6 @@ exception
     return jsonb_build_object('status', 'error', 'error', sqlerrm);
 end;
 $$;
-
 create or replace function public.upsert_vehicle_live_state(
   p_imei text,
   p_assigned_asset text default null,
@@ -365,14 +363,6 @@ begin
     last_road_name = coalesce(nullif(btrim(p_road_name), ''), last_road_name),
     last_event_name = coalesce(nullif(btrim(p_event_name), ''), last_event_name),
     last_event_id = coalesce(nullif(btrim(p_event_id), ''), last_event_id),
-    total_engine_hours = case
-      when p_engine_hours is null then total_engine_hours
-      else greatest(coalesce(total_engine_hours, p_engine_hours), p_engine_hours)
-    end,
-    total_distance = case
-      when p_odometer is null then total_distance
-      else greatest(coalesce(total_distance, p_odometer), p_odometer)
-    end,
     source_last_raw_inbound_id = coalesce(p_raw_inbound_id, source_last_raw_inbound_id),
     updated_at = now()
   where id = v_vehicle_id
@@ -389,7 +379,6 @@ begin
   return jsonb_build_object('status', 'stale_ignored', 'vehicle_id', v_vehicle_id);
 end;
 $$;
-
 do $$
 declare
   v_fixed integer := 0;

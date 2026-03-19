@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from "express";
 import ExcelJS from 'exceljs';
+import type * as PDFKit from "pdfkit";
 import { supabaseAdmin } from "./supabase";
 import { requireAuth } from "./auth";
 
@@ -181,7 +182,7 @@ class DailyMovementGenerator {
       regRow.getCell(1).font = { bold: true };
       regRow.getCell(3).value = asset.registration_number;
       worksheet.mergeCells(`B${currentRow}:L${currentRow}`);
-      regRow.eachCell(cell => {
+      regRow.eachCell((cell: ExcelJS.Cell) => {
         cell.fill = {
           type: 'pattern',
           pattern: 'solid',
@@ -195,7 +196,7 @@ class DailyMovementGenerator {
       siteRow.getCell(1).font = { bold: true };
       siteRow.getCell(3).value = asset.site_name;
       worksheet.mergeCells(`B${currentRow}:L${currentRow}`);
-      siteRow.eachCell(cell => {
+      siteRow.eachCell((cell: ExcelJS.Cell) => {
         cell.fill = {
           type: 'pattern',
           pattern: 'solid',
@@ -220,7 +221,7 @@ class DailyMovementGenerator {
         'Fuel Used (Street)' // FIXED: Match screenshot
       ]);
 
-      headersRow.eachCell((cell) => {
+      headersRow.eachCell((cell: ExcelJS.Cell) => {
         cell.font = { bold: true };
         cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
         cell.fill = {

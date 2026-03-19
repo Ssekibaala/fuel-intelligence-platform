@@ -39,8 +39,38 @@ type VehicleIdentity = {
   assignedAsset: string | null;
 };
 
+type ProcessingDiagnostics = {
+  duplicateNotes: string[];
+};
+
+type Report0PurgeSummary = {
+  enabled: boolean;
+  retentionHours: number;
+  cutoffIso: string | null;
+  batchSize: number;
+  maxLoops: number;
+  statuses: string[] | null;
+  source: string | null;
+  loops: number;
+  deleted: number;
+  error: string | null;
+};
+
 const TRIP_REPORT_TABLE = "trip_reports";
 const TRIP_REPORT_TABLE_ALIASES = new Set(["trip_reports", "daily_movement_reports"]);
+
+function noteDuplicateHandling(diag: ProcessingDiagnostics | null | undefined, note: string): void {
+  const trimmed = toCleanString(note);
+  if (!diag || !trimmed) return;
+  if (!diag.duplicateNotes.includes(trimmed)) {
+    diag.duplicateNotes.push(trimmed);
+  }
+}
+
+function composeDuplicateInfoMessage(diag: ProcessingDiagnostics | null | undefined): string | null {
+  if (!diag || !Array.isArray(diag.duplicateNotes) || diag.duplicateNotes.length === 0) return null;
+  return `INFO: duplicate rows handled (${diag.duplicateNotes.join("; ")})`;
+}
 
 function normalizeTableName(value: unknown): string {
   return String(value ?? "").trim().toLowerCase();
@@ -220,6 +250,375 @@ function dedupeRecordsForUpsert(records: any[], upsertTarget: string | null | un
   return Array.from(deduped.values());
 }
 
+function normalizeRawSensorTimeKey(value: unknown): string | null {
+  const text = toCleanString(value);
+  if (!text) return null;
+  return toIsoTimestamp(text) ?? text;
+}
+
+function dedupeRawSensorRowsForUpsert(rows: any[]): any[] {
+  if (!Array.isArray(rows) || rows.length <= 1) return rows;
+
+  const deduped = new Map<string, any>();
+  let fallbackIndex = 0;
+
+  for (const row of rows) {
+    const imei = normalizeImei(row?.imei_number);
+    const tsKey =
+      normalizeRawSensorTimeKey(row?.date) ??
+      normalizeRawSensorTimeKey(row?.timestamp);
+
+    if (!imei || !tsKey) {
+      deduped.set(`fallback:${fallbackIndex++}`, row);
+      continue;
+    }
+
+    deduped.set(`${imei}|${tsKey}`, row);
+  }
+
+  return Array.from(deduped.values());
+}
+
+function isRawSensorUniqueViolation(error: any): boolean {
+  const message = String(error?.message ?? "").toLowerCase();
+  const details = String(error?.details ?? "").toLowerCase();
+  const code = String(error?.code ?? "");
+  return (
+    code === "23505" ||
+    message.includes("ux_raw_sensor_data_imei_ts") ||
+    details.includes("ux_raw_sensor_data_imei_ts")
+  );
+}
+
+async function deleteRawSensorByNaturalKey(
+  supabaseAdmin: any,
+  row: any,
+  broadenMatch = false
+): Promise<void> {
+  const imei = normalizeImei(row?.imei_number);
+  if (!imei) return;
+
+  const dateKey = normalizeRawSensorTimeKey(row?.date);
+  const timestampKey = normalizeRawSensorTimeKey(row?.timestamp);
+
+  const plans = broadenMatch
+    ? [
+        { tsCol: "date", tsValue: dateKey },
+        { tsCol: "timestamp", tsValue: timestampKey }
+      ]
+    : [
+        { tsCol: "date", tsValue: dateKey },
+        { tsCol: "timestamp", tsValue: timestampKey },
+        { tsCol: "date", tsValue: timestampKey },
+        { tsCol: "timestamp", tsValue: dateKey }
+      ];
+
+  let sawMissingColumn = false;
+
+  for (const plan of plans) {
+    if (!plan.tsValue) continue;
+
+    const { error } = await supabaseAdmin
+      .from("raw_sensor_data")
+      .delete()
+      .eq("imei_number", imei)
+      .eq(plan.tsCol, plan.tsValue);
+
+    if (!error) return;
+
+    const missingColumn = extractMissingColumn(error, "raw_sensor_data");
+    if (missingColumn) {
+      sawMissingColumn = true;
+      continue;
+    }
+
+    throw error;
+  }
+
+  if (sawMissingColumn && !broadenMatch) {
+    await deleteRawSensorByNaturalKey(supabaseAdmin, row, true);
+  }
+}
+
+async function upsertRawSensorRowsWithFallback(
+  supabaseAdmin: any,
+  rows: any[],
+  batchSize = 1000,
+  diagnostics?: ProcessingDiagnostics
+): Promise<void> {
+  if (!rows.length) return;
+
+  const dedupedRows = dedupeRawSensorRowsForUpsert(rows);
+  const payloadDuplicates = Math.max(0, rows.length - dedupedRows.length);
+  if (payloadDuplicates > 0) {
+    noteDuplicateHandling(diagnostics, `raw_sensor_data payload deduped ${payloadDuplicates}`);
+  }
+  const conflictTargets = ["imei_number,date", "imei_number,timestamp"];
+  let skippedInsertDuplicates = 0;
+  let usedInsertFallback = false;
+
+  for (let i = 0; i < dedupedRows.length; i += batchSize) {
+    const batch = dedupedRows.slice(i, i + batchSize);
+    if (!batch.length) continue;
+
+    const hasDate = batch.some((row) => toCleanString(row?.date));
+    const hasTimestamp = batch.some((row) => toCleanString(row?.timestamp));
+    const orderedTargets = conflictTargets.filter((target) =>
+      target.endsWith("date") ? hasDate : hasTimestamp
+    );
+    if (!orderedTargets.length) {
+      orderedTargets.push(...conflictTargets);
+    }
+
+    let upserted = false;
+    let lastUpsertError: any = null;
+
+    for (const onConflict of orderedTargets) {
+      const { error } = await executeWithMissingColumnFallback(
+        "raw_sensor_data",
+        batch,
+        async (candidatePayload) =>
+          await supabaseAdmin.from("raw_sensor_data").upsert(candidatePayload, {
+            onConflict
+          })
+      );
+
+      if (!error) {
+        upserted = true;
+        break;
+      }
+
+      const missingColumn = extractMissingColumn(error, "raw_sensor_data");
+      if (isNoUniqueConstraintError(error) || missingColumn) {
+        lastUpsertError = error;
+        continue;
+      }
+
+      throw error;
+    }
+
+    if (upserted) continue;
+
+    // Last-resort insert path: skip known duplicate-key errors and keep processing.
+    usedInsertFallback = true;
+    for (const row of batch) {
+      await deleteRawSensorByNaturalKey(supabaseAdmin, row);
+      const { error } = await executeWithMissingColumnFallback(
+        "raw_sensor_data",
+        row,
+        async (candidatePayload) => await supabaseAdmin.from("raw_sensor_data").insert(candidatePayload)
+      );
+      if (!error) continue;
+      if (isRawSensorUniqueViolation(error)) {
+        await deleteRawSensorByNaturalKey(supabaseAdmin, row, true);
+        const retry = await executeWithMissingColumnFallback(
+          "raw_sensor_data",
+          row,
+          async (candidatePayload) => await supabaseAdmin.from("raw_sensor_data").insert(candidatePayload)
+        );
+        if (!retry.error) continue;
+        if (isRawSensorUniqueViolation(retry.error)) {
+          skippedInsertDuplicates += 1;
+          continue;
+        }
+        throw retry.error;
+      }
+      throw error;
+    }
+
+    if (lastUpsertError) {
+      console.warn(
+        `raw_sensor_data upsert used insert fallback for batch after conflict resolution issue: ${lastUpsertError.message ?? lastUpsertError}`
+      );
+    }
+  }
+
+  if (usedInsertFallback) {
+    noteDuplicateHandling(diagnostics, "raw_sensor_data used conflict fallback");
+  }
+  if (skippedInsertDuplicates > 0) {
+    noteDuplicateHandling(diagnostics, `raw_sensor_data skipped ${skippedInsertDuplicates} already-existing duplicates`);
+  }
+}
+
+function normalizeFuelEventTimeKey(value: unknown): string | null {
+  const text = toCleanString(value);
+  if (!text) return null;
+  return toIsoTimestamp(text) ?? text;
+}
+
+function normalizeFuelEventLocationKey(value: unknown): string {
+  const text = toCleanString(value);
+  return text ? text.toLowerCase() : "";
+}
+
+function dedupeFuelEventRowsForReplacement(rows: any[]): any[] {
+  if (!Array.isArray(rows) || rows.length <= 1) return rows;
+
+  const deduped = new Map<string, any>();
+  let fallbackIndex = 0;
+
+  for (const row of rows) {
+    const vehicleId = toOriginalText(row?.vehicle_id);
+    const eventType = toCleanString(row?.event_type);
+    const timestamp =
+      normalizeFuelEventTimeKey(row?.event_timestamp) ??
+      normalizeFuelEventTimeKey(row?.event_time);
+    const volume = toNumeric(row?.fuel_volume_litres ?? row?.refilled ?? row?.volume_liters);
+    const locationKey = normalizeFuelEventLocationKey(row?.location);
+
+    if (!vehicleId || !eventType || !timestamp) {
+      deduped.set(`fallback:${fallbackIndex++}`, row);
+      continue;
+    }
+
+    const key = [
+      vehicleId,
+      eventType,
+      timestamp,
+      volume === null ? "null" : Math.abs(volume).toFixed(3),
+      locationKey
+    ].join("|");
+    deduped.set(key, row);
+  }
+
+  return Array.from(deduped.values());
+}
+
+async function deleteFuelEventByNaturalKey(
+  supabaseAdmin: any,
+  row: any,
+  broadenMatch = false
+): Promise<void> {
+  const vehicleId = toOriginalText(row?.vehicle_id);
+  const eventType = toCleanString(row?.event_type);
+  const timestamp =
+    normalizeFuelEventTimeKey(row?.event_timestamp) ??
+    normalizeFuelEventTimeKey(row?.event_time);
+  const volume = toNumeric(row?.fuel_volume_litres ?? row?.refilled ?? row?.volume_liters);
+  const location = toOriginalText(row?.location);
+
+  if (!vehicleId || !eventType || !timestamp) return;
+
+  const plans = broadenMatch
+    ? [
+        { tsCol: "event_timestamp", volCol: null as string | null, includeLocation: false },
+        { tsCol: "event_time", volCol: null as string | null, includeLocation: false }
+      ]
+    : [
+        { tsCol: "event_timestamp", volCol: "fuel_volume_litres", includeLocation: true },
+        { tsCol: "event_timestamp", volCol: "refilled", includeLocation: true },
+        { tsCol: "event_time", volCol: "fuel_volume_litres", includeLocation: true },
+        { tsCol: "event_time", volCol: "refilled", includeLocation: true },
+        { tsCol: "event_timestamp", volCol: null as string | null, includeLocation: false },
+        { tsCol: "event_time", volCol: null as string | null, includeLocation: false }
+      ];
+
+  let sawMissingColumn = false;
+  let lastError: any = null;
+
+  for (const plan of plans) {
+    let query = supabaseAdmin
+      .from("fuel_events")
+      .delete()
+      .eq("vehicle_id", vehicleId)
+      .eq("event_type", eventType)
+      .eq(plan.tsCol, timestamp);
+
+    if (plan.volCol && volume !== null) {
+      query = query.eq(plan.volCol, volume);
+    }
+
+    if (plan.includeLocation) {
+      if (location) {
+        query = query.eq("location", location);
+      } else {
+        query = query.is("location", null);
+      }
+    }
+
+    const { error } = await query;
+    if (!error) return;
+
+    const missingColumn = extractMissingColumn(error, "fuel_events");
+    if (missingColumn) {
+      sawMissingColumn = true;
+      lastError = error;
+      continue;
+    }
+
+    throw error;
+  }
+
+  if (sawMissingColumn && !broadenMatch) {
+    await deleteFuelEventByNaturalKey(supabaseAdmin, row, true);
+    return;
+  }
+
+  if (lastError && !sawMissingColumn) {
+    throw lastError;
+  }
+}
+
+async function replaceFuelEventRowsWithFallback(
+  supabaseAdmin: any,
+  rows: any[],
+  diagnostics?: ProcessingDiagnostics
+): Promise<void> {
+  if (!rows.length) return;
+
+  const dedupedRows = dedupeFuelEventRowsForReplacement(rows);
+  const payloadDuplicates = Math.max(0, rows.length - dedupedRows.length);
+  if (payloadDuplicates > 0) {
+    noteDuplicateHandling(diagnostics, `fuel_events payload deduped ${payloadDuplicates}`);
+  }
+
+  let overwriteRetries = 0;
+  let skippedDuplicates = 0;
+
+  for (const row of dedupedRows) {
+    await deleteFuelEventByNaturalKey(supabaseAdmin, row);
+
+    let { error: insertError } = await executeWithMissingColumnFallback(
+      "fuel_events",
+      row,
+      async (candidatePayload) => await supabaseAdmin.from("fuel_events").insert(candidatePayload)
+    );
+
+    if (!insertError) continue;
+
+    if (isUniqueViolationError(insertError)) {
+      await deleteFuelEventByNaturalKey(supabaseAdmin, row, true);
+      const retry = await executeWithMissingColumnFallback(
+        "fuel_events",
+        row,
+        async (candidatePayload) => await supabaseAdmin.from("fuel_events").insert(candidatePayload)
+      );
+
+      if (!retry.error) {
+        overwriteRetries += 1;
+        continue;
+      }
+
+      if (isUniqueViolationError(retry.error)) {
+        skippedDuplicates += 1;
+        continue;
+      }
+
+      insertError = retry.error;
+    }
+
+    if (insertError) throw insertError;
+  }
+
+  if (overwriteRetries > 0) {
+    noteDuplicateHandling(diagnostics, `fuel_events overwrite-retried ${overwriteRetries}`);
+  }
+  if (skippedDuplicates > 0) {
+    noteDuplicateHandling(diagnostics, `fuel_events skipped ${skippedDuplicates} already-existing duplicates`);
+  }
+}
+
 function asArray(value: any): any[] {
   if (Array.isArray(value)) return value;
   if (!value || typeof value !== "object") return [];
@@ -258,6 +657,112 @@ async function insertRowsWithFallback(
   }
 }
 
+async function insertRowsSkippingUniqueViolations(
+  supabaseAdmin: any,
+  tableName: string,
+  rows: any[]
+): Promise<number> {
+  if (!rows.length) return 0;
+
+  let skippedDuplicates = 0;
+
+  for (const row of rows) {
+    const { error } = await executeWithMissingColumnFallback(
+      tableName,
+      row,
+      async (candidatePayload) => await supabaseAdmin.from(tableName).insert(candidatePayload)
+    );
+
+    if (!error) continue;
+    if (isUniqueViolationError(error)) {
+      skippedDuplicates += 1;
+      continue;
+    }
+
+    throw error;
+  }
+
+  return skippedDuplicates;
+}
+
+async function replaceRowsByConflictTarget(
+  supabaseAdmin: any,
+  tableName: string,
+  rows: any[],
+  upsertTarget: string
+): Promise<number> {
+  if (!rows.length) return 0;
+
+  const baseColumns = String(upsertTarget)
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (!baseColumns.length) {
+    return await insertRowsSkippingUniqueViolations(supabaseAdmin, tableName, rows);
+  }
+
+  let skippedDuplicates = 0;
+
+  for (const row of rows) {
+    let deleteColumns = [...baseColumns];
+    let deleteAttempted = false;
+
+    while (deleteColumns.length > 0) {
+      let deleteQuery = supabaseAdmin.from(tableName).delete();
+      let hasComparableColumn = false;
+
+      for (const column of deleteColumns) {
+        if (!Object.prototype.hasOwnProperty.call(row, column)) continue;
+        hasComparableColumn = true;
+        const value = row[column];
+        if (value === null || value === undefined) {
+          deleteQuery = deleteQuery.is(column, null);
+        } else {
+          deleteQuery = deleteQuery.eq(column, value);
+        }
+      }
+
+      if (!hasComparableColumn) break;
+
+      deleteAttempted = true;
+      const { error: deleteError } = await deleteQuery;
+      if (!deleteError) break;
+
+      const missingColumn = extractMissingColumn(deleteError, tableName);
+      if (missingColumn && deleteColumns.includes(missingColumn)) {
+        deleteColumns = deleteColumns.filter((column) => column !== missingColumn);
+        continue;
+      }
+
+      if (missingColumn) {
+        break;
+      }
+
+      throw deleteError;
+    }
+
+    if (!deleteAttempted) {
+      // No safe delete key available, so we still attempt insert to avoid dropping unique incoming rows.
+    }
+
+    const { error: insertError } = await executeWithMissingColumnFallback(
+      tableName,
+      row,
+      async (candidatePayload) => await supabaseAdmin.from(tableName).insert(candidatePayload)
+    );
+
+    if (!insertError) continue;
+    if (isUniqueViolationError(insertError)) {
+      skippedDuplicates += 1;
+      continue;
+    }
+
+    throw insertError;
+  }
+
+  return skippedDuplicates;
+}
+
 async function upsertDailyMetricsFromReport50(
   supabaseAdmin: any,
   row: any,
@@ -270,7 +775,8 @@ async function upsertDailyMetricsFromReport50(
   reportData: any,
   summary: any,
   refillDetails: any,
-  drainDetails: any
+  drainDetails: any,
+  diagnostics?: ProcessingDiagnostics
 ): Promise<void> {
   if (!vehicleId) return;
 
@@ -418,6 +924,7 @@ async function upsertDailyMetricsFromReport50(
         vehicleId
       );
       metricError = null;
+      noteDuplicateHandling(diagnostics, "daily_metrics overwrite fallback used");
     } catch (fallbackError) {
       metricError = fallbackError;
     }
@@ -515,12 +1022,130 @@ function isNoUniqueConstraintError(error: any): boolean {
   return message.includes("no unique or exclusion constraint");
 }
 
+function isUniqueViolationError(error: any): boolean {
+  const code = String(error?.code ?? "");
+  const message = String(error?.message ?? "").toLowerCase();
+  return code === "23505" || message.includes("duplicate key value violates unique constraint");
+}
+
 function addUtcDays(yyyyMmDd: string, days: number): string | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(yyyyMmDd)) return null;
   const parsed = new Date(`${yyyyMmDd}T00:00:00.000Z`);
   if (Number.isNaN(parsed.getTime())) return null;
   parsed.setUTCDate(parsed.getUTCDate() + days);
   return parsed.toISOString();
+}
+
+function parseCsvValues(value: string | null | undefined): string[] | null {
+  const raw = toCleanString(value);
+  if (!raw) return null;
+  const values = raw
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+  return values.length > 0 ? values : null;
+}
+
+async function purgeOldReport0Rows(
+  supabaseAdmin: any,
+  options: {
+    retentionHours: number;
+    batchSize: number;
+    maxLoops: number;
+    statuses: string[] | null;
+    source: string | null;
+  }
+): Promise<Report0PurgeSummary> {
+  const retentionHours = Number.isFinite(options.retentionHours) ? options.retentionHours : 0;
+  const batchSize = Math.max(1, Math.trunc(options.batchSize || 1));
+  const maxLoops = Math.max(1, Math.trunc(options.maxLoops || 1));
+  const statuses = Array.isArray(options.statuses) && options.statuses.length > 0 ? options.statuses : null;
+  const source = toCleanString(options.source);
+
+  if (retentionHours <= 0) {
+    return {
+      enabled: false,
+      retentionHours,
+      cutoffIso: null,
+      batchSize,
+      maxLoops,
+      statuses,
+      source,
+      loops: 0,
+      deleted: 0,
+      error: null
+    };
+  }
+
+  const cutoff = new Date(Date.now() - retentionHours * 60 * 60 * 1000);
+  const cutoffIso = cutoff.toISOString();
+  let deleted = 0;
+  let loops = 0;
+
+  try {
+    for (let i = 0; i < maxLoops; i += 1) {
+      let fetchQuery = supabaseAdmin
+        .from("raw_telemetry_inbound")
+        .select("id")
+        .eq("report_type", "0")
+        .lt("received_at", cutoffIso)
+        .limit(batchSize);
+
+      if (source) {
+        fetchQuery = fetchQuery.eq("source", source);
+      }
+
+      if (statuses) {
+        fetchQuery = fetchQuery.in("status", statuses);
+      }
+
+      const { data: rows, error: fetchError } = await fetchQuery;
+      if (fetchError) throw fetchError;
+
+      const ids = (rows ?? [])
+        .map((row: any) => toCleanString(row?.id))
+        .filter((id: string | null): id is string => Boolean(id));
+
+      if (ids.length === 0) break;
+
+      const { error: deleteError } = await supabaseAdmin
+        .from("raw_telemetry_inbound")
+        .delete()
+        .in("id", ids);
+      if (deleteError) throw deleteError;
+
+      deleted += ids.length;
+      loops += 1;
+
+      if (ids.length < batchSize) break;
+    }
+
+    return {
+      enabled: true,
+      retentionHours,
+      cutoffIso,
+      batchSize,
+      maxLoops,
+      statuses,
+      source,
+      loops,
+      deleted,
+      error: null
+    };
+  } catch (err: any) {
+    return {
+      enabled: true,
+      retentionHours,
+      cutoffIso,
+      batchSize,
+      maxLoops,
+      statuses,
+      source,
+      loops,
+      deleted,
+      error: String(err?.message ?? err)
+    };
+  }
 }
 
 async function replaceDailyMetricWithoutUniqueConstraint(
@@ -812,6 +1437,34 @@ function extractSingleImeiFromPayload(payload: any): string | null {
   return Array.from(imeis)[0] ?? null;
 }
 
+function splitConcatenatedClientAsset(value: string | null): {
+  clientName: string | null;
+  assignedAsset: string | null;
+} {
+  const text = toOriginalText(value);
+  if (!text) {
+    return { clientName: null, assignedAsset: null };
+  }
+
+  // Handles malformed report names like:
+  // "<imei>|Movit ProductsSCANIA_UAS239L_CAN" (missing separator before asset).
+  const match = text.match(/^(.*?)([A-Z0-9]{3,}(?:[_-][A-Z0-9]{2,})+)$/);
+  if (!match) {
+    return { clientName: null, assignedAsset: null };
+  }
+
+  const clientName = toOriginalText(match[1]);
+  const assignedAsset = toOriginalText(match[2]);
+  if (!assignedAsset || !/[0-9]/.test(assignedAsset)) {
+    return { clientName: null, assignedAsset: null };
+  }
+
+  return {
+    clientName,
+    assignedAsset
+  };
+}
+
 function parseFuelReportName(reportNameValue: unknown): ParsedFuelReportName | null {
   const rawReportName = toOriginalText(reportNameValue);
   if (!rawReportName) return null;
@@ -863,6 +1516,16 @@ function parseFuelReportName(reportNameValue: unknown): ParsedFuelReportName | n
     parsed.imei_number = normalizeImei(rawSegments[0]);
     parsed.client_name = toOriginalText(rawSegments[1]);
     parsed.assigned_asset = toOriginalText(rawSegments[2]);
+  } else if (!parsed.imei_number && !parsed.client_name && !parsed.assigned_asset && rawSegments.length === 2) {
+    parsed.imei_number = normalizeImei(rawSegments[0]);
+    const secondSegment = toOriginalText(rawSegments[1]);
+    const split = splitConcatenatedClientAsset(secondSegment);
+    if (split.clientName || split.assignedAsset) {
+      parsed.client_name = split.clientName;
+      parsed.assigned_asset = split.assignedAsset;
+    } else {
+      parsed.client_name = secondSegment;
+    }
   }
 
   return parsed;
@@ -1407,7 +2070,8 @@ async function upsertFuelNormalizedTables(
   row: any,
   payload: any,
   derivedRecords: FuelDerivedRecord[],
-  syncResults: Map<string, FuelSyncResult>
+  syncResults: Map<string, FuelSyncResult>,
+  diagnostics?: ProcessingDiagnostics
 ) {
   if (!derivedRecords.length) return;
 
@@ -1516,7 +2180,8 @@ async function upsertFuelNormalizedTables(
       reportData,
       summary,
       refillDetails,
-      drainDetails
+      drainDetails,
+      diagnostics
     );
 
     const temperaturePayload = {
@@ -1586,6 +2251,9 @@ async function upsertFuelNormalizedTables(
       if (!bulkError) {
         usedBulkSql = true;
       } else {
+        if (isUniqueViolationError(bulkError)) {
+          noteDuplicateHandling(diagnostics, "report50 SQL bulk path hit duplicates and switched to overwrite fallback");
+        }
         console.warn(`Falling back to JS detail inserts for raw row ${row.id}: ${bulkError.message ?? bulkError}`);
       }
     }
@@ -1669,7 +2337,7 @@ async function upsertFuelNormalizedTables(
       }
 
       if (refuelRows.length > 0) {
-        await insertRowsWithFallback(supabaseAdmin, "fuel_events", refuelRows, 500);
+        await replaceFuelEventRowsWithFallback(supabaseAdmin, refuelRows, diagnostics);
       }
 
       const sensorRows = extractSensorRows(entry.context, row.id, temperatureReportId, vehicleId, {
@@ -1678,7 +2346,7 @@ async function upsertFuelNormalizedTables(
         registrationNumber
       });
       if (sensorRows.length > 0) {
-        await insertRowsWithFallback(supabaseAdmin, "raw_sensor_data", sensorRows, 1000);
+        await upsertRawSensorRowsWithFallback(supabaseAdmin, sensorRows, 1000, diagnostics);
       }
     }
   }
@@ -1973,7 +2641,8 @@ async function upsertDailyMovementFromTripReport(
   supabaseAdmin: any,
   row: any,
   payload: any,
-  mapping: any
+  mapping: any,
+  diagnostics?: ProcessingDiagnostics
 ): Promise<Trip137UpsertResult> {
   const reportType = String(row.report_type ?? payload?.report_type ?? "");
   if (reportType !== "137") return { count: 0, firstImei: null, firstReportName: null };
@@ -2090,6 +2759,10 @@ async function upsertDailyMovementFromTripReport(
   if (!tripRows.length) return { count: 0, firstImei: null, firstReportName: reportName };
 
   const deduped = dedupeRecordsForUpsert(tripRows, "source_trip_key");
+  const payloadDuplicates = Math.max(0, tripRows.length - deduped.length);
+  if (payloadDuplicates > 0) {
+    noteDuplicateHandling(diagnostics, `trip_reports payload deduped ${payloadDuplicates}`);
+  }
 
   const { error: cleanupError } = await supabaseAdmin.from(TRIP_REPORT_TABLE).delete().eq("raw_inbound_id", row.id);
   if (cleanupError && extractMissingColumn(cleanupError, TRIP_REPORT_TABLE) !== "raw_inbound_id") {
@@ -2109,6 +2782,7 @@ async function upsertDailyMovementFromTripReport(
     try {
       await replaceTripRowsWithoutUniqueConstraint(supabaseAdmin, deduped);
       upsertError = null;
+      noteDuplicateHandling(diagnostics, "trip_reports overwrite fallback used");
     } catch (fallbackError) {
       upsertError = fallbackError;
     }
@@ -2194,9 +2868,29 @@ serve(async (req: Request) => {
   const workerId = `worker-${crypto.randomUUID()}`;
   const configuredBatchSize = toInteger(Deno.env.get("PROCESS_BATCH_SIZE") ?? "1") ?? 1;
   const batchSize = Math.max(1, configuredBatchSize);
+  const report0RetentionHours = toNumeric(Deno.env.get("REPORT0_RETENTION_HOURS") ?? "6") ?? 6;
+  const report0PurgeBatchSize = Math.max(1, toInteger(Deno.env.get("REPORT0_PURGE_BATCH_SIZE") ?? "200") ?? 200);
+  const report0PurgeMaxLoops = Math.max(1, toInteger(Deno.env.get("REPORT0_PURGE_MAX_LOOPS") ?? "25") ?? 25);
+  const report0PurgeStatuses = parseCsvValues(Deno.env.get("REPORT0_PURGE_STATUSES"));
+  const report0PurgeSource = toCleanString(Deno.env.get("REPORT0_PURGE_SOURCE"));
   const runId = await tryStartProcessingRunLog(supabaseAdmin, workerId);
 
   try {
+    const purgeSummary = await purgeOldReport0Rows(supabaseAdmin, {
+      retentionHours: report0RetentionHours,
+      batchSize: report0PurgeBatchSize,
+      maxLoops: report0PurgeMaxLoops,
+      statuses: report0PurgeStatuses,
+      source: report0PurgeSource
+    });
+    if (purgeSummary.error) {
+      console.error("Report0 purge failed:", purgeSummary.error);
+    } else if (purgeSummary.deleted > 0) {
+      console.log(
+        `Report0 purge deleted ${purgeSummary.deleted} rows older than ${purgeSummary.retentionHours}h (loops=${purgeSummary.loops})`
+      );
+    }
+
     const { data: batch, error: claimError } = await supabaseAdmin.rpc("claim_ingestion_batch", {
       p_worker_id: workerId,
       p_batch_size: batchSize
@@ -2210,7 +2904,7 @@ serve(async (req: Request) => {
         failed: 0,
         skipped: 0
       });
-      return new Response(JSON.stringify({ message: "No pending rows found.", run_id: runId }), {
+      return new Response(JSON.stringify({ message: "No pending rows found.", run_id: runId, report0_purge: purgeSummary }), {
         headers: { "content-type": "application/json" }
       });
     }
@@ -2222,6 +2916,7 @@ serve(async (req: Request) => {
     for (const row of batch) {
       try {
         const payload = row.payload_json ?? {};
+        const diagnostics: ProcessingDiagnostics = { duplicateNotes: [] };
         const reportType = String(row.report_type ?? "");
         const isFuelType50 = reportType === "50";
         let builtInHandled = false;
@@ -2307,7 +3002,7 @@ serve(async (req: Request) => {
 
         let trip137Result: Trip137UpsertResult | null = null;
         if (reportType === "137") {
-          trip137Result = await upsertDailyMovementFromTripReport(supabaseAdmin, row, payload, mapping);
+          trip137Result = await upsertDailyMovementFromTripReport(supabaseAdmin, row, payload, mapping, diagnostics);
           builtInHandled = true;
           if (trip137Result.count === 0) {
             skippedCount += 1;
@@ -2320,6 +3015,13 @@ serve(async (req: Request) => {
             upsertOptions.onConflict = mapping.upsert_target;
           }
           const upsertRecords = dedupeRecordsForUpsert(finalRecords, mapping.upsert_target);
+          const dedupedCount = Math.max(0, finalRecords.length - upsertRecords.length);
+          if (dedupedCount > 0) {
+            noteDuplicateHandling(
+              diagnostics,
+              `${mapping.target_table} payload deduped ${dedupedCount}`
+            );
+          }
 
           const runMappingUpsert = async (records: any[]) =>
             await executeWithMissingColumnFallback(mapping.target_table, records, async (candidatePayload) =>
@@ -2341,13 +3043,65 @@ serve(async (req: Request) => {
             ({ error: upsertError } = await runMappingUpsert(withoutReportId));
           }
 
+          if (upsertError && isNoUniqueConstraintError(upsertError) && mapping.upsert_target) {
+            const skippedDuplicates = await replaceRowsByConflictTarget(
+              supabaseAdmin,
+              mapping.target_table,
+              upsertRecords,
+              mapping.upsert_target
+            );
+            if (skippedDuplicates > 0) {
+              noteDuplicateHandling(
+                diagnostics,
+                `${mapping.target_table} overwrite fallback skipped ${skippedDuplicates} residual duplicates`
+              );
+            } else {
+              noteDuplicateHandling(diagnostics, `${mapping.target_table} overwrite fallback used`);
+            }
+            upsertError = null;
+          }
+
+          if (upsertError && isUniqueViolationError(upsertError)) {
+            const skippedDuplicates = await insertRowsSkippingUniqueViolations(
+              supabaseAdmin,
+              mapping.target_table,
+              upsertRecords
+            );
+            if (skippedDuplicates > 0) {
+              noteDuplicateHandling(
+                diagnostics,
+                `${mapping.target_table} skipped ${skippedDuplicates} already-existing duplicates`
+              );
+            } else {
+              noteDuplicateHandling(diagnostics, `${mapping.target_table} used duplicate fallback`);
+            }
+            upsertError = null;
+          }
+
+          if (upsertError && isNoUniqueConstraintError(upsertError) && !mapping.upsert_target) {
+            const skippedDuplicates = await insertRowsSkippingUniqueViolations(
+              supabaseAdmin,
+              mapping.target_table,
+              upsertRecords
+            );
+            if (skippedDuplicates > 0) {
+              noteDuplicateHandling(
+                diagnostics,
+                `${mapping.target_table} skipped ${skippedDuplicates} already-existing duplicates`
+              );
+            } else {
+              noteDuplicateHandling(diagnostics, `${mapping.target_table} insert fallback used`);
+            }
+            upsertError = null;
+          }
+
           if (upsertError) throw upsertError;
           builtInHandled = true;
         }
 
         if (isFuelType50 && parsedFuelAssets.length > 0) {
           const syncResults = await syncFuelAssetsToVehicles(supabaseAdmin, parsedFuelAssets);
-          await upsertFuelNormalizedTables(supabaseAdmin, row, payload, derivedFuelRows, syncResults);
+          await upsertFuelNormalizedTables(supabaseAdmin, row, payload, derivedFuelRows, syncResults, diagnostics);
           builtInHandled = true;
         }
 
@@ -2391,6 +3145,18 @@ serve(async (req: Request) => {
           if (trip137Result.count === 0) {
             processedUpdate.last_error = "No trip rows extracted from report_type 137 payload";
             processedUpdate.error_code = "SKIPPED_EMPTY_TRIP_DATA";
+          }
+        }
+
+        const duplicateInfo = composeDuplicateInfoMessage(diagnostics);
+        if (duplicateInfo) {
+          if (processedUpdate.last_error) {
+            processedUpdate.last_error = `${processedUpdate.last_error} | ${duplicateInfo}`;
+          } else {
+            processedUpdate.last_error = duplicateInfo;
+          }
+          if (!processedUpdate.error_code) {
+            processedUpdate.error_code = "INFO_DUPLICATES_HANDLED";
           }
         }
 
@@ -2438,7 +3204,8 @@ serve(async (req: Request) => {
         claimed: batch.length,
         processed: successCount,
         failed: failedCount,
-        skipped: skippedCount
+        skipped: skippedCount,
+        report0_purge: purgeSummary
       }),
       { headers: { "content-type": "application/json" } }
     );

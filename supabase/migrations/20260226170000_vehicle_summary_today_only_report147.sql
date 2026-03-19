@@ -25,7 +25,6 @@ BEGIN
       ALTER COLUMN total_fuel_used DROP NOT NULL;
   END IF;
 END $$;
-
 DO $$
 BEGIN
   IF to_regclass('public.vehicles') IS NULL THEN
@@ -41,7 +40,6 @@ BEGIN
   WHERE coalesce((last_summary_generated_at AT TIME ZONE 'utc')::date, date '1900-01-01')
       <> (now() AT TIME ZONE 'utc')::date;
 END $$;
-
 -- report_type=0 live state should NOT overwrite summary totals.
 create or replace function public.upsert_vehicle_live_state(
   p_imei text,

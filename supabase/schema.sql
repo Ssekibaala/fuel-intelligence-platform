@@ -1,5 +1,8 @@
--- Supabase schema for Fuel Platform
--- Run this in the Supabase SQL Editor for a fresh project
+-- Supabase app schema for Fuel Platform
+-- This file is not the canonical telemetry ingestion setup.
+-- For a full project setup, run supabase/migrations/0001_all_in_one.sql
+-- and the follow-up migrations in the repository README.
+-- Keep this file only for app-schema reference or partial/manual setups.
 
 create extension if not exists "pgcrypto";
 

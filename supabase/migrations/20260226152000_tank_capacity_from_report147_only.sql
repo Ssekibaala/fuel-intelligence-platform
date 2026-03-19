@@ -19,7 +19,6 @@ BEGIN
       ALTER COLUMN tank_capacity DROP NOT NULL;
   END IF;
 END $$;
-
 DO $$
 DECLARE
   v_has_tank_capacity boolean;

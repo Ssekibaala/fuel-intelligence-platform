@@ -86,7 +86,6 @@ begin
       );
   end if;
 end $$;
-
 do $$
 declare
   v_fixed integer := 0;

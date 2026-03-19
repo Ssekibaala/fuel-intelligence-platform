@@ -8,7 +8,6 @@ begin
     alter table public.daily_movement_reports rename to trip_reports;
   end if;
 end $$;
-
 -- Keep ingestion mappings aligned with the new canonical table name.
 do $$
 begin

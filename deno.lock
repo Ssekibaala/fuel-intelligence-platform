@@ -26,8 +26,10 @@
         "npm:@types/node@^25.0.6",
         "npm:cors@^2.8.5",
         "npm:dotenv@^17.2.3",
+        "npm:exceljs@^4.4.0",
         "npm:express@^5.2.1",
         "npm:multer@^2.0.2",
+        "npm:pdfkit@~0.17.2",
         "npm:stripe@^20.1.2",
         "npm:ts-node@^10.9.2",
         "npm:typescript@^5.9.3"

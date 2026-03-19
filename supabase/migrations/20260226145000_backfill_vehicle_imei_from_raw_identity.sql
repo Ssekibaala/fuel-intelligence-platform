@@ -51,7 +51,6 @@ begin
         and public.normalize_imei(v2.imei) = u.inferred_imei
     );
 end $$;
-
 do $$
 declare
   v_fixed integer := 0;

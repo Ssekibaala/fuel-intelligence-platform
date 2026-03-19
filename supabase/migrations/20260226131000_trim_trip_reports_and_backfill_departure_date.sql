@@ -9,7 +9,6 @@ begin
     alter table public.daily_movement_reports rename to trip_reports;
   end if;
 end $$;
-
 -- 2) Ensure ingestion mappings point to canonical table.
 do $$
 begin
@@ -19,7 +18,6 @@ begin
     where target_table = 'daily_movement_reports';
   end if;
 end $$;
-
 -- 3) Backfill departure_date from departure_time/report_date when missing.
 do $$
 begin
@@ -30,7 +28,6 @@ begin
       and coalesce(departure_time, report_date) is not null;
   end if;
 end $$;
-
 -- 4) Keep departure_date populated for future inserts/updates.
 create or replace function public.trip_reports_set_departure_date()
 returns trigger
@@ -47,7 +44,6 @@ begin
   return new;
 end;
 $$;
-
 do $$
 begin
   if to_regclass('public.trip_reports') is not null then
@@ -57,7 +53,6 @@ begin
     for each row execute function public.trip_reports_set_departure_date();
   end if;
 end $$;
-
 -- 5) Remove unused columns from trip_reports.
 alter table if exists public.trip_reports
   drop column if exists company_name,

@@ -288,7 +288,6 @@ exception
     return jsonb_build_object('status', 'error', 'error', sqlerrm);
 end;
 $$;
-
 update public.vehicles
 set
   fuel_efficiency = null,
