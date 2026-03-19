@@ -18,6 +18,7 @@ import { AlertsPage } from "./components/AlertsPage";
 import { ReportsPage } from "./components/ReportsPage";
 import { AdminPage } from "./components/AdminPage";
 import { config } from "./lib/config";
+import { AlertTriangle, FileText, LayoutDashboard, Settings, ShieldCheck, Truck } from "lucide-react";
 
 // Main app content component that can access global filter context
 function AppContent() {
@@ -26,6 +27,14 @@ function AppContent() {
   const { state, actions } = useGlobalFilter();
   const { theme, toggleTheme } = useTheme();
   const { isAdmin } = useAuth();
+  const navigationItems = [
+    { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { key: "assets", label: "Assets", icon: Truck },
+    { key: "alerts", label: "Alerts", icon: AlertTriangle },
+    { key: "reports", label: "Reports", icon: FileText },
+    ...(isAdmin ? [{ key: "admin", label: "Admin", icon: ShieldCheck }] : []),
+    { key: "settings", label: "Settings", icon: Settings },
+  ];
   const invalidateApiQueries = () =>
     queryClient.invalidateQueries({
       predicate: (query) => {
@@ -93,25 +102,54 @@ function AppContent() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-background text-foreground antialiased relative overflow-hidden">
+    <div className="min-h-[100dvh] w-full bg-background text-foreground antialiased relative overflow-x-hidden">
       {/* Animated liquid background */}
       <LiquidBackground />
 
-      <div className="flex h-screen relative z-10">
-        {/* Sidebar */}
-        <Sidebar activePage={activePage} onNavigate={handleNavigate} theme={theme} toggleTheme={toggleTheme} />
+      <div className="relative z-10 flex min-h-[100dvh]">
+        {/* Sidebar (desktop/tablet) */}
+        <div className="hidden md:block">
+          <Sidebar activePage={activePage} onNavigate={handleNavigate} theme={theme} toggleTheme={toggleTheme} />
+        </div>
 
         {/* Main content */}
-        <main className="flex-1 overflow-auto">
+        <main className="flex min-w-0 flex-1 flex-col">
           {/* Header with global filters */}
           <Header onRefresh={handleRefresh} />
 
           {/* Page content */}
-          <section className="w-full p-6">
+          <section className="flex-1 px-3 pt-3 pb-24 sm:px-4 sm:pt-4 sm:pb-24 lg:px-6 lg:pt-6 lg:pb-8">
             {renderPageContent()}
           </section>
         </main>
       </div>
+
+      {/* Mobile App Navigation */}
+      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-border/40 bg-background/85 backdrop-blur-xl md:hidden">
+        <div className="mx-auto flex max-w-screen-sm items-center justify-between gap-1 px-2 pt-2 pb-[calc(env(safe-area-inset-bottom)+0.45rem)]">
+          {navigationItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activePage === item.key;
+            return (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => handleNavigate(item.key)}
+                className={`flex min-w-0 flex-1 flex-col items-center rounded-lg px-1.5 py-1.5 transition-colors ${
+                  isActive
+                    ? "bg-primary/15 text-primary"
+                    : "text-muted-foreground hover:bg-accent/30 hover:text-foreground"
+                }`}
+                aria-current={isActive ? "page" : undefined}
+                data-testid={`mobile-nav-${item.key}`}
+              >
+                <Icon className="h-4 w-4" />
+                <span className="mt-1 max-w-full truncate text-[10px] font-medium leading-none">{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
     </div>
   );
 }

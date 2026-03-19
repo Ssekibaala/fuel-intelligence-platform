@@ -31,6 +31,11 @@ const toUtcDateKey = (value?: Date | string | null): string => {
   return d.toISOString().slice(0, 10);
 };
 
+const toSafeDayKey = (value?: string | null): string | undefined => {
+  if (!value) return undefined;
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : undefined;
+};
+
 
 const mapVehicleRow = (row: any): Vehicle => ({
   id: row.id,
@@ -71,6 +76,11 @@ const hasFuelTankCapacity = (vehicle: { tankCapacity?: unknown }) => {
 const cleanPayload = (payload: Record<string, any>) =>
   Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined));
 
+const isMissingColumnError = (error: any) => {
+  const text = `${error?.message || ""} ${error?.details || ""}`.toLowerCase();
+  return text.includes("column") && text.includes("does not exist");
+};
+
 const mapVehicleInsert = (vehicle: InsertVehicle) => ({
   client_id: (vehicle as any).clientId,
   asset_id: vehicle.assetId,
@@ -79,7 +89,7 @@ const mapVehicleInsert = (vehicle: InsertVehicle) => ({
   status: vehicle.status,
   current_fuel_level: vehicle.currentFuelLevel,
   tank_capacity: vehicle.tankCapacity,
-  consumptionKml: vehicle.consumptionKml,
+  consumption_kml: vehicle.consumptionKml,
   efficiency_rating: vehicle.efficiencyRating,
   total_distance: vehicle.totalDistance,
   total_engine_hours: vehicle.totalEngineHours,
@@ -97,12 +107,18 @@ const mapFuelEventRow = (row: any): FuelEvent => ({
   id: row.id,
   vehicleId: row.vehicle_id,
   eventType: row.event_type,
-  volumeLiters: row.volume_liters,
+  volumeLiters: row.volume_liters ?? row.refilled ?? 0,
   costKES: row.cost_kes,
   costUGX: row.cost_ugx,
   location: row.location,
   notes: row.notes,
-  eventTimestamp: row.event_timestamp ? new Date(row.event_timestamp) : new Date(),
+  eventTimestamp: row.event_timestamp
+    ? new Date(row.event_timestamp)
+    : row.event_time
+      ? new Date(row.event_time)
+      : row.created_at
+        ? new Date(row.created_at)
+        : new Date(),
   createdAt: row.created_at ? new Date(row.created_at) : new Date(),
 });
 
@@ -120,13 +136,21 @@ const mapFuelEventInsert = (event: InsertFuelEvent) => ({
 const mapDailyMetricsRow = (row: any): DailyMetrics => ({
   id: row.id,
   vehicleId: row.vehicle_id,
-  metricDate: row.metric_date ? new Date(row.metric_date) : new Date(),
+  metricDate: row.metric_date
+    ? new Date(row.metric_date)
+    : row.metric_day
+      ? new Date(`${String(row.metric_day).slice(0, 10)}T00:00:00.000Z`)
+      : row.generated_at
+        ? new Date(row.generated_at)
+        : row.created_at
+          ? new Date(row.created_at)
+          : new Date(),
   totalFuelConsumed: row.total_fuel_consumed,
   totalDistanceTraveled: row.total_distance_traveled,
   totalEngineHours: row.total_engine_hours,
   idleTimeHours: row.idle_time_hours,
-  numberOfRefills: row.number_of_refills,
-  numberOfThefts: row.number_of_thefts,
+  numberOfRefills: row.refill_count ?? row.number_of_refills ?? 0,
+  numberOfThefts: row.drain_count ?? row.number_of_thefts ?? 0,
   operatingCostKES: row.operating_cost_kes,
   operatingCostUGX: row.operating_cost_ugx,
   createdAt: row.created_at ? new Date(row.created_at) : new Date(),
@@ -135,12 +159,15 @@ const mapDailyMetricsRow = (row: any): DailyMetrics => ({
 const mapDailyMetricsInsert = (metric: InsertDailyMetrics) => ({
   vehicle_id: metric.vehicleId,
   metric_date: toIso(metric.metricDate),
+  metric_day: toUtcDateKey(metric.metricDate),
   total_fuel_consumed: metric.totalFuelConsumed,
   total_distance_traveled: metric.totalDistanceTraveled,
   total_engine_hours: metric.totalEngineHours,
   idle_time_hours: metric.idleTimeHours,
   number_of_refills: metric.numberOfRefills,
+  refill_count: metric.numberOfRefills,
   number_of_thefts: metric.numberOfThefts,
+  drain_count: metric.numberOfThefts,
   operating_cost_kes: metric.operatingCostKES,
   operating_cost_ugx: metric.operatingCostUGX,
 });
@@ -222,12 +249,16 @@ export interface IStorage {
     vehicleIds?: string[];
     startDate?: Date;
     endDate?: Date;
+    startDay?: string;
+    endDay?: string;
   }): Promise<DailyMetrics[]>;
   createDailyMetric(metric: InsertDailyMetrics): Promise<DailyMetrics>;
   aggregateDailyMetrics(filters: {
     vehicleIds?: string[];
     startDate?: Date;
     endDate?: Date;
+    startDay?: string;
+    endDay?: string;
   }): Promise<{
     totalFuelConsumed: number;
     totalDistance: number;
@@ -382,21 +413,51 @@ export class SupabaseStorage implements IStorage {
     endDate?: Date;
     limit?: number;
   }): Promise<FuelEvent[]> {
-    let query = supabaseAdmin
-      .from("fuel_events")
-      .select("*")
-      .order("event_timestamp", { ascending: false });
+    const timeColumns = ["event_timestamp", "event_time", "created_at"];
+    let lastError: any = null;
 
-    if (filters?.vehicleId) query = query.eq("vehicle_id", filters.vehicleId);
-    if (filters?.vehicleIds?.length) query = query.in("vehicle_id", filters.vehicleIds);
-    if (filters?.eventType) query = query.eq("event_type", filters.eventType);
-    if (filters?.startDate) query = query.gte("event_timestamp", toIso(filters.startDate) as string);
-    if (filters?.endDate) query = query.lte("event_timestamp", toIso(filters.endDate) as string);
-    if (filters?.limit) query = query.limit(filters.limit);
+    for (const timeColumn of timeColumns) {
+      let query = supabaseAdmin
+        .from("fuel_events")
+        .select("*")
+        .order(timeColumn, { ascending: false });
 
-    const { data, error } = await query;
-    if (error) throw error;
-    return (data || []).map(mapFuelEventRow);
+      if (filters?.vehicleId) query = query.eq("vehicle_id", filters.vehicleId);
+      if (filters?.vehicleIds?.length) query = query.in("vehicle_id", filters.vehicleIds);
+      if (filters?.eventType) query = query.eq("event_type", filters.eventType);
+      if (filters?.startDate) query = query.gte(timeColumn, toIso(filters.startDate) as string);
+      if (filters?.endDate) query = query.lte(timeColumn, toIso(filters.endDate) as string);
+      if (filters?.limit) query = query.limit(filters.limit);
+
+      const { data, error } = await query;
+      if (!error) return (data || []).map(mapFuelEventRow);
+
+      lastError = error;
+      if (!isMissingColumnError(error)) throw error;
+    }
+
+    let fallbackQuery = supabaseAdmin.from("fuel_events").select("*");
+    if (filters?.vehicleId) fallbackQuery = fallbackQuery.eq("vehicle_id", filters.vehicleId);
+    if (filters?.vehicleIds?.length) fallbackQuery = fallbackQuery.in("vehicle_id", filters.vehicleIds);
+    if (filters?.eventType) fallbackQuery = fallbackQuery.eq("event_type", filters.eventType);
+    if (filters?.limit) fallbackQuery = fallbackQuery.limit(filters.limit);
+
+    const { data, error } = await fallbackQuery;
+    if (error) throw error ?? lastError;
+
+    const startMs = filters?.startDate?.getTime();
+    const endMs = filters?.endDate?.getTime();
+
+    return (data || [])
+      .map(mapFuelEventRow)
+      .filter((row) => {
+        const ts = row.eventTimestamp?.getTime?.() ?? NaN;
+        if (!Number.isFinite(ts)) return false;
+        if (Number.isFinite(startMs) && ts < (startMs as number)) return false;
+        if (Number.isFinite(endMs) && ts > (endMs as number)) return false;
+        return true;
+      })
+      .sort((a, b) => b.eventTimestamp.getTime() - a.eventTimestamp.getTime());
   }
 
   async getFuelEvent(id: string): Promise<FuelEvent | undefined> {
@@ -446,20 +507,54 @@ export class SupabaseStorage implements IStorage {
     vehicleIds?: string[];
     startDate?: Date;
     endDate?: Date;
+    startDay?: string;
+    endDay?: string;
   }): Promise<DailyMetrics[]> {
-    let query = supabaseAdmin
-      .from("daily_metrics")
-      .select("*")
-      .order("metric_date", { ascending: false });
+    const dateCandidates = [
+      { column: "metric_day", start: toSafeDayKey(filters?.startDay) ?? (filters?.startDate ? toUtcDateKey(filters.startDate) : undefined), end: toSafeDayKey(filters?.endDay) ?? (filters?.endDate ? toUtcDateKey(filters.endDate) : undefined) },
+      { column: "metric_date", start: filters?.startDate ? toIso(filters.startDate) : undefined, end: filters?.endDate ? toIso(filters.endDate) : undefined },
+      { column: "created_at", start: filters?.startDate ? toIso(filters.startDate) : undefined, end: filters?.endDate ? toIso(filters.endDate) : undefined },
+    ];
+    let lastError: any = null;
 
-    if (filters?.vehicleId) query = query.eq("vehicle_id", filters.vehicleId);
-    if (filters?.vehicleIds?.length) query = query.in("vehicle_id", filters.vehicleIds);
-    if (filters?.startDate) query = query.gte("metric_date", toIso(filters.startDate) as string);
-    if (filters?.endDate) query = query.lte("metric_date", toIso(filters.endDate) as string);
+    for (const candidate of dateCandidates) {
+      let query = supabaseAdmin
+        .from("daily_metrics")
+        .select("*")
+        .order(candidate.column, { ascending: false });
 
-    const { data, error } = await query;
-    if (error) throw error;
-    return (data || []).map(mapDailyMetricsRow);
+      if (filters?.vehicleId) query = query.eq("vehicle_id", filters.vehicleId);
+      if (filters?.vehicleIds?.length) query = query.in("vehicle_id", filters.vehicleIds);
+      if (candidate.start) query = query.gte(candidate.column, candidate.start);
+      if (candidate.end) query = query.lte(candidate.column, candidate.end);
+
+      const { data, error } = await query;
+      if (!error) return (data || []).map(mapDailyMetricsRow);
+
+      lastError = error;
+      if (!isMissingColumnError(error)) throw error;
+    }
+
+    let fallbackQuery = supabaseAdmin.from("daily_metrics").select("*");
+    if (filters?.vehicleId) fallbackQuery = fallbackQuery.eq("vehicle_id", filters.vehicleId);
+    if (filters?.vehicleIds?.length) fallbackQuery = fallbackQuery.in("vehicle_id", filters.vehicleIds);
+
+    const { data, error } = await fallbackQuery;
+    if (error) throw error ?? lastError;
+
+    const startMs = filters?.startDate?.getTime();
+    const endMs = filters?.endDate?.getTime();
+
+    return (data || [])
+      .map(mapDailyMetricsRow)
+      .filter((row) => {
+        const ts = row.metricDate?.getTime?.() ?? NaN;
+        if (!Number.isFinite(ts)) return false;
+        if (Number.isFinite(startMs) && ts < (startMs as number)) return false;
+        if (Number.isFinite(endMs) && ts > (endMs as number)) return false;
+        return true;
+      })
+      .sort((a, b) => b.metricDate.getTime() - a.metricDate.getTime());
   }
 
   async createDailyMetric(metric: InsertDailyMetrics): Promise<DailyMetrics> {
@@ -477,6 +572,8 @@ export class SupabaseStorage implements IStorage {
     vehicleIds?: string[];
     startDate?: Date;
     endDate?: Date;
+    startDay?: string;
+    endDay?: string;
   }): Promise<{
     totalFuelConsumed: number;
     totalDistance: number;

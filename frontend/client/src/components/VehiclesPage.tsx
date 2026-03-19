@@ -37,10 +37,18 @@ import {
   Info,
   Truck
 } from "lucide-react";
-import { useGlobalFilter } from "./GlobalFilterContext";
+import { useGlobalFilter, getDateRangeFromPreset } from "./GlobalFilterContext";
 import { FilterControls } from "./FilterControls";
 import { HeadingLogo } from "./HeadingLogo";
 import { api, globalFilterToApiParams } from "../lib/api";
+import { queryClient } from "../lib/queryClient";
+import { formatDateTimeEAT } from "../lib/dateTime";
+import {
+  deriveConsumption,
+  deriveHoursPerLiter,
+  getTodayLocalDayKey,
+  rangeIncludesToday as rangeEndsToday,
+} from "../lib/fleetMetrics";
 import { useQuery } from "@tanstack/react-query";
 import { type DateRange } from "@shared/schema";
 import {
@@ -51,7 +59,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
   ReferenceArea,
   ReferenceLine,
   LineChart,
@@ -114,14 +121,48 @@ const formatDate = (value: unknown): string => {
 
 function getTodayRangeIso() {
   const now = new Date();
-  // Use UTC boundaries to match how Supabase timestamps are stored
-  const startDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-  const endDate = new Date(startDate.getTime() + 24 * 60 * 60 * 1000 - 1);
+  const startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  const endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
   return {
     startDate: startDate.toISOString(),
     endDate: endDate.toISOString(),
   };
 }
+
+function getLast7DaysRange(): DateRange {
+  const { startDate, endDate } = getDateRangeFromPreset("last_7_days");
+  return {
+    preset: "last_7_days",
+    startDate: startDate.toISOString(),
+    endDate: endDate.toISOString(),
+    label: "Last 7 Days",
+  };
+}
+
+const eatDayKeyFormatter = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Africa/Nairobi",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+const eatTimeFormatter = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Africa/Nairobi",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
+const eatDayLabelFormatter = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Africa/Nairobi",
+  month: "short",
+  day: "2-digit",
+});
+
+const toEatDayKey = (value: unknown): string | null => {
+  const parsed = toDate(value);
+  return parsed ? eatDayKeyFormatter.format(parsed) : null;
+};
 
 const DEFAULT_SENSOR_CONFIG = {
   tankCapacity: 600,
@@ -160,7 +201,7 @@ function getRangeFromPreset(preset: "today" | "week" | "month") {
 }
 
 const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleChange }) => {
-  const { state: filterState } = useGlobalFilter();
+  const { state: filterState, actions: filterActions } = useGlobalFilter();
   const [fleetDateRange, setFleetDateRange] = useState<DateRange>(() => {
     const todayRange = getTodayRangeIso();
     return {
@@ -176,6 +217,27 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
   );
   const refreshIntervalMs = filterState.refreshInterval > 0 ? filterState.refreshInterval : false;
   const isTodaySelected = fleetDateRange.preset === "today";
+  const rangeIncludesToday = useMemo(
+    () => rangeEndsToday(fleetDateRange.endDate, isTodaySelected),
+    [fleetDateRange.endDate, isTodaySelected]
+  );
+  const fleetFilterSignature = useMemo(
+    () =>
+      JSON.stringify({
+        clientId: filterState.selectedClientId,
+        selectedVehicles: [...filterState.selectedVehicles].sort(),
+        startDate: fleetDateRange.startDate,
+        endDate: fleetDateRange.endDate,
+        preset: fleetDateRange.preset,
+      }),
+    [
+      filterState.selectedClientId,
+      filterState.selectedVehicles,
+      fleetDateRange.startDate,
+      fleetDateRange.endDate,
+      fleetDateRange.preset,
+    ]
+  );
   const consumptionUnitLabel = filterState.consumptionUnit === "KM/L" ? "Km/L" : "Hrs/L";
   const [currentVehicle, setCurrentVehicle] = useState(selectedVehicle || "");
   const [viewMode, setViewMode] = useState<"table" | "focused">("table");
@@ -187,16 +249,27 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
   const [previewDateRange, setPreviewDateRange] = useState<"today" | "week" | "month">("today");
   const [tempSensorConfig, setTempSensorConfig] = useState<any>(null);
   const [sensitivityLevel, setSensitivityLevel] = useState<"aggressive" | "medium" | "soft" | "none">("medium");
-  const [showRawLine, setShowRawLine] = useState(true);
-  const [showFuelLine, setShowFuelLine] = useState(true);
-  const [showRefillMarkers, setShowRefillMarkers] = useState(true);
-  const [showTheftMarkers, setShowTheftMarkers] = useState(true);
-  const [smoothFuelLine, setSmoothFuelLine] = useState(true);
+  const [showRawLine, setShowRawLine] = useState(false);
   const [highlightedEventId, setHighlightedEventId] = useState<string | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
   const [forcedTooltip, setForcedTooltip] = useState<any | null>(null);
   const [brushRange, setBrushRange] = useState<{ startIndex: number; endIndex: number } | null>(null);
   const [sensorConfigs, setSensorConfigs] = useState<Record<string, any>>({});
+
+  useEffect(() => {
+    void queryClient.invalidateQueries({
+      predicate: (query) => {
+        const firstKey = query.queryKey?.[0];
+        if (typeof firstKey !== "string") return false;
+        return (
+          firstKey === "/api/daily-metrics" ||
+          firstKey === "/api/fuel-events" ||
+          firstKey === "/api/raw-sensor-data"
+        );
+      },
+      refetchType: "active",
+    });
+  }, [fleetFilterSignature]);
 
   // Get current sensor config for the selected vehicle
   const sensorConfig = sensorConfigs[currentVehicle] || DEFAULT_SENSOR_CONFIG;
@@ -297,6 +370,13 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
     >();
     fleetDailyMetricsData.forEach((metric: any) => {
       if (!metric?.vehicleId) return;
+      const metricDate = metric?.metricDate ? new Date(metric.metricDate) : null;
+      const metricDayKey = metricDate
+        ? `${metricDate.getFullYear()}-${String(metricDate.getMonth() + 1).padStart(2, "0")}-${String(metricDate.getDate()).padStart(2, "0")}`
+        : null;
+      if (!isTodaySelected && rangeIncludesToday && metricDayKey === getTodayLocalDayKey()) {
+        return;
+      }
       const entry = map.get(metric.vehicleId) || {
         distance: 0,
         engineHours: 0,
@@ -320,7 +400,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
       map.set(metric.vehicleId, entry);
     });
     return map;
-  }, [fleetDailyMetricsData]);
+  }, [fleetDailyMetricsData, isTodaySelected, rangeIncludesToday]);
 
   const fuelEventsByVehicle = useMemo(() => {
     const map = new Map<string, { refills: number; thefts: number; refillVolume: number; theftVolume: number; lastEventTime?: string; lastLocation?: string }>();
@@ -392,11 +472,13 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
 
         return {
           time: timestamp.toISOString(),
-          displayTime: timestamp.toLocaleString(),
+          displayTime: formatDateTimeEAT(timestamp),
           dateKey: timestamp.toISOString().slice(0, 10),
           timestampMs: timestamp.getTime(),
           rawFuel: Number.isFinite(rawFuelValue) ? rawFuelValue : null,
           fuel: Number.isFinite(fuelValue) ? fuelValue : null,
+          speed: toFiniteNumber(row?.speed ?? row?.spid ?? row?.payload?.speed ?? row?.payload?.spid),
+          odometer: toFiniteNumber(row?.odometer ?? row?.odo ?? row?.payload?.odometer ?? row?.payload?.odo),
         };
       })
       .filter(Boolean)
@@ -443,7 +525,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
         return {
           id: row?.id || `preview-${index}`,
           time: timestamp.toISOString(),
-          displayTime: timestamp.toLocaleString(),
+          displayTime: formatDateTimeEAT(timestamp),
           fuel: Number.isFinite(fuelValue) ? fuelValue : null,
           rawFuel: Number.isFinite(rawFuelValue) ? rawFuelValue : null,
         };
@@ -474,17 +556,15 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
   const focusedVehicleTodayDistance = toFiniteNumber(focusedVehicle?.totalDistance);
   const focusedVehicleTodayEngineHours = toFiniteNumber(focusedVehicle?.totalEngineHours);
   const focusedVehicleTodayFuelUsed = toFiniteNumber(focusedVehicle?.totalFuelUsed);
-  const focusedVehicleTodayConsumption = toFiniteNumber(focusedVehicle?.consumptionKml);
-
   const focusedMetricDistance = isTodaySelected
     ? (focusedVehicleTodayDistance ?? 0)
-    : focusedTotals.distance;
+    : focusedTotals.distance + (rangeIncludesToday ? (focusedVehicleTodayDistance ?? 0) : 0);
   const focusedMetricEngineHours = isTodaySelected
     ? (focusedVehicleTodayEngineHours ?? 0)
-    : focusedTotals.engineHours;
+    : focusedTotals.engineHours + (rangeIncludesToday ? (focusedVehicleTodayEngineHours ?? 0) : 0);
   const focusedMetricFuelUsed = isTodaySelected
     ? (focusedVehicleTodayFuelUsed ?? 0)
-    : focusedTotals.fuelUsed;
+    : focusedTotals.fuelUsed + (rangeIncludesToday ? (focusedVehicleTodayFuelUsed ?? 0) : 0);
 
   const focusedRefillEvents = useMemo(
     () => focusedFuelEvents.filter((event: any) => event.eventType === "refill"),
@@ -496,6 +576,18 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
     [focusedFuelEvents]
   );
 
+  const focusedMetricEventCounts = useMemo(
+    () =>
+      focusedDailyMetrics.reduce(
+        (acc: { refills: number; thefts: number }, metric: any) => ({
+          refills: acc.refills + Math.max(0, Math.trunc(Number(metric?.numberOfRefills || 0))),
+          thefts: acc.thefts + Math.max(0, Math.trunc(Number(metric?.numberOfThefts || 0))),
+        }),
+        { refills: 0, thefts: 0 }
+      ),
+    [focusedDailyMetrics]
+  );
+
   const focusedRefillVolume = focusedRefillEvents.reduce((sum: number, event: any) => sum + Math.abs(Number(event.volumeLiters || 0)), 0);
   const focusedTheftVolume = focusedTheftEvents.reduce((sum: number, event: any) => sum + Math.abs(Number(event.volumeLiters || 0)), 0);
 
@@ -503,16 +595,11 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
     const distance = focusedMetricDistance;
     const engineHours = focusedMetricEngineHours;
     const fuelUsed = focusedMetricFuelUsed;
-    const derivedConsumptionKmPerL = fuelUsed > 0 ? (distance / fuelUsed) : 0;
-    const derivedConsumptionHrsPerL = fuelUsed > 0 ? (engineHours / fuelUsed) : 0;
-    const derivedConsumption = filterState.consumptionUnit === "KM/L"
+    const derivedConsumptionKmPerL = deriveConsumption(distance, fuelUsed) ?? 0;
+    const derivedConsumptionHrsPerL = deriveHoursPerLiter(engineHours, fuelUsed) ?? 0;
+    const consumption = filterState.consumptionUnit === "KM/L"
       ? derivedConsumptionKmPerL
       : derivedConsumptionHrsPerL;
-    const consumption = isTodaySelected
-      ? (filterState.consumptionUnit === "KM/L"
-        ? (focusedVehicleTodayConsumption ?? derivedConsumptionKmPerL)
-        : derivedConsumptionHrsPerL)
-      : derivedConsumption;
     return {
       currentFuel: Number(focusedVehicle?.currentFuelLevel || 0),
       fuelUsed,
@@ -524,9 +611,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
     focusedMetricDistance,
     focusedMetricEngineHours,
     focusedMetricFuelUsed,
-    focusedVehicleTodayConsumption,
     filterState.consumptionUnit,
-    isTodaySelected,
     focusedVehicle,
     focusedTheftEvents.length,
     focusedTheftVolume,
@@ -540,8 +625,8 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
       totalDistance: focusedMetricDistance,
       totalEngineHours: focusedMetricEngineHours,
       totalFuelUsed: focusedMetricFuelUsed,
-      totalRefillCounts: focusedRefillEvents.length,
-      totalFuelTheftCounts: focusedTheftEvents.length,
+      totalRefillCounts: Math.max(focusedRefillEvents.length, focusedMetricEventCounts.refills),
+      totalFuelTheftCounts: Math.max(focusedTheftEvents.length, focusedMetricEventCounts.thefts),
       totalRefills: focusedRefillVolume,
       totalThefts: focusedTheftVolume,
     };
@@ -552,6 +637,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
     focusedMetricFuelUsed,
     focusedRefillEvents.length,
     focusedTheftEvents.length,
+    focusedMetricEventCounts,
     focusedRefillVolume,
     focusedTheftVolume,
   ]);
@@ -588,6 +674,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
           timestampMs: point.timestampMs,
           raw,
           fuel,
+          actualFuel: fuel,
           refillVolume: 0,
           theftVolume: 0,
           refillMarker: null,
@@ -608,11 +695,12 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
       return [
         {
           time: time.toISOString(),
-          displayTime: time.toLocaleString(),
+          displayTime: formatDateTimeEAT(time),
           dateKey: time.toISOString().slice(0, 10),
           timestampMs: time.getTime(),
           raw: currentFuel,
           fuel: currentFuel,
+          actualFuel: currentFuel,
           refillVolume: 0,
           theftVolume: 0,
           refillMarker: null,
@@ -647,11 +735,12 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
       const theftVolume = events?.thefts || 0;
       return {
         time: date.toISOString(),
-        displayTime: date.toLocaleDateString(),
+        displayTime: formatDateTimeEAT(date),
         dateKey,
         timestampMs: date.getTime(),
         raw: fuelLevel,
         fuel: fuelLevel,
+        actualFuel: fuelLevel,
         refillVolume,
         theftVolume,
         refillMarker: refillVolume > 0 ? fuelLevel : null,
@@ -690,6 +779,135 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
   const chartMaxFuel = useMemo(() => {
     return fuelLevelChartData.reduce((max: number, row: any) => Math.max(max, row.fuel || 0), 0);
   }, [fuelLevelChartData]);
+
+  const focusedChartTickFormatter = useMemo(() => {
+    const distinctDays = new Set(
+      fuelLevelChartData
+        .map((point: any) => toEatDayKey(point.time))
+        .filter((value: string | null): value is string => Boolean(value))
+    );
+    const multiDayRange = distinctDays.size > 1;
+
+    return (value: unknown, index?: number): string => {
+      const parsed = toDate(value);
+      if (!parsed) return String(value ?? "");
+
+      const currentDay = toEatDayKey(parsed);
+      const previousDay =
+        typeof index === "number" && index > 0 ? toEatDayKey(fuelLevelChartData[index - 1]?.time) : null;
+
+      const timeLabel = eatTimeFormatter.format(parsed);
+      if (!multiDayRange) return timeLabel;
+      if (index === 0 || currentDay !== previousDay) {
+        return `${eatDayLabelFormatter.format(parsed)} ${timeLabel}`;
+      }
+      return timeLabel;
+    };
+  }, [fuelLevelChartData]);
+
+  const tripWindows = useMemo(() => {
+    if (focusedRawSensorPoints.length < 2) return [];
+
+    const windows: Array<{
+      start: string;
+      end: string;
+      startLabel: string;
+      endLabel: string;
+      distanceKm: number;
+      peakSpeedKph: number;
+      durationMinutes: number;
+    }> = [];
+
+    let activeStartIndex: number | null = null;
+    let peakSpeed = 0;
+
+    const pointLooksMobile = (point: any, previousPoint?: any) => {
+      const speed = Number(point?.speed ?? 0);
+      const odo = Number(point?.odometer ?? 0);
+      const prevOdo = Number(previousPoint?.odometer ?? odo);
+      const odometerDelta = Number.isFinite(odo) && Number.isFinite(prevOdo) ? odo - prevOdo : 0;
+      return speed >= 5 || odometerDelta > 0.05;
+    };
+
+    for (let index = 0; index < focusedRawSensorPoints.length; index += 1) {
+      const point = focusedRawSensorPoints[index];
+      const previousPoint = index > 0 ? focusedRawSensorPoints[index - 1] : null;
+      const mobile = pointLooksMobile(point, previousPoint ?? undefined);
+      peakSpeed = mobile ? Math.max(peakSpeed, Number(point?.speed ?? 0)) : peakSpeed;
+
+      if (mobile && activeStartIndex === null) {
+        activeStartIndex = index;
+        peakSpeed = Math.max(0, Number(point?.speed ?? 0));
+        continue;
+      }
+
+      if (!mobile && activeStartIndex !== null) {
+        const startPoint = focusedRawSensorPoints[activeStartIndex];
+        const endPoint = focusedRawSensorPoints[Math.max(activeStartIndex, index - 1)];
+        const startOdo = Number(startPoint?.odometer ?? 0);
+        const endOdo = Number(endPoint?.odometer ?? startOdo);
+        const durationMinutes = Math.max(1, Math.round((Number(endPoint?.timestampMs ?? 0) - Number(startPoint?.timestampMs ?? 0)) / 60000));
+        windows.push({
+          start: startPoint.time,
+          end: endPoint.time,
+          startLabel: startPoint.displayTime,
+          endLabel: endPoint.displayTime,
+          distanceKm: Math.max(0, endOdo - startOdo),
+          peakSpeedKph: peakSpeed,
+          durationMinutes,
+        });
+        activeStartIndex = null;
+        peakSpeed = 0;
+      }
+    }
+
+    if (activeStartIndex !== null) {
+      const startPoint = focusedRawSensorPoints[activeStartIndex];
+      const endPoint = focusedRawSensorPoints[focusedRawSensorPoints.length - 1];
+      const startOdo = Number(startPoint?.odometer ?? 0);
+      const endOdo = Number(endPoint?.odometer ?? startOdo);
+      const durationMinutes = Math.max(1, Math.round((Number(endPoint?.timestampMs ?? 0) - Number(startPoint?.timestampMs ?? 0)) / 60000));
+      windows.push({
+        start: startPoint.time,
+        end: endPoint.time,
+        startLabel: startPoint.displayTime,
+        endLabel: endPoint.displayTime,
+        distanceKm: Math.max(0, endOdo - startOdo),
+        peakSpeedKph: peakSpeed,
+        durationMinutes,
+      });
+    }
+
+    return windows.filter((window) => window.durationMinutes >= 3 || window.distanceKm >= 0.2);
+  }, [focusedRawSensorPoints]);
+
+  const tripWindowByTime = useMemo(() => {
+    const index = new Map<string, {
+      start: string;
+      end: string;
+      startLabel: string;
+      endLabel: string;
+      distanceKm: number;
+      peakSpeedKph: number;
+      durationMinutes: number;
+    }>();
+
+    if (!tripWindows.length) return index;
+
+    fuelLevelChartData.forEach((point: any) => {
+      const pointTime = Number(point?.timestampMs ?? 0);
+      const activeWindow = tripWindows.find((window) => {
+        const start = Number(new Date(window.start).getTime());
+        const end = Number(new Date(window.end).getTime());
+        return pointTime >= start && pointTime <= end;
+      });
+      if (activeWindow) {
+        index.set(point.time, activeWindow);
+      }
+    });
+
+    return index;
+  }, [fuelLevelChartData, tripWindows]);
 
   const behaviorBands = useMemo(() => {
     if (fuelLevelChartData.length < 2) return [];
@@ -860,7 +1078,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
 
   const refuelEvents = useMemo(() => {
     return focusedRefillEvents.map((event: any) => ({
-      time: new Date(event.eventTimestamp).toLocaleString(),
+      time: formatDateTimeEAT(event.eventTimestamp),
       location: event.location || "Unknown location",
       volume: Math.abs(Number(event.volumeLiters || 0)),
       cost: filterState.currency === "UGX" ? event.costUGX : event.costKES,
@@ -869,7 +1087,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
 
   const drainEvents = useMemo(() => {
     return focusedTheftEvents.map((event: any) => ({
-      time: new Date(event.eventTimestamp).toLocaleString(),
+      time: formatDateTimeEAT(event.eventTimestamp),
       location: event.location || "Unknown location",
       volume: Math.abs(Number(event.volumeLiters || 0)),
     }));
@@ -911,6 +1129,21 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
       setCurrentVehicle(selectedId);
     }
   }, [filterState.selectedVehicles, currentVehicle]);
+
+  // Entering focused view defaults to a 7-day time window when coming from the table default ("today").
+  useEffect(() => {
+    if (viewMode !== "focused") return;
+    if (fleetDateRange.preset !== "today") return;
+    setFleetDateRange(getLast7DaysRange());
+  }, [viewMode, fleetDateRange.preset]);
+
+  // Focused view filter is single-asset only.
+  useEffect(() => {
+    if (viewMode !== "focused") return;
+    if (!currentVehicle) return;
+    if (filterState.selectedVehicles.length === 1 && filterState.selectedVehicles[0] === currentVehicle) return;
+    filterActions.setSelectedVehicles([currentVehicle]);
+  }, [viewMode, currentVehicle, filterState.selectedVehicles, filterActions]);
 
   // Helper function to handle preview configuration changes
   const handlePreviewConfigChange = (field: string, value: any) => {
@@ -1005,17 +1238,17 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "Active":
       case "Moving":
-        return "text-green-600 border-green-600";
-      case "Idle":
+        return "text-emerald-700 border-emerald-600 bg-emerald-50";
+      case "Idling":
+        return "text-amber-700 border-amber-500 bg-amber-50";
       case "Parked":
-        return "text-yellow-600 border-yellow-600";
+        return "text-slate-700 border-slate-400 bg-slate-50";
       case "Maintenance":
-        return "text-orange-600 border-orange-600";
+        return "text-orange-700 border-orange-500 bg-orange-50";
       case "Out of Service":
-        return "text-red-600 border-red-600";
-      default: return "text-gray-600 border-gray-600";
+        return "text-red-700 border-red-500 bg-red-50";
+      default: return "text-gray-600 border-gray-400 bg-gray-50";
     }
   };
 
@@ -1044,7 +1277,6 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
       const vehicleDistanceToday = toFiniteNumber(vehicle.totalDistance);
       const vehicleEngineHoursToday = toFiniteNumber(vehicle.totalEngineHours);
       const vehicleFuelUsedToday = toFiniteNumber(vehicle.totalFuelUsed);
-      const vehicleConsumptionToday = toFiniteNumber(vehicle.consumptionKml);
       const vehicleRefillCountToday = toFiniteNumber(
         vehicle.refillCount ?? vehicle.totalRefills ?? vehicle.totalRefillCounts ?? vehicle.numberOfRefills
       );
@@ -1056,43 +1288,34 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
       const metricsEngineHours = metrics ? Number(metrics.engineHours) : null;
       const metricsFuelUsed = metrics ? Number(metrics.fuelUsed) : null;
 
-      const distance = isTodaySelected ? vehicleDistanceToday : metricsDistance;
-      const engineHours = isTodaySelected ? vehicleEngineHoursToday : metricsEngineHours;
-      const fuelUsed = isTodaySelected ? vehicleFuelUsedToday : metricsFuelUsed;
-      const derivedConsumptionKmPerL =
-        typeof distance === "number" &&
-          Number.isFinite(distance) &&
-          distance >= 0 &&
-          typeof fuelUsed === "number" &&
-          Number.isFinite(fuelUsed) &&
-          fuelUsed > 0
-          ? distance / fuelUsed
-          : null;
-      const derivedConsumptionHrsPerL =
-        typeof engineHours === "number" &&
-          Number.isFinite(engineHours) &&
-          engineHours >= 0 &&
-          typeof fuelUsed === "number" &&
-          Number.isFinite(fuelUsed) &&
-          fuelUsed > 0
-          ? engineHours / fuelUsed
-          : null;
+      const distance = isTodaySelected
+        ? vehicleDistanceToday
+        : (metricsDistance ?? 0) + (rangeIncludesToday ? (vehicleDistanceToday ?? 0) : 0);
+      const engineHours = isTodaySelected
+        ? vehicleEngineHoursToday
+        : (metricsEngineHours ?? 0) + (rangeIncludesToday ? (vehicleEngineHoursToday ?? 0) : 0);
+      const fuelUsed = isTodaySelected
+        ? vehicleFuelUsedToday
+        : (metricsFuelUsed ?? 0) + (rangeIncludesToday ? (vehicleFuelUsedToday ?? 0) : 0);
+      const derivedConsumptionKmPerL = deriveConsumption(distance, fuelUsed);
+      const derivedConsumptionHrsPerL = deriveHoursPerLiter(engineHours, fuelUsed);
 
-      const consumptionKmPerL =
-        isTodaySelected
-          ? (vehicleConsumptionToday ?? derivedConsumptionKmPerL)
-          : derivedConsumptionKmPerL;
+      const consumptionKmPerL = derivedConsumptionKmPerL;
       const consumptionHrsPerL = derivedConsumptionHrsPerL;
-      const refillCount = events?.refills ?? (
-        isTodaySelected
-          ? Math.max(0, Math.trunc(vehicleRefillCountToday ?? 0))
-          : 0
-      );
-      const theftIncidents = events?.thefts ?? (
-        isTodaySelected
-          ? Math.max(0, Math.trunc(vehicleTheftCountToday ?? 0))
-          : 0
-      );
+      const metricRefillCount = Math.max(0, Math.trunc(Number(metrics?.refills ?? 0)));
+      const metricTheftCount = Math.max(0, Math.trunc(Number(metrics?.thefts ?? 0)));
+      const refillCount = isTodaySelected
+        ? Math.max(
+          events?.refills ?? 0,
+          Math.max(0, Math.trunc(vehicleRefillCountToday ?? 0))
+        )
+        : Math.max(events?.refills ?? 0, metricRefillCount);
+      const theftIncidents = isTodaySelected
+        ? Math.max(
+          events?.thefts ?? 0,
+          Math.max(0, Math.trunc(vehicleTheftCountToday ?? 0))
+        )
+        : Math.max(events?.thefts ?? 0, metricTheftCount);
       const refillVolume = events?.refillVolume ?? 0;
       const theftVolume = events?.theftVolume ?? 0;
       const liveRoadName = typeof vehicle.lastRoadName === "string" && vehicle.lastRoadName.trim().length > 0
@@ -1108,7 +1331,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
         status: vehicle.status || 'Unknown',
         fuelLevel,
         fuelCapacity: tankCapacityValue,
-        efficiency: vehicle.consumptionKml || 0,
+        efficiency: consumptionKmPerL || 0,
         efficiencyRating: vehicle.efficiencyRating || 'Unknown',
         distance,
         engineHours,
@@ -1122,31 +1345,37 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
         // Always use report_type=0 live snapshot fields for location and freshness.
         location: liveRoadName,
         lastUpdateAt: hasLiveGpsTimestamp ? liveGpsAtValue.toISOString() : null,
-        lastUpdate: hasLiveGpsTimestamp ? liveGpsAtValue.toLocaleString() : "No live update",
+        lastUpdate: hasLiveGpsTimestamp ? formatDateTimeEAT(liveGpsAtValue) : "No live update",
       };
     });
-  }, [vehiclesData, dailyMetricsByVehicle, fuelEventsByVehicle, isTodaySelected]);
+  }, [vehiclesData, dailyMetricsByVehicle, fuelEventsByVehicle, isTodaySelected, rangeIncludesToday]);
 
   // Fleet-wide metrics for Proactive Scorecard
   const getFleetMetrics = () => {
-    const movingAssets = fleetAssets.filter(asset => asset.status === "Active").length;
-    const parkedAssets = fleetAssets.filter(asset => asset.status === "Idle").length;
+    const movingAssets = fleetAssets.filter(asset => asset.status === "Moving").length;
+    const parkedAssets = fleetAssets.filter(asset => asset.status === "Parked").length;
+    const idlingAssets = fleetAssets.filter(asset => asset.status === "Idling").length;
 
-    const totalRefillsInRange = fleetFuelEventsData
-      .filter((event: any) => event.eventType === "refill")
-      .length;
-    const totalRefillVolumeInRange = fleetFuelEventsData
-      .filter((event: any) => event.eventType === "refill")
-      .reduce((sum: number, event: any) => sum + Math.abs(Number(event.volumeLiters || 0)), 0);
-    const totalTheftsInRange = fleetFuelEventsData
-      .filter((event: any) => event.eventType === "theft" || event.eventType === "leak")
-      .length;
-    const totalTheftVolumeInRange = fleetFuelEventsData
-      .filter((event: any) => event.eventType === "theft" || event.eventType === "leak")
-      .reduce((sum: number, event: any) => sum + Math.abs(Number(event.volumeLiters || 0)), 0);
+    const totalRefillsInRange = fleetAssets.reduce(
+      (sum, asset) => sum + Math.max(0, Math.trunc(Number(asset.refillCount || 0))),
+      0
+    );
+    const totalRefillVolumeInRange = fleetAssets.reduce(
+      (sum, asset) => sum + Math.max(0, Number(asset.refillVolume || 0)),
+      0
+    );
+    const totalTheftsInRange = fleetAssets.reduce(
+      (sum, asset) => sum + Math.max(0, Math.trunc(Number(asset.theftIncidents || 0))),
+      0
+    );
+    const totalTheftVolumeInRange = fleetAssets.reduce(
+      (sum, asset) => sum + Math.max(0, Number(asset.theftVolume || 0)),
+      0
+    );
 
     return {
       movingAssets,
+      idlingAssets,
       parkedAssets,
       totalRefillsInRange,
       totalRefillVolumeInRange,
@@ -1159,17 +1388,17 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
   const selectedRangeLabel = fleetDateRange.label || "Selected Range";
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-4 animate-fade-in">
       {/* Fleet Assets Header */}
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-        <div className="space-y-3">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+        <div className="space-y-2">
           <div className="flex items-start gap-3">
             <HeadingLogo className="shrink-0" />
             <div className="space-y-1">
-              <h1 className="text-3xl font-bold text-foreground">
+              <h1 className="text-2xl font-bold leading-tight text-foreground md:text-3xl">
                 {viewMode === "table" ? "Fleet Assets" : "Focused Asset Performance"}
               </h1>
-              <p className="text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 {viewMode === "table"
                   ? "High-density overview of all fleet vehicles with key performance metrics"
                   : `Active Asset: ${assetData.assetLabel} | Real-time Health Monitor`
@@ -1179,14 +1408,14 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
           {/* View Mode Toggle */}
-          <div className="flex items-center gap-2 bg-card/20 backdrop-blur-sm rounded-lg p-1">
+          <div className="flex items-center gap-1 rounded-lg bg-card/20 p-1 backdrop-blur-sm">
             <Button
               variant={viewMode === "table" ? "default" : "ghost"}
               size="sm"
               onClick={() => setViewMode("table")}
-              className="text-xs px-3 py-1 h-8"
+              className="h-7 px-2.5 py-1 text-[11px]"
             >
               Table View
             </Button>
@@ -1194,7 +1423,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
               variant={viewMode === "focused" ? "default" : "ghost"}
               size="sm"
               onClick={() => setViewMode("focused")}
-              className="text-xs px-3 py-1 h-8"
+              className="h-7 px-2.5 py-1 text-[11px]"
             >
               Focused View
             </Button>
@@ -1204,7 +1433,9 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
           <FilterControls
             dateRangeOverride={fleetDateRange}
             onDateRangeOverrideChange={setFleetDateRange}
-            defaultDatePreset="today"
+            defaultDatePreset={viewMode === "focused" ? "last_7_days" : "today"}
+            vehicleSelectionMode={viewMode === "focused" ? "single" : "multiple"}
+            compact
           />
         </div>
       </div>
@@ -1214,74 +1445,76 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
           {/* Teletrac Fuel - Operational Command Center Redesign */}
 
           {/* Proactive Scorecard (KPI Cards) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
-            <GlassCard className="p-6 card-surface-premium motion-premium" data-testid="kpi-total-assets">
-              <div className="flex items-center justify-between mb-4">
+          <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-5">
+            <GlassCard className="card-surface-premium motion-premium p-4" data-testid="kpi-total-assets">
+              <div className="mb-3 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <Truck className="w-6 h-6 text-primary" />
-                  <span className="text-sm font-medium text-muted-foreground">Total Assets</span>
+                  <Truck className="h-5 w-5 text-primary" />
+                  <span className="text-xs font-medium text-muted-foreground">Total Assets</span>
                 </div>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => {/* TODO: Focus Funnel to Focused Asset Performance */ }}
-                  className="h-6 w-6 p-0 text-primary hover:bg-primary/20"
+                  className="h-5 w-5 p-0 text-primary hover:bg-primary/20"
                   data-testid="focus-funnel-total-assets"
                 >
                   <Target className="w-3 h-3" />
                 </Button>
               </div>
-              <div className="text-4xl font-bold text-primary mb-2">
+              <div className="mb-1.5 text-3xl font-bold text-primary">
                 {fleetAssets.length}
               </div>
               <div className="text-xs text-muted-foreground">All Fleet Vehicles</div>
             </GlassCard>
 
-            <GlassCard className="p-6 card-surface-premium motion-premium" data-testid="kpi-moving-assets">
-              <div className="flex items-center justify-between mb-4">
+            <GlassCard className="card-surface-premium motion-premium p-4" data-testid="kpi-moving-assets">
+              <div className="mb-3 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <Activity className="w-6 h-6 text-primary" />
-                  <span className="text-sm font-medium text-muted-foreground">Moving</span>
+                  <Activity className="h-5 w-5 text-primary" />
+                  <span className="text-xs font-medium text-muted-foreground">Moving</span>
                 </div>
               </div>
-              <div className="text-4xl font-bold text-primary mb-2">
+              <div className="mb-1.5 text-3xl font-bold text-primary">
                 {fleetMetrics.movingAssets}
               </div>
-              <div className="text-xs text-muted-foreground">Active Assets</div>
+              <div className="text-xs text-muted-foreground">Vehicles in motion</div>
             </GlassCard>
 
-            <GlassCard className="p-6 card-surface-premium motion-premium" data-testid="kpi-parked-assets">
-              <div className="flex items-center justify-between mb-4">
+            <GlassCard className="card-surface-premium motion-premium p-4" data-testid="kpi-parked-assets">
+              <div className="mb-3 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <Timer className="w-6 h-6 text-accent-foreground" />
-                  <span className="text-sm font-medium text-muted-foreground">Parked</span>
+                  <Timer className="h-5 w-5 text-accent-foreground" />
+                  <span className="text-xs font-medium text-muted-foreground">Parked</span>
                 </div>
               </div>
-              <div className="text-4xl font-bold text-accent-foreground mb-2">
+              <div className="mb-1.5 text-3xl font-bold text-accent-foreground">
                 {fleetMetrics.parkedAssets}
               </div>
-              <div className="text-xs text-muted-foreground">Idle Assets</div>
+              <div className="text-xs text-muted-foreground">
+                {fleetMetrics.idlingAssets} idling
+              </div>
             </GlassCard>
 
             {/* Solution Validation Metrics (Refill/Theft - Last 30 Days) */}
 
-            <GlassCard className="p-6 card-surface-premium motion-premium" data-testid="kpi-thefts-validation">
-              <div className="flex items-center justify-between mb-4">
+            <GlassCard className="card-surface-premium motion-premium p-4" data-testid="kpi-thefts-validation">
+              <div className="mb-3 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <AlertTriangle className="w-6 h-6 text-destructive" />
-                  <span className="text-sm font-medium text-muted-foreground">Thefts</span>
+                  <AlertTriangle className="h-5 w-5 text-destructive" />
+                  <span className="text-xs font-medium text-muted-foreground">Thefts</span>
                 </div>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-6 w-6 p-0 text-destructive hover:bg-destructive/20"
+                  className="h-5 w-5 p-0 text-destructive hover:bg-destructive/20"
                   onClick={() => {/* TODO: Focus Funnel to Focused Asset Performance */ }}
                   data-testid="focus-funnel-thefts"
                 >
                   <Target className="w-3 h-3" />
                 </Button>
               </div>
-              <div className="text-3xl font-bold text-destructive mb-1">
+              <div className="mb-1 text-2xl font-bold text-destructive">
                 {fleetMetrics.totalTheftsInRange}
               </div>
               <div className="text-xs text-muted-foreground">
@@ -1289,23 +1522,23 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
               </div>
             </GlassCard>
 
-            <GlassCard className="p-6 card-surface-premium motion-premium" data-testid="kpi-refills-validation">
-              <div className="flex items-center justify-between mb-4">
+            <GlassCard className="card-surface-premium motion-premium p-4" data-testid="kpi-refills-validation">
+              <div className="mb-3 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <Droplet className="w-6 h-6 text-primary" />
-                  <span className="text-sm font-medium text-muted-foreground">Refills</span>
+                  <Droplet className="h-5 w-5 text-primary" />
+                  <span className="text-xs font-medium text-muted-foreground">Refills</span>
                 </div>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-6 w-6 p-0 text-primary hover:bg-primary/20"
+                  className="h-5 w-5 p-0 text-primary hover:bg-primary/20"
                   onClick={() => {/* TODO: Focus Funnel to Focused Asset Performance */ }}
                   data-testid="focus-funnel-refills"
                 >
                   <Target className="w-3 h-3" />
                 </Button>
               </div>
-              <div className="text-3xl font-bold text-primary mb-1">
+              <div className="mb-1 text-2xl font-bold text-primary">
                 {fleetMetrics.totalRefillsInRange}
               </div>
               <div className="text-xs text-muted-foreground">
@@ -1316,31 +1549,34 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
 
 
           {/* Fleet Assets Table */}
-          <GlassCard className="p-6" hover={false}>
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-foreground">Fleet Assets Overview</h3>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" className="text-xs">
-                  <Download className="w-4 h-4 mr-2" />
-                  Export
-                </Button>
+          <GlassCard className="p-4" hover={false}>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-2">
+                <h3 className="truncate text-base font-bold text-foreground">Fleet Assets</h3>
+                <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-medium">
+                  {selectedRangeLabel}
+                </Badge>
               </div>
+              <Button variant="outline" size="sm" className="h-7 gap-1 px-2 text-[11px]">
+                <Download className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Export</span>
+              </Button>
             </div>
 
             {/* Fleet Table */}
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1420px] border-separate [border-spacing:0_10px]">
+              <table className="w-full min-w-[1160px] border-separate [border-spacing:0_6px]">
                 <thead>
                   <tr className="border-b border-border/20 bg-muted/20">
-                    <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Asset</th>
-                    <th className="min-w-[340px] text-center py-3 px-4 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Alert Intelligence</th>
-                    <th className="text-center py-3 px-4 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Distance ({selectedRangeLabel})</th>
-                    <th className="text-center py-3 px-4 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Working Hours ({selectedRangeLabel})</th>
-                    <th className="text-center py-3 px-4 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Fuel Used ({selectedRangeLabel})</th>
-                    <th className="text-center py-3 px-4 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Consumption ({consumptionUnitLabel}, {selectedRangeLabel})</th>
-                    <th className="text-center py-3 px-4 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Location</th>
-                    <th className="text-center py-3 px-4 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Last Update</th>
-                    <th className="text-center py-3 px-4 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Actions</th>
+                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Asset</th>
+                    <th className="min-w-[280px] px-3 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Alerts</th>
+                    <th className="px-3 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Dist</th>
+                    <th className="px-3 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Hours</th>
+                    <th className="px-3 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Fuel</th>
+                    <th className="px-3 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Cons. ({consumptionUnitLabel})</th>
+                    <th className="px-3 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Location</th>
+                    <th className="px-3 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Updated (EAT)</th>
+                    <th className="px-3 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Act.</th>
                   </tr>
                 </thead>
                 <tbody className="[&_tr>td]:align-top [&_tr>td]:bg-card/85 [&_tr>td]:border-y [&_tr>td]:border-border/30 [&_tr>td:first-child]:rounded-l-2xl [&_tr>td:first-child]:border-l [&_tr>td:last-child]:rounded-r-2xl [&_tr>td:last-child]:border-r [&_tr:hover>td]:bg-card [&_tr[data-active='true']>td]:border-primary/30 [&_tr[data-active='true']>td]:bg-primary/5">
@@ -1354,12 +1590,12 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
                         setViewMode("focused");
                       }}
                     >
-                      <td className="py-4 px-5 min-w-[330px]">
-                        <div className="space-y-3">
+                      <td className="min-w-[290px] px-4 py-3">
+                        <div className="space-y-2.5">
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center">
-                                <Car className="w-5 h-5 text-primary" />
+                              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/15">
+                                <Car className="h-4 w-4 text-primary" />
                               </div>
                               <div>
                                 <div className="font-semibold text-foreground text-sm">{asset.label}</div>
@@ -1396,15 +1632,24 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
                         </div>
                       </td>
                       {/* Alert Intelligence Column */}
-                      <td className="py-4 px-4 text-center min-w-[340px]">
+                      <td className="min-w-[300px] px-3 py-3 text-center">
                         {(() => {
                           const refillCount = Math.max(0, Math.trunc(asset.refillCount ?? 0));
                           const theftCount = Math.max(0, Math.trunc(asset.theftIncidents ?? 0));
                           const refillTotal = Math.max(0, Number(asset.refillVolume ?? 0));
                           const theftTotal = Math.max(0, Number(asset.theftVolume ?? 0));
+                          const totalEvents = refillCount + theftCount;
+                          const netImpact = refillTotal - theftTotal;
+                          const netImpactLabel = `${netImpact >= 0 ? "+" : "-"}${formatMetricNumber(Math.abs(netImpact), 1)} L`;
+                          const netImpactTone =
+                            netImpact > 0
+                              ? "text-emerald-700 dark:text-emerald-300"
+                              : netImpact < 0
+                                ? "text-destructive"
+                                : "text-muted-foreground";
 
                           return (
-                            <div className="mx-auto w-full max-w-[360px] px-2 py-1">
+                            <div className="mx-auto w-full max-w-[320px] px-1 py-0.5">
                               <div className="space-y-1.5 text-left">
                                 <div className="flex items-center justify-between rounded-md bg-muted/40 px-2.5 py-1.5">
                                   <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-primary">
@@ -1416,6 +1661,15 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
                                     <span className="text-[10px] text-primary/90">
                                       Total <span className="font-bold">{formatMetricNumber(refillTotal, 1)} L</span>
                                     </span>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center justify-between rounded-md border border-border/30 bg-card/60 px-2.5 py-1">
+                                  <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                    Events <span className="text-foreground">{totalEvents}</span>
+                                  </div>
+                                  <div className={`text-[10px] font-semibold ${netImpactTone}`}>
+                                    Net {netImpactLabel}
                                   </div>
                                 </div>
 
@@ -1436,7 +1690,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
                           );
                         })()}
                       </td>
-                      <td className="py-4 px-4 text-center">
+                      <td className="px-3 py-3 text-center">
                         <div className="space-y-1">
                           <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Distance</div>
                           <div className="text-sm font-bold text-foreground">
@@ -1444,7 +1698,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
                           </div>
                         </div>
                       </td>
-                      <td className="py-4 px-4 text-center">
+                      <td className="px-3 py-3 text-center">
                         <div className="space-y-1">
                           <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Working Hours</div>
                           <div className="text-sm font-bold text-foreground">
@@ -1452,7 +1706,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
                           </div>
                         </div>
                       </td>
-                      <td className="py-4 px-4 text-center">
+                      <td className="px-3 py-3 text-center">
                         <div className="space-y-1">
                           <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Fuel Used</div>
                           <div className="text-sm font-bold text-foreground">
@@ -1460,7 +1714,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
                           </div>
                         </div>
                       </td>
-                      <td className="py-4 px-4 text-center">
+                      <td className="px-3 py-3 text-center">
                         {(() => {
                           const selectedConsumption =
                             filterState.consumptionUnit === "KM/L"
@@ -1504,8 +1758,8 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
                           );
                         })()}
                       </td>
-                      <td className="py-4 px-4 text-center">
-                        <div className="mx-auto w-full max-w-[220px] px-1 text-left">
+                      <td className="px-3 py-3 text-center">
+                        <div className="mx-auto w-full max-w-[200px] px-1 text-left">
                           <div className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                             <MapPin className="h-3 w-3" />
                             Live Location
@@ -1513,8 +1767,8 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
                           <div className="truncate text-xs font-semibold text-foreground">{asset.location}</div>
                         </div>
                       </td>
-                      <td className="py-4 px-4 text-center">
-                        <div className="mx-auto w-full max-w-[180px] px-1 text-left">
+                      <td className="px-3 py-3 text-center">
+                        <div className="mx-auto w-full max-w-[165px] px-1 text-left">
                           <div className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                             <Clock className="h-3 w-3" />
                             Last Update
@@ -1525,7 +1779,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
                           </div>
                         </div>
                       </td>
-                      <td className="py-4 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                      <td className="px-3 py-3 text-center" onClick={(e) => e.stopPropagation()}>
                         <div className="mx-auto inline-flex items-center justify-center gap-1 p-1">
                           <Button
                             variant="ghost"
@@ -1534,7 +1788,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
                               setCurrentVehicle(asset.id);
                               setViewMode("focused");
                             }}
-                            className="h-8 w-8 rounded-md p-0 hover:bg-primary/10"
+                            className="h-7 w-7 rounded-md p-0 hover:bg-primary/10"
                           >
                             <Eye className="w-3 h-3" />
                           </Button>
@@ -1546,7 +1800,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
                               setTempSensorConfig(sensorConfigs[asset.id] || { ...DEFAULT_SENSOR_CONFIG });
                               setPreviewPanelOpen(true);
                             }}
-                            className="h-8 w-8 rounded-md p-0 hover:bg-primary/10"
+                            className="h-7 w-7 rounded-md p-0 hover:bg-primary/10"
                           >
                             <Settings2 className="w-3 h-3" />
                           </Button>
@@ -1554,7 +1808,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
                             variant="ghost"
                             size="sm"
                             onClick={() => handleLocationClick(asset.location)}
-                            className="h-8 w-8 rounded-md p-0 hover:bg-primary/10"
+                            className="h-7 w-7 rounded-md p-0 hover:bg-primary/10"
                           >
                             <MapPin className="w-3 h-3" />
                           </Button>
@@ -1714,103 +1968,67 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
             {/* Interactive Fuel Level Chart */}
             <GlassCard className="p-6" hover={false}>
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-bold text-foreground">Fuel Level Monitoring</h3>
-                <div className="flex flex-wrap items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => focusOnEvent(mostRecentTheft)}
-                      disabled={!mostRecentTheft}
-                    >
-                      <AlertTriangle className="w-3 h-3 mr-2 text-destructive" />
-                      Jump to Theft
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => focusOnEvent(mostRecentRefill)}
-                      disabled={!mostRecentRefill}
-                    >
-                      <Fuel className="w-3 h-3 mr-2 text-primary" />
-                      Jump to Refill
-                    </Button>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="showRaw"
-                      checked={showRawLine}
-                      onChange={(e) => setShowRawLine(e.target.checked)}
-                      className="rounded"
-                    />
-                    <label htmlFor="showRaw" className="text-sm text-muted-foreground">Raw Data</label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="showFuel"
-                      checked={showFuelLine}
-                      onChange={(e) => setShowFuelLine(e.target.checked)}
-                      className="rounded"
-                    />
-                    <label htmlFor="showFuel" className="text-sm text-muted-foreground">Processed Fuel</label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="showRefills"
-                      checked={showRefillMarkers}
-                      onChange={(e) => setShowRefillMarkers(e.target.checked)}
-                      className="rounded"
-                    />
-                    <label htmlFor="showRefills" className="text-sm text-muted-foreground">Refills</label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="showThefts"
-                      checked={showTheftMarkers}
-                      onChange={(e) => setShowTheftMarkers(e.target.checked)}
-                      className="rounded"
-                    />
-                    <label htmlFor="showThefts" className="text-sm text-muted-foreground">Thefts</label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="smoothFuel"
-                      checked={smoothFuelLine}
-                      onChange={(e) => setSmoothFuelLine(e.target.checked)}
-                      className="rounded"
-                    />
-                    <label htmlFor="smoothFuel" className="text-sm text-muted-foreground">Smooth Line</label>
-                  </div>
+                <div>
+                  <h3 className="text-lg font-bold text-foreground">Actual Fuel Level Monitoring</h3>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    variant={showRawLine ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setShowRawLine((value) => !value)}
+                  >
+                    {showRawLine ? "Hide raw overlay" : "Show raw overlay"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => focusOnEvent(mostRecentTheft)}
+                    disabled={!mostRecentTheft}
+                  >
+                    <AlertTriangle className="w-3 h-3 mr-2 text-destructive" />
+                    Jump to Theft
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => focusOnEvent(mostRecentRefill)}
+                    disabled={!mostRecentRefill}
+                  >
+                    <Fuel className="w-3 h-3 mr-2 text-primary" />
+                    Jump to Refill
+                  </Button>
                 </div>
               </div>
               <div className="h-80">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={fuelLevelChartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                  <AreaChart data={fuelLevelChartData} margin={{ top: 8, right: 24, left: 8, bottom: 8 }}>
                     <CartesianGrid strokeDasharray="3 6" stroke="hsl(var(--border))" strokeOpacity={0.35} />
                     <XAxis
                       dataKey="time"
                       stroke="hsl(var(--muted-foreground))"
                       fontSize={12}
-                      tickFormatter={(value) => {
-                        const date = new Date(String(value));
-                        if (Number.isNaN(date.getTime())) return String(value);
-                        if (fuelLevelChartData.length > 48) {
-                          return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-                        }
-                        return date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
-                      }}
+                      minTickGap={28}
+                      tickFormatter={focusedChartTickFormatter}
                     />
                     <YAxis
                       domain={[0, focusedTankCapacity || 1]}
                       stroke="hsl(var(--muted-foreground))"
                       fontSize={12}
-                      label={{ value: 'Fuel Level (L)', angle: -90, position: 'insideLeft' }}
+                      label={{ value: 'Actual Fuel Level (L)', angle: -90, position: 'insideLeft' }}
                     />
+                    {tripWindows.map((window, index) => (
+                      <ReferenceArea
+                        key={`trip-${window.start}-${index}`}
+                        ifOverflow="extendDomain"
+                        x1={window.start}
+                        x2={window.end}
+                        y1={0}
+                        y2={focusedTankCapacity || chartMaxFuel || undefined}
+                        stroke="transparent"
+                        fill="url(#tripWindowGradient)"
+                        isFront={false}
+                      />
+                    ))}
                     {behaviorBands.map((band, index) => {
                       const fillColor =
                         band.type === "theft"
@@ -1858,9 +2076,12 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
                             : undefined;
                         const refillVolume = row.refillVolume || 0;
                         const theftVolume = row.theftVolume || 0;
+                        const activeTripWindow = forced
+                          ? tripWindowByTime.get(forcedTooltip?.time ?? "")
+                          : tripWindowByTime.get(row.time ?? String(label ?? ""));
                         return (
                           <div className="rounded-lg border border-border/60 bg-card px-3 py-2 text-xs shadow-lg">
-                            <div className="mb-2 font-medium text-foreground">Date: {showLabel}</div>
+                            <div className="mb-2 font-medium text-foreground">Reading at {showLabel}</div>
                             <div className="space-y-1">
                               {!forced &&
                                 payload
@@ -1869,7 +2090,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
                                     <div key={item.dataKey} className="flex items-center justify-between gap-2">
                                       <span className="flex items-center gap-1 text-muted-foreground">
                                         <Fuel className="h-3 w-3" />
-                                        {item.dataKey === "raw" ? "Raw Sensor" : "Processed Fuel"}
+                                        {item.dataKey === "raw" ? "Raw sensor reading" : "Actual fuel level"}
                                       </span>
                                       <span className="font-mono font-medium text-foreground">
                                         {Number(item.value).toFixed(1)} L
@@ -1884,6 +2105,35 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
                                   </span>
                                   <span className="font-mono font-medium text-foreground">{distance.toFixed(1)} km</span>
                                 </div>
+                              )}
+                              {activeTripWindow && (
+                                <>
+                                  <div className="my-2 border-t border-sky-200/60 pt-2 dark:border-sky-900/40" />
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="text-muted-foreground">Trip window</span>
+                                    <span className="font-medium text-sky-700 dark:text-sky-300">
+                                      {activeTripWindow.startLabel} to {activeTripWindow.endLabel}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="text-muted-foreground">Trip distance</span>
+                                    <span className="font-mono font-medium text-foreground">
+                                      {activeTripWindow.distanceKm.toFixed(1)} km
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="text-muted-foreground">Duration</span>
+                                    <span className="font-mono font-medium text-foreground">
+                                      {activeTripWindow.durationMinutes} min
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="text-muted-foreground">Peak speed</span>
+                                    <span className="font-mono font-medium text-foreground">
+                                      {activeTripWindow.peakSpeedKph.toFixed(0)} km/h
+                                    </span>
+                                  </div>
+                                </>
                               )}
                               {refillVolume > 0 && (
                                 <div className="flex items-center justify-between gap-2">
@@ -1912,7 +2162,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
                                   <div className="flex items-center justify-between gap-2">
                                     <span className="text-muted-foreground">Time</span>
                                     <span className="font-medium text-foreground">
-                                      {new Date(forced.timestamp).toLocaleString()}
+                                      {formatDateTimeEAT(forced.timestamp)}
                                     </span>
                                   </div>
                                   <div className="flex items-center justify-between gap-2">
@@ -1937,97 +2187,106 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
                         );
                       }}
                     />
-                    <Legend />
+                    <defs>
+                      <linearGradient id="tripWindowGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#38bdf8" stopOpacity={0.18} />
+                        <stop offset="100%" stopColor="#38bdf8" stopOpacity={0.03} />
+                      </linearGradient>
+                      <linearGradient id="actualFuelAreaGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#38bdf8" stopOpacity={0.38} />
+                        <stop offset="70%" stopColor="#2563eb" stopOpacity={0.14} />
+                        <stop offset="100%" stopColor="#1d4ed8" stopOpacity={0.02} />
+                      </linearGradient>
+                      <linearGradient id="actualFuelStrokeGradient" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stopColor="#38bdf8" />
+                        <stop offset="100%" stopColor="#1d4ed8" />
+                      </linearGradient>
+                    </defs>
+                    <Area
+                      type="monotone"
+                      dataKey="actualFuel"
+                      stroke="url(#actualFuelStrokeGradient)"
+                      strokeWidth={3}
+                      fill="url(#actualFuelAreaGradient)"
+                      fillOpacity={1}
+                      dot={false}
+                      name="Actual fuel level"
+                      isAnimationActive
+                      animationDuration={550}
+                      animationEasing="ease-out"
+                    />
                     {showRawLine && (
                       <Line
-                        type={smoothFuelLine ? "monotone" : "linear"}
+                        type="monotone"
                         dataKey="raw"
                         stroke="hsl(var(--muted-foreground))"
-                        strokeWidth={1}
+                        strokeWidth={1.25}
                         strokeDasharray="5 5"
                         dot={false}
-                        name="Raw Sensor"
+                        name="Raw sensor overlay"
                         isAnimationActive
-                        animationDuration={650}
+                        animationDuration={550}
                         animationEasing="ease-out"
                       />
                     )}
-                    {showFuelLine && (
-                      <Line
-                        type={smoothFuelLine ? "monotone" : "linear"}
-                        dataKey="fuel"
-                        stroke="url(#fuelGradient)"
-                        strokeWidth={3}
-                        dot={false}
-                        name="Processed Fuel"
-                        isAnimationActive
-                        animationDuration={650}
-                        animationEasing="ease-out"
-                        style={{ filter: "drop-shadow(0 0 6px rgba(59,130,246,0.35))" }}
-                      />
-                    )}
-                    {showRefillMarkers && (
-                      <Scatter
-                        data={refillMarkers}
-                        fill="hsl(var(--primary))"
-                        shape={(props: any) => {
-                          const { cx, cy, payload } = props;
-                          const isHighlighted = payload?.id === highlightedEventId;
-                          return (
-                            <g transform={`translate(${cx}, ${cy})`} cursor="pointer">
-                              {isHighlighted && (
-                                <circle r={12} fill="rgba(59,130,246,0.35)" className="animate-ping" />
-                              )}
-                              <circle r={8} fill="rgba(59,130,246,0.2)" />
-                              <Fuel className="w-3 h-3 text-primary" x={-6} y={-6} />
-                            </g>
-                          );
-                        }}
-                        name="Refill"
-                        isAnimationActive
-                        onClick={(data: any) => {
-                          if (data?.payload) {
-                            setSelectedEvent(data.payload);
-                            setForcedTooltip({ time: data.payload.displayTime || data.payload.time, event: data.payload });
-                            setHighlightedEventId(data.payload.id);
-                            setTimeout(() => setHighlightedEventId(null), 3500);
-                          }
-                        }}
-                        onMouseEnter={(data: any) => handleMarkerEnter(data?.payload)}
-                        onMouseLeave={(data: any) => handleMarkerLeave(data?.payload)}
-                      />
-                    )}
-                    {showTheftMarkers && (
-                      <Scatter
-                        data={theftMarkers}
-                        fill="hsl(var(--destructive))"
-                        shape={(props: any) => {
-                          const { cx, cy, payload } = props;
-                          const isHighlighted = payload?.id === highlightedEventId;
-                          return (
-                            <g transform={`translate(${cx}, ${cy})`} cursor="pointer">
-                              {isHighlighted && (
-                                <circle r={12} fill="rgba(239,68,68,0.35)" className="animate-ping" />
-                              )}
-                              <circle r={8} fill="rgba(239,68,68,0.2)" />
-                              <AlertTriangle className="w-3 h-3 text-destructive" x={-6} y={-6} />
-                            </g>
-                          );
-                        }}
-                        name="Theft"
-                        isAnimationActive
-                        onClick={(data: any) => {
-                          if (data?.payload) {
-                            setSelectedEvent(data.payload);
-                            setForcedTooltip({ time: data.payload.displayTime || data.payload.time, event: data.payload });
-                            setHighlightedEventId(data.payload.id);
-                            setTimeout(() => setHighlightedEventId(null), 3500);
-                          }
-                        }}
-                        onMouseEnter={(data: any) => handleMarkerEnter(data?.payload)}
-                        onMouseLeave={(data: any) => handleMarkerLeave(data?.payload)}
-                      />
-                    )}
+                    <Scatter
+                      data={refillMarkers}
+                      fill="hsl(var(--primary))"
+                      shape={(props: any) => {
+                        const { cx, cy, payload } = props;
+                        const isHighlighted = payload?.id === highlightedEventId;
+                        return (
+                          <g transform={`translate(${cx}, ${cy})`} cursor="pointer">
+                            {isHighlighted && (
+                              <circle r={10} fill="rgba(59,130,246,0.28)" className="animate-ping" />
+                            )}
+                            <circle r={7} fill="rgba(59,130,246,0.15)" />
+                            <Fuel className="w-3 h-3 text-primary" x={-6} y={-6} />
+                          </g>
+                        );
+                      }}
+                      name="Refill"
+                      isAnimationActive
+                      onClick={(data: any) => {
+                        if (data?.payload) {
+                          setSelectedEvent(data.payload);
+                          setForcedTooltip({ time: data.payload.displayTime || data.payload.time, event: data.payload });
+                          setHighlightedEventId(data.payload.id);
+                          setTimeout(() => setHighlightedEventId(null), 3500);
+                        }
+                      }}
+                      onMouseEnter={(data: any) => handleMarkerEnter(data?.payload)}
+                      onMouseLeave={(data: any) => handleMarkerLeave(data?.payload)}
+                    />
+                    <Scatter
+                      data={theftMarkers}
+                      fill="hsl(var(--destructive))"
+                      shape={(props: any) => {
+                        const { cx, cy, payload } = props;
+                        const isHighlighted = payload?.id === highlightedEventId;
+                        return (
+                          <g transform={`translate(${cx}, ${cy})`} cursor="pointer">
+                            {isHighlighted && (
+                              <circle r={10} fill="rgba(239,68,68,0.28)" className="animate-ping" />
+                            )}
+                            <circle r={7} fill="rgba(239,68,68,0.15)" />
+                            <AlertTriangle className="w-3 h-3 text-destructive" x={-6} y={-6} />
+                          </g>
+                        );
+                      }}
+                      name="Theft"
+                      isAnimationActive
+                      onClick={(data: any) => {
+                        if (data?.payload) {
+                          setSelectedEvent(data.payload);
+                          setForcedTooltip({ time: data.payload.displayTime || data.payload.time, event: data.payload });
+                          setHighlightedEventId(data.payload.id);
+                          setTimeout(() => setHighlightedEventId(null), 3500);
+                        }
+                      }}
+                      onMouseEnter={(data: any) => handleMarkerEnter(data?.payload)}
+                      onMouseLeave={(data: any) => handleMarkerLeave(data?.payload)}
+                    />
                     <Brush
                       dataKey="time"
                       height={30}
@@ -2043,14 +2302,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
                         setForcedTooltip(null);
                       }}
                     />
-                    <defs>
-                      <linearGradient id="fuelGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#60a5fa" stopOpacity={0.95} />
-                        <stop offset="60%" stopColor="#3b82f6" stopOpacity={0.85} />
-                        <stop offset="100%" stopColor="#1d4ed8" stopOpacity={0.75} />
-                      </linearGradient>
-                    </defs>
-                  </LineChart>
+                  </AreaChart>
                 </ResponsiveContainer>
               </div>
             </GlassCard>
@@ -2068,7 +2320,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
                       <th className="text-left py-3 px-4 font-semibold text-foreground">
                         <div className="flex items-center gap-2">
                           <Clock className="w-4 h-4" />
-                          Time
+                          Time (EAT)
                         </div>
                       </th>
                       <th className="text-left py-3 px-4 font-semibold text-foreground">
@@ -2122,7 +2374,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
                       <th className="text-left py-3 px-4 font-semibold text-foreground">
                         <div className="flex items-center gap-2">
                           <Clock className="w-4 h-4" />
-                          Time
+                          Time (EAT)
                         </div>
                       </th>
                       <th className="text-left py-3 px-4 font-semibold text-foreground">
@@ -3003,7 +3255,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
                             <li>• <strong>Fuel Sensor:</strong> Analog voltage readings converted to fuel volume</li>
                             <li>• <strong>GPS/Location:</strong> Geographic coordinates for event context</li>
                             <li>• <strong>Ignition Status:</strong> Engine on/off state for filtering</li>
-                            <li>• <strong>Timestamp:</strong> Precise UTC timestamps for event sequencing</li>
+                            <li>• <strong>Timestamp:</strong> Event timing displayed in EAT for operational review</li>
                           </ul>
                         </div>
 

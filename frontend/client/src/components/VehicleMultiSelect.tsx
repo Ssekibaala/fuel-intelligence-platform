@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Check, ChevronDown, X, Truck, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ interface VehicleMultiSelectProps {
   selectedVehicleIds: string[];
   onSelectionChange: (vehicleIds: string[]) => void;
   className?: string;
+  selectionMode?: "single" | "multiple";
 }
 
 function getVehicleDisplayLabel(vehicle: Partial<Vehicle>) {
@@ -28,10 +29,12 @@ function getVehicleDisplayLabel(vehicle: Partial<Vehicle>) {
 export function VehicleMultiSelect({ 
   selectedVehicleIds, 
   onSelectionChange,
-  className = ""
+  className = "",
+  selectionMode = "multiple"
 }: VehicleMultiSelectProps) {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const isSingleSelection = selectionMode === "single";
 
   // Fetch vehicles from API
   const { data: vehicles = [], isLoading, error } = useQuery<Vehicle[]>({
@@ -58,13 +61,22 @@ export function VehicleMultiSelect({
     if (isSelected) {
       // Remove from selection
       onSelectionChange(selectedVehicleIds.filter(id => id !== vehicleId));
+      if (isSingleSelection) {
+        setOpen(false);
+      }
     } else {
-      // Add to selection
-      onSelectionChange([...selectedVehicleIds, vehicleId]);
+      if (isSingleSelection) {
+        onSelectionChange([vehicleId]);
+        setOpen(false);
+      } else {
+        // Add to selection
+        onSelectionChange([...selectedVehicleIds, vehicleId]);
+      }
     }
   };
 
   const handleSelectAll = () => {
+    if (isSingleSelection) return;
     if (selectedVehicleIds.length === vehicles.length) {
       // Deselect all
       onSelectionChange([]);
@@ -81,6 +93,7 @@ export function VehicleMultiSelect({
 
   const getDisplayText = () => {
     if (selectedVehicleIds.length === 0) {
+      if (isSingleSelection) return "Select vehicle";
       return "All vehicles";
     } else if (selectedVehicleIds.length === 1) {
       const vehicle = selectedVehicles[0];
@@ -141,15 +154,17 @@ export function VehicleMultiSelect({
               {selectedVehicleIds.length} of {vehicles.length} selected
             </div>
             <div className="flex gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleSelectAll}
-                className="h-7 text-xs"
-                data-testid="button-select-all-vehicles"
-              >
-                {selectedVehicleIds.length === vehicles.length ? "Deselect All" : "Select All"}
-              </Button>
+              {!isSingleSelection && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleSelectAll}
+                  className="h-7 text-xs"
+                  data-testid="button-select-all-vehicles"
+                >
+                  {selectedVehicleIds.length === vehicles.length ? "Deselect All" : "Select All"}
+                </Button>
+              )}
               {selectedVehicleIds.length > 0 && (
                 <Button
                   variant="ghost"
@@ -200,7 +215,7 @@ export function VehicleMultiSelect({
                                 </Badge>
                               </div>
                               <div className="text-xs text-muted-foreground">
-                                {(vehicle.assetId || "-")} � {(vehicle.driverName || "Unassigned")}
+                                {(vehicle.assetId || "-")} • {(vehicle.driverName || "Unassigned")}
                               </div>
                             </div>
                           </div>
@@ -253,4 +268,5 @@ export function VehicleMultiSelect({
     </Popover>
   );
 }
+
 

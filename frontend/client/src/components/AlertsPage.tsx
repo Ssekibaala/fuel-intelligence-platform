@@ -169,7 +169,7 @@ export function AlertsPage({ pageId }: AlertsPageProps) {
       {/* Alert Command Center Header */}
       <div className="mb-6 flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
         <PageHeader pageId={pageId || "alerts"} className="mb-0" />
-        <FilterControls />
+        <FilterControls compact />
       </div>
 
       {/* Alert Filters */}
@@ -224,58 +224,58 @@ export function AlertsPage({ pageId }: AlertsPageProps) {
       </div>
 
       {/* Alerts Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <GlassCard className="p-6 hover-elevate transition-all">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-red-500/20 rounded-lg">
-                <Bell className="w-6 h-6 text-red-400" />
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+        <GlassCard className="p-3 hover-elevate transition-all">
+          <div className="mb-2 flex items-start justify-between">
+            <div className="flex items-center gap-2">
+              <div className="rounded-md bg-red-500/20 p-1.5">
+                <Bell className="h-4 w-4 text-red-400" />
               </div>
               <div>
-                <div className="text-lg font-bold text-foreground">Active Alerts</div>
-                <div className="text-sm text-muted-foreground">Requires Attention</div>
+                <div className="text-sm font-bold text-foreground">Active Alerts</div>
+                <div className="text-[11px] text-muted-foreground">Requires attention</div>
               </div>
             </div>
           </div>
-          <div className="text-center">
-            <div className="text-3xl font-bold text-red-400 mb-1">{summary.activeAlerts}</div>
-            <div className="text-sm text-muted-foreground">Theft alerts in focus</div>
+          <div className="space-y-0.5">
+            <div className="text-2xl font-bold leading-none text-red-400">{summary.activeAlerts}</div>
+            <div className="text-xs text-muted-foreground">Theft alerts in focus</div>
           </div>
         </GlassCard>
 
-        <GlassCard className="p-6 hover-elevate transition-all">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-primary/20 rounded-lg">
-                <Droplet className="w-6 h-6 text-primary" />
+        <GlassCard className="p-3 hover-elevate transition-all">
+          <div className="mb-2 flex items-start justify-between">
+            <div className="flex items-center gap-2">
+              <div className="rounded-md bg-primary/20 p-1.5">
+                <Droplet className="h-4 w-4 text-primary" />
               </div>
               <div>
-                <div className="text-lg font-bold text-foreground">Refills</div>
-                <div className="text-sm text-muted-foreground">Detected in range</div>
+                <div className="text-sm font-bold text-foreground">Refills</div>
+                <div className="text-[11px] text-muted-foreground">Detected in range</div>
               </div>
             </div>
           </div>
-          <div className="text-center">
-            <div className="text-3xl font-bold text-primary mb-1">{summary.refillCount}</div>
-            <div className="text-sm text-muted-foreground">{summary.refillVolume.toFixed(1)} L total</div>
+          <div className="space-y-0.5">
+            <div className="text-2xl font-bold leading-none text-primary">{summary.refillCount}</div>
+            <div className="text-xs text-muted-foreground">{summary.refillVolume.toFixed(1)} L total</div>
           </div>
         </GlassCard>
 
-        <GlassCard className="p-6 hover-elevate transition-all">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-destructive/20 rounded-lg">
-                <Shield className="w-6 h-6 text-destructive" />
+        <GlassCard className="p-3 hover-elevate transition-all">
+          <div className="mb-2 flex items-start justify-between">
+            <div className="flex items-center gap-2">
+              <div className="rounded-md bg-destructive/20 p-1.5">
+                <Shield className="h-4 w-4 text-destructive" />
               </div>
               <div>
-                <div className="text-lg font-bold text-foreground">Thefts</div>
-                <div className="text-sm text-muted-foreground">Detected in range</div>
+                <div className="text-sm font-bold text-foreground">Thefts</div>
+                <div className="text-[11px] text-muted-foreground">Detected in range</div>
               </div>
             </div>
           </div>
-          <div className="text-center">
-            <div className="text-3xl font-bold text-destructive mb-1">{summary.theftCount}</div>
-            <div className="text-sm text-muted-foreground">{summary.theftVolume.toFixed(1)} L total</div>
+          <div className="space-y-0.5">
+            <div className="text-2xl font-bold leading-none text-destructive">{summary.theftCount}</div>
+            <div className="text-xs text-muted-foreground">{summary.theftVolume.toFixed(1)} L total</div>
           </div>
         </GlassCard>
       </div>

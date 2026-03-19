@@ -190,11 +190,20 @@ async function deleteAssignmentWithSupabaseFallback(id: string) {
 
 // Helper to convert global filter to API parameters
 export function globalFilterToApiParams(filterState: GlobalFilter) {
+  const buildLocalDayKey = (value?: string) => {
+    if (!value) return undefined;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return undefined;
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  };
+
   return {
     clientId: filterState.selectedClientId !== "all" ? filterState.selectedClientId : undefined,
     vehicleIds: filterState.selectedVehicles.length > 0 ? filterState.selectedVehicles : undefined,
     startDate: filterState.dateRange.startDate,
     endDate: filterState.dateRange.endDate,
+    startDay: buildLocalDayKey(filterState.dateRange.startDate),
+    endDay: buildLocalDayKey(filterState.dateRange.endDate),
   };
 }
 

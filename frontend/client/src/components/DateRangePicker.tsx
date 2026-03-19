@@ -39,9 +39,9 @@ export function DateRangePicker({
   const availablePresets = presets && presets.length > 0 ? presets : DEFAULT_PRESETS;
   const [open, setOpen] = useState(false);
   const [selectedTab, setSelectedTab] = useState<"presets" | "custom">(
-    value.preset ? "presets" : "custom"
+    value.preset && value.preset !== "custom" ? "presets" : "custom"
   );
-  const [resetOnNextSelection, setResetOnNextSelection] = useState(false);
+  const [selectionPhase, setSelectionPhase] = useState<"start" | "end">("start");
   
   // Custom range state
   const [customRange, setCustomRange] = useState<{
@@ -68,9 +68,19 @@ export function DateRangePicker({
 
   useEffect(() => {
     if (open && selectedTab === "custom") {
-      setResetOnNextSelection(true);
+      setSelectionPhase("start");
     }
   }, [open, selectedTab]);
+
+  useEffect(() => {
+    if (value.preset === "custom") {
+      setSelectedTab("custom");
+      return;
+    }
+    if (value.preset) {
+      setSelectedTab("presets");
+    }
+  }, [value.preset]);
 
   const handlePresetSelect = (preset: string) => {
     const presetConfig = availablePresets.find(p => p.value === preset);
@@ -88,25 +98,51 @@ export function DateRangePicker({
     }
   };
 
-  const handleCustomRangeSelect = (range: { from?: Date; to?: Date } | undefined) => {
-    if (!range) return;
-    
-    if (resetOnNextSelection && range.from) {
-      setCustomRange({ from: range.from, to: undefined });
-      setResetOnNextSelection(false);
+  const handleCustomDayClick = (day: Date, disabled: boolean) => {
+    if (disabled) return;
+
+    const clickedDate = new Date(day.getFullYear(), day.getMonth(), day.getDate());
+
+    if (selectionPhase === "start" || !customRange.from || customRange.to) {
+      setCustomRange({ from: clickedDate, to: undefined });
+      setSelectionPhase("end");
       return;
     }
 
-    setCustomRange({ from: range.from, to: range.to });
+    const startDate = customRange.from;
+    if (clickedDate.getTime() >= startDate.getTime()) {
+      setCustomRange({ from: startDate, to: clickedDate });
+    } else {
+      setCustomRange({ from: clickedDate, to: startDate });
+    }
+    setSelectionPhase("start");
   };
 
   const applyCustomRange = () => {
     if (!customRange.from || !customRange.to) return;
+    const start = new Date(
+      customRange.from.getFullYear(),
+      customRange.from.getMonth(),
+      customRange.from.getDate(),
+      0,
+      0,
+      0,
+      0
+    );
+    const end = new Date(
+      customRange.to.getFullYear(),
+      customRange.to.getMonth(),
+      customRange.to.getDate(),
+      23,
+      59,
+      59,
+      999
+    );
 
     onChange({
       preset: "custom",
-      startDate: customRange.from.toISOString(),
-      endDate: customRange.to.toISOString(),
+      startDate: start.toISOString(),
+      endDate: end.toISOString(),
       label: `${format(customRange.from, "MMM d")} - ${format(customRange.to, "MMM d, yyyy")}`,
     });
 
@@ -115,7 +151,7 @@ export function DateRangePicker({
 
   const clearCustomRange = () => {
     setCustomRange({ from: undefined, to: undefined });
-    setResetOnNextSelection(true);
+    setSelectionPhase("start");
   };
 
   const getDisplayText = () => {
@@ -154,28 +190,28 @@ export function DateRangePicker({
         </Button>
       </PopoverTrigger>
       
-      <PopoverContent className="w-[420px] p-0" align="start">
+      <PopoverContent className="w-[min(96vw,390px)] p-0" align="start">
         <div className="flex">
           {/* Tab Navigation */}
-          <div className="flex flex-col w-32 border-r border-border/20">
+          <div className="flex w-24 flex-col border-r border-border/20">
             <Button
               variant={selectedTab === "presets" ? "secondary" : "ghost"}
               size="sm"
               onClick={() => setSelectedTab("presets")}
-              className="justify-start rounded-none h-10 px-3"
+              className="h-8 justify-start rounded-none px-2 text-xs"
               data-testid="tab-date-presets"
             >
-              <Clock className="h-4 w-4 mr-2" />
+              <Clock className="mr-1.5 h-3.5 w-3.5" />
               Presets
             </Button>
             <Button
               variant={selectedTab === "custom" ? "secondary" : "ghost"}
               size="sm"
               onClick={() => setSelectedTab("custom")}
-              className="justify-start rounded-none h-10 px-3"
+              className="h-8 justify-start rounded-none px-2 text-xs"
               data-testid="tab-date-custom"
             >
-              <CalendarIcon className="h-4 w-4 mr-2" />
+              <CalendarIcon className="mr-1.5 h-3.5 w-3.5" />
               Custom
             </Button>
           </div>
@@ -183,8 +219,8 @@ export function DateRangePicker({
           {/* Content Area */}
           <div className="flex-1">
             {selectedTab === "presets" ? (
-              <div className="p-3">
-                <div className="space-y-1">
+              <div className="p-2.5">
+                <div className="grid grid-cols-2 gap-1.5">
                   {availablePresets.map((preset) => {
                     const isSelected = value.preset === preset.value;
                     
@@ -192,22 +228,22 @@ export function DateRangePicker({
                       <button
                         key={preset.value}
                         onClick={() => handlePresetSelect(preset.value)}
-                        className={`w-full text-left p-3 rounded-lg border transition-all hover-elevate ${
+                        className={`w-full rounded-md border p-2 text-left transition-all hover-elevate ${
                           isSelected 
                             ? "bg-primary/10 border-primary/20 text-primary" 
                             : "bg-card/20 border-border/20 hover:bg-card/40"
                         }`}
                         data-testid={`preset-${preset.value}`}
                       >
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium text-sm">{preset.label}</span>
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="text-xs font-medium leading-tight">{preset.label}</span>
                           {isSelected && (
-                            <Badge variant="secondary" className="text-xs">
+                            <Badge variant="secondary" className="h-4 px-1 text-[9px]">
                               Active
                             </Badge>
                           )}
                         </div>
-                        <div className="text-xs text-muted-foreground mt-1">
+                        <div className="mt-0.5 text-[10px] text-muted-foreground">
                           {getPresetSummary(preset.value)}
                         </div>
                       </button>
@@ -216,13 +252,18 @@ export function DateRangePicker({
                 </div>
               </div>
             ) : (
-              <div className="p-3">
-                <div className="text-sm font-medium mb-3">Select Custom Range</div>
+              <div className="p-2.5">
+                <div className="mb-2 flex items-center justify-between">
+                  <div className="text-xs font-medium">Custom Range</div>
+                  <Badge variant="outline" className="h-5 text-[10px]">
+                    {selectionPhase === "start" ? "Pick start" : "Pick end"}
+                  </Badge>
+                </div>
                 <Calendar
                   mode="range"
                   defaultMonth={customRange.from}
                   selected={customRange}
-                  onSelect={handleCustomRangeSelect}
+                  onDayClick={(day, modifiers) => handleCustomDayClick(day, Boolean(modifiers?.disabled))}
                   numberOfMonths={1}
                   className="rounded-md border border-border/20 !p-1"
                   classNames={{
@@ -230,25 +271,31 @@ export function DateRangePicker({
                       "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
                     day_range_middle:
                       "aria-selected:bg-primary/15 aria-selected:text-foreground",
+                    head_cell: "text-muted-foreground rounded-md w-8 font-normal text-[10px]",
+                    row: "flex w-full mt-1",
                     cell:
-                      "h-9 w-9 text-center text-sm p-0 relative [&:has([aria-selected])]:bg-primary/10 first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
+                      "h-8 w-8 text-center text-xs p-0 relative [&:has([aria-selected])]:bg-primary/10 first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
+                    day: "h-8 w-8 p-0 text-xs",
                   }}
                   data-testid="calendar-custom-range"
                 />
 
-                <Separator className="my-3" />
-                <div className="flex flex-col gap-2">
-                  <div className="text-xs text-muted-foreground">
+                <Separator className="my-2" />
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0 text-[10px] text-muted-foreground">
                     {customRange.from && customRange.to
                       ? `Selected: ${format(customRange.from, "MMM d, yyyy")} - ${format(customRange.to, "MMM d, yyyy")}`
-                      : "Pick a start and end date"}
+                      : customRange.from
+                        ? `Start: ${format(customRange.from, "MMM d, yyyy")} | pick end date`
+                        : "Pick start date, then end date"}
                   </div>
-                  <div className="flex items-center justify-end gap-2">
+                  <div className="flex items-center justify-end gap-1">
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={clearCustomRange}
                       disabled={!customRange.from && !customRange.to}
+                      className="h-7 px-2 text-xs"
                     >
                       Clear
                     </Button>
@@ -256,6 +303,7 @@ export function DateRangePicker({
                       size="sm"
                       onClick={applyCustomRange}
                       disabled={!customRange.from || !customRange.to}
+                      className="h-7 px-2 text-xs"
                     >
                       Apply
                     </Button>

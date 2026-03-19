@@ -49,7 +49,7 @@ export type Client = typeof clients.$inferSelect;
 // =============================================================================
 
 // Vehicle Status Enum
-export const vehicleStatusEnum = z.enum(["Active", "Idle", "Maintenance", "Out of Service"]);
+export const vehicleStatusEnum = z.enum(["Moving", "Idling", "Parked", "Maintenance", "Out of Service"]);
 export type VehicleStatus = z.infer<typeof vehicleStatusEnum>;
 
 // Efficiency Rating Enum
@@ -87,7 +87,7 @@ export const vehicles = pgTable("vehicles", {
   assetId: text("asset_id").notNull().unique(), // e.g., "SEM - 12346"
   vehiclePlate: text("vehicle_plate").notNull(),
   driverName: text("driver_name").notNull(),
-  status: text("status").notNull().$type<VehicleStatus>(), // "Active", "Idle", "Maintenance"
+  status: text("status").notNull().$type<VehicleStatus>(), // "Moving", "Idling", "Parked", etc
   currentFuelLevel: real("current_fuel_level").notNull(), // Liters
   tankCapacity: real("tank_capacity"), // Set from report_type=147 summary payload
   consumptionKml: real("consumption_kml"), // report_type=147 summary (today end_date only)

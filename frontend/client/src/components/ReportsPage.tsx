@@ -46,6 +46,7 @@ import { config } from "@/lib/config";
 import { useAuth } from "@/components/AuthProvider";
 import { useQuery } from "@tanstack/react-query";
 import { type DateRange, type Vehicle } from "@shared/schema";
+import { formatDateTimeEAT } from "@/lib/dateTime";
 
 /* ---------------------------------- Types --------------------------------- */
 
@@ -1064,9 +1065,9 @@ export function ReportsPage({ pageId }: ReportsPageProps) {
 
   const previewGeneratedLabel = useMemo(() => {
     const raw = state.previewData?.generatedOn;
-    if (!raw) return new Date().toLocaleString();
+    if (!raw) return formatDateTimeEAT(new Date());
     const parsed = new Date(raw);
-    return Number.isNaN(parsed.getTime()) ? new Date().toLocaleString() : parsed.toLocaleString();
+    return Number.isNaN(parsed.getTime()) ? formatDateTimeEAT(new Date()) : formatDateTimeEAT(parsed);
   }, [state.previewData]);
 
   const previewDateLabel = useMemo(() => {

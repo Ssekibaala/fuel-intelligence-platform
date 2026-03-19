@@ -4,10 +4,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { GlassCard } from "./GlassCard";
 import { useAuth } from "./AuthProvider";
-import teletracLogo from "@/assets/teletrac-logo.png";
+import { useBrandingLogo } from "@/hooks/use-branding-logo";
 
 export function LoginPage() {
   const { signIn } = useAuth();
+  const { logoSrc } = useBrandingLogo();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -32,7 +33,7 @@ export function LoginPage() {
         <div className="mb-6">
           <div className="w-44 h-16 rounded-md bg-white border border-border/30 shadow-sm flex items-center justify-center p-2 mb-4">
             <img
-              src={teletracLogo}
+              src={logoSrc}
               alt="Teletrac Fuel logo"
               className="w-full h-full object-contain"
             />

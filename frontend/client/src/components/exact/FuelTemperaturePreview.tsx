@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatDateTimeEAT } from '@/lib/dateTime';
 
 // --- Interfaces (Kept as provided) ---
 interface RefuelEvent {
@@ -34,27 +35,15 @@ export function FuelTemperaturePreview({ date, data }: FuelTemperaturePreviewPro
     const parsed = new Date(value);
     return Number.isNaN(parsed.getTime()) ? null : parsed;
   };
-  const formatDate = (value: Date) => value.toLocaleDateString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric'
-  });
-  const formatTime = (value: Date) => value.toLocaleTimeString('en-GB', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false
-  });
   const fromDateValue = toValidDate(data.fromDatetime) || toValidDate(`${date}T00:00:00`) || new Date();
   const toDateValue = toValidDate(data.toDatetime) || toValidDate(`${date}T23:59:00`) || new Date();
   const generatedOnValue = toValidDate(data.generatedOn);
-
-  const displayDate = formatDate(fromDateValue);
-  const fromTime = formatTime(fromDateValue);
-  const toTime = formatTime(toDateValue);
+  const axisDatePrefix = formatDateTimeEAT(fromDateValue);
+  const fromTime = formatDateTimeEAT(fromDateValue);
+  const toTime = formatDateTimeEAT(toDateValue);
   const generatedLabel = generatedOnValue
-    ? `${formatDate(generatedOnValue)} ${formatTime(generatedOnValue)}`
-    : `${displayDate} ${toTime}`;
+    ? formatDateTimeEAT(generatedOnValue)
+    : formatDateTimeEAT(toDateValue);
   const reportTitle = data.reportTitle || "Sensor / Fuel / Temperature";
   const assetName = data.assetName || "Howo Demo";
   const refuelEvents = data.refuelEvents || [];
@@ -115,8 +104,8 @@ export function FuelTemperaturePreview({ date, data }: FuelTemperaturePreviewPro
         <div>{assetName}</div>
         
         <div style={{ display: 'flex', justifyContent: 'space-between', width: '500px' }}>
-            <span style={{ display: 'inline-block', width: '250px' }}>From&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{displayDate} {fromTime}</span>
-            <span style={{ display: 'inline-block', width: '250px' }}>To&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{displayDate} {toTime}</span>
+            <span style={{ display: 'inline-block', width: '250px' }}>From&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{fromTime}</span>
+            <span style={{ display: 'inline-block', width: '250px' }}>To&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{toTime}</span>
             <span style={{ fontSize: '9pt', color: '#555', position: 'absolute', right: '20mm' }}>Generated on {generatedLabel}</span>
         </div>
       </div>
@@ -183,10 +172,10 @@ export function FuelTemperaturePreview({ date, data }: FuelTemperaturePreviewPro
       {/* X-Axis Labels */}
       <div style={{ fontSize: '8pt', textAlign: 'center', lineHeight: 1.2, marginBottom: '4mm' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 5mm 0 45px' }}>
-            <span>{displayDate} 10:13:49</span>
-            <span>{displayDate} 10:49:32</span>
-            <span>{displayDate} 12:02:38</span>
-            <span>{displayDate} 13:07:49</span>
+            <span>{axisDatePrefix}</span>
+            <span>{axisDatePrefix}</span>
+            <span>{axisDatePrefix}</span>
+            <span>{axisDatePrefix}</span>
         </div>
       </div>
 
@@ -201,7 +190,7 @@ export function FuelTemperaturePreview({ date, data }: FuelTemperaturePreviewPro
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9pt', border: '1px solid #ccc' }}>
         <thead>
           <tr style={{ backgroundColor: '#f0f0f0' }}>
-            <th style={{ textAlign: 'left', padding: '2mm 2mm 2mm 5px', borderBottom: '1px solid #000' }}>Time</th>
+            <th style={{ textAlign: 'left', padding: '2mm 2mm 2mm 5px', borderBottom: '1px solid #000' }}>Time (EAT)</th>
             <th style={{ textAlign: 'right', padding: '2mm', borderBottom: '1px solid #000' }}>Initial fuel</th>
             <th style={{ textAlign: 'right', padding: '2mm', borderBottom: '1px solid #000' }}>Final fuel</th>
             <th style={{ textAlign: 'right', padding: '2mm', borderBottom: '1px solid #000' }}>Refilled</th>

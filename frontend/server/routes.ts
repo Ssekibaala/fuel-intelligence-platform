@@ -52,6 +52,17 @@ function parseDate(value: any): Date | undefined {
   return isNaN(date.getTime()) ? undefined : date;
 }
 
+function parseDayKey(value: unknown): string | undefined {
+  if (!value) return undefined;
+  const parsed = Array.isArray(value) ? String(value[0]) : String(value);
+  const trimmed = parsed.trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : undefined;
+}
+
+function getLocalDayKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
 function parseClientIdValue(value: unknown): string | undefined {
   if (!value) return undefined;
   const parsed = Array.isArray(value) ? String(value[0]) : String(value);
@@ -811,7 +822,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!hasFuelTankCapacity(vehicle)) {
         return res.status(404).json({ error: "Vehicle not found" });
       }
-
       const isAdmin = req.auth?.profile?.role === "admin";
       if (!isAdmin && !req.auth?.clientIds.includes(vehicle.clientId)) {
         return res.status(404).json({ error: "Vehicle not found" });
@@ -890,6 +900,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(events);
     } catch (error) {
+      console.error("GET /api/fuel-events failed", error);
       res.status(500).json({ error: "Failed to fetch fuel events" });
     }
   });
@@ -946,10 +957,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         vehicleIds: vehicleIdsFilter,
         startDate: parseDate(req.query.startDate || req.query.start_date),
         endDate: parseDate(req.query.endDate || req.query.end_date),
+        startDay: parseDayKey(req.query.startDay || req.query.start_day),
+        endDay: parseDayKey(req.query.endDay || req.query.end_day),
       });
 
       res.json(metrics);
     } catch (error) {
+      console.error("GET /api/daily-metrics failed", error);
       res.status(500).json({ error: "Failed to fetch daily metrics" });
     }
   });
@@ -973,6 +987,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         vehicleIds: scoped.vehicleIds,
         startDate: parseDate(req.query.startDate || req.query.start_date),
         endDate: parseDate(req.query.endDate || req.query.end_date),
+        startDay: parseDayKey(req.query.startDay || req.query.start_day),
+        endDay: parseDayKey(req.query.endDay || req.query.end_day),
       });
       res.json(aggregated);
     } catch (error) {
@@ -1190,7 +1206,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         : vehicles;
 
       const totalVehicles = scopedVehicles.length;
-      const activeVehicles = scopedVehicles.filter((v) => v.status === "Active").length;
+      const activeVehicles = scopedVehicles.filter((v) => v.status === "Moving" || v.status === "Idling").length;
 
       const fuelEvents = await storage.getFuelEvents({
         vehicleIds: scopedVehicles.map((v) => v.id),
@@ -1200,10 +1216,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const totalRefills = fuelEvents.filter((e) => e.eventType === "refill").length;
       const totalThefts = fuelEvents.filter((e) => e.eventType === "theft").length;
+      const startDate = parseDate(req.query.startDate || req.query.start_date);
+      const endDate = parseDate(req.query.endDate || req.query.end_date);
+      const startDay = parseDayKey(req.query.startDay || req.query.start_day) || (startDate ? getLocalDayKey(startDate) : undefined);
+      const endDay = parseDayKey(req.query.endDay || req.query.end_day) || (endDate ? getLocalDayKey(endDate) : undefined);
+      const todayKey = getLocalDayKey(new Date());
+      const isTodaySelected =
+        !!startDay &&
+        !!endDay &&
+        startDay === todayKey &&
+        endDay === todayKey;
+      const rangeIncludesToday = endDay === todayKey;
 
-      const totalFuelUsed = scopedVehicles.reduce((sum, v) => sum + (v.totalFuelUsed ?? 0), 0);
-      const totalDistance = scopedVehicles.reduce((sum, v) => sum + (v.totalDistance ?? 0), 0);
-      const totalEngineHours = scopedVehicles.reduce((sum, v) => sum + (v.totalEngineHours ?? 0), 0);
+      let totalFuelUsed = 0;
+      let totalDistance = 0;
+      let totalEngineHours = 0;
+
+      if (isTodaySelected || !startDate || !endDate) {
+        totalFuelUsed = scopedVehicles.reduce((sum, v) => sum + (v.totalFuelUsed ?? 0), 0);
+        totalDistance = scopedVehicles.reduce((sum, v) => sum + (v.totalDistance ?? 0), 0);
+        totalEngineHours = scopedVehicles.reduce((sum, v) => sum + (v.totalEngineHours ?? 0), 0);
+      } else {
+        const dailyMetrics = await storage.getDailyMetrics({
+          vehicleIds: scopedVehicles.map((v) => v.id),
+          startDate,
+          endDate,
+          startDay,
+          endDay,
+        });
+
+        const filteredMetrics = rangeIncludesToday
+          ? dailyMetrics.filter((metric) => getLocalDayKey(metric.metricDate) !== todayKey)
+          : dailyMetrics;
+
+        totalFuelUsed = filteredMetrics.reduce((sum, metric) => sum + (metric.totalFuelConsumed ?? 0), 0);
+        totalDistance = filteredMetrics.reduce((sum, metric) => sum + (metric.totalDistanceTraveled ?? 0), 0);
+        totalEngineHours = filteredMetrics.reduce((sum, metric) => sum + (metric.totalEngineHours ?? 0), 0);
+
+        if (rangeIncludesToday) {
+          totalFuelUsed += scopedVehicles.reduce((sum, v) => sum + (v.totalFuelUsed ?? 0), 0);
+          totalDistance += scopedVehicles.reduce((sum, v) => sum + (v.totalDistance ?? 0), 0);
+          totalEngineHours += scopedVehicles.reduce((sum, v) => sum + (v.totalEngineHours ?? 0), 0);
+        }
+      }
 
       res.json({
         totalVehicles,
@@ -1217,6 +1272,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         lastUpdated: new Date().toISOString(),
       });
     } catch (error) {
+      console.error("GET /api/dashboard/kpis failed", error);
       res.status(500).json({ error: "Failed to fetch dashboard data" });
     }
   });

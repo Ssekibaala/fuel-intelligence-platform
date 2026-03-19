@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, Filter, RotateCcw, DollarSign, Settings2, Truck, X, Building2 } from "lucide-react";
+import { CalendarDays, Filter, RotateCcw, Truck, X, Building2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +18,8 @@ interface FilterControlsProps {
   dateRangeOverride?: DateRange;
   onDateRangeOverrideChange?: (dateRange: DateRange) => void;
   defaultDatePreset?: Exclude<NonNullable<DateRange["preset"]>, "custom">;
+  compact?: boolean;
+  vehicleSelectionMode?: "single" | "multiple";
 }
 
 const DATE_PRESET_LABELS: Record<Exclude<NonNullable<DateRange["preset"]>, "custom">, string> = {
@@ -73,11 +75,19 @@ function formatDateRangeWindow(dateRange: DateRange): string {
   return `${formatLong(start)} - ${formatLong(end)}`;
 }
 
+function compactLabel(value: string, maxChars: number): string {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxChars) return normalized;
+  return `${normalized.slice(0, Math.max(1, maxChars - 3)).trimEnd()}...`;
+}
+
 export function FilterControls({
   className = "",
   dateRangeOverride,
   onDateRangeOverrideChange,
   defaultDatePreset = "last_7_days",
+  compact = false,
+  vehicleSelectionMode = "multiple",
 }: FilterControlsProps) {
   const { state, actions } = useGlobalFilter();
   const { isAdmin, clients: assignedClients } = useAuth();
@@ -146,7 +156,14 @@ export function FilterControls({
   }, [state.selectedVehicles, vehicles]);
   const visibleVehicleLabels = selectedVehicleLabels.slice(0, 3);
   const hiddenVehicleCount = Math.max(0, selectedVehicleLabels.length - visibleVehicleLabels.length);
-  const refreshEnabled = state.refreshInterval > 0;
+  const clientChipLabel = compactLabel(selectedClientName, 24);
+  const dateRangeWindowChipLabel = compactLabel(dateRangeWindow, 26);
+  const compactVehicleLabel =
+    selectedVehicleLabels.length === 0
+      ? "All vehicles"
+      : selectedVehicleLabels.length === 1
+        ? compactLabel(selectedVehicleLabels[0], 18)
+        : `${selectedVehicleLabels.length} vehicles`;
 
   const resetFilters = () => {
     if (!dateRangeOverride) {
@@ -158,30 +175,8 @@ export function FilterControls({
     setDateRange(buildDateRangeFromPreset(defaultDatePreset));
   };
 
-  const handleCurrencyChange = (currency: "KES" | "UGX" | "USD") => {
-    actions.setCurrency(currency);
-  };
-
-  const handleRefreshIntervalChange = (interval: string) => {
-    actions.setRefreshInterval(parseInt(interval));
-  };
-
-  const getCurrencyIcon = (currency: string) => {
-    switch (currency) {
-      case "KES": return "KES";
-      case "UGX": return "UGX";
-      case "USD": return "USD";
-      default: return "KES";
-    }
-  };
-
-  const getRefreshIntervalLabel = (interval: number) => {
-    if (interval < 60000) return `${interval / 1000}s`;
-    return `${interval / 60000}m`;
-  };
-
   return (
-    <div className={`flex flex-wrap items-center gap-3 ${className}`}>
+    <div className={`flex flex-wrap items-center gap-2 sm:gap-3 ${className}`}>
       {/* Main Filter Button */}
       <Popover open={filtersOpen} onOpenChange={setFiltersOpen}>
         <PopoverTrigger asChild>
@@ -199,7 +194,7 @@ export function FilterControls({
           </Button>
         </PopoverTrigger>
         
-        <PopoverContent className="w-[500px] p-0" align="start">
+        <PopoverContent className="w-[min(92vw,500px)] p-0" align="start">
           <div className="p-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-sm">Global Filters</h3>
@@ -250,6 +245,7 @@ export function FilterControls({
                 <VehicleMultiSelect
                   selectedVehicleIds={state.selectedVehicles}
                   onSelectionChange={actions.setSelectedVehicles}
+                  selectionMode={vehicleSelectionMode}
                 />
               </div>
 
@@ -264,51 +260,6 @@ export function FilterControls({
                 />
               </div>
 
-              <Separator />
-
-              {/* Settings */}
-              <div className="grid grid-cols-2 gap-4">
-                {/* Currency */}
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground block mb-2">
-                    Currency
-                  </label>
-                  <Select value={state.currency} onValueChange={handleCurrencyChange}>
-                    <SelectTrigger className="h-9" data-testid="select-currency">
-                      <DollarSign className="h-4 w-4 mr-2" />
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="KES">Kenyan Shilling (KES)</SelectItem>
-                      <SelectItem value="UGX">Ugandan Shilling (UGX)</SelectItem>
-                      <SelectItem value="USD">US Dollar (USD)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Refresh Interval */}
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground block mb-2">
-                    Auto Refresh
-                  </label>
-                  <Select 
-                    value={state.refreshInterval.toString()} 
-                    onValueChange={handleRefreshIntervalChange}
-                  >
-                    <SelectTrigger className="h-9" data-testid="select-refresh-interval">
-                      <Settings2 className="h-4 w-4 mr-2" />
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="15000">15 seconds</SelectItem>
-                      <SelectItem value="30000">30 seconds</SelectItem>
-                      <SelectItem value="60000">1 minute</SelectItem>
-                      <SelectItem value="300000">5 minutes</SelectItem>
-                      <SelectItem value="0">Disabled</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
             </div>
 
             <Separator className="my-4" />
@@ -348,44 +299,57 @@ export function FilterControls({
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <div className={`h-2 w-2 rounded-full ${refreshEnabled ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground/40"}`} />
-                {refreshEnabled
-                  ? `Auto refresh every ${getRefreshIntervalLabel(state.refreshInterval)}`
-                  : "Auto refresh disabled"}
-              </div>
             </div>
           </div>
         </PopoverContent>
       </Popover>
 
-      {/* Currency Display */}
-      <Badge 
-        variant="outline" 
-        className="hidden sm:flex items-center gap-1 bg-card/40 backdrop-blur-sm border-border/30"
-        data-testid="badge-currency"
-      >
-        <DollarSign className="h-3 w-3" />
-        {getCurrencyIcon(state.currency)}
-      </Badge>
-
-      {/* Applied Filters Strip - Mobile */}
-      <div className="w-full md:hidden">
-        <div className="flex items-center gap-2 overflow-x-auto rounded-xl border border-border/30 bg-card/30 px-3 py-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <span className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Applied
-          </span>
-          <Badge variant="secondary" className="flex-shrink-0 text-[10px]">
-            <Building2 className="h-3 w-3 mr-1" />
-            {selectedClientName}
+      {compact ? (
+        <div className="flex min-w-0 items-center gap-2">
+          <Badge
+            variant="secondary"
+            className="max-w-[150px] truncate text-[10px]"
+            data-testid="badge-selected-client-compact"
+          >
+            <Building2 className="mr-1 h-3 w-3" />
+            {clientChipLabel}
           </Badge>
-          <Badge variant="secondary" className="flex-shrink-0 text-[10px]">
-            <CalendarDays className="h-3 w-3 mr-1" />
-            {dateRangeLabel}
+          <Badge
+            variant="outline"
+            className="max-w-[190px] truncate border-border/40 bg-background/40 text-[10px]"
+            data-testid="badge-date-range-compact"
+          >
+            <CalendarDays className="mr-1 h-3 w-3" />
+            {compactLabel(`${dateRangeLabel} | ${dateRangeWindowChipLabel}`, 28)}
           </Badge>
-          <Badge variant="outline" className="flex-shrink-0 text-[10px] border-border/40 bg-background/40">
-            {dateRangeWindow}
+          <Badge
+            variant="secondary"
+            className="max-w-[130px] truncate text-[10px]"
+            data-testid="badge-selected-vehicles-compact"
+          >
+            <Truck className="mr-1 h-3 w-3" />
+            {compactVehicleLabel}
           </Badge>
+        </div>
+      ) : (
+        <>
+          {/* Applied Filters Strip - Mobile */}
+          <div className="w-full md:hidden">
+            <div className="flex items-center gap-2 overflow-x-auto rounded-xl border border-border/30 bg-card/30 px-3 py-1.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <span className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Applied
+              </span>
+              <Badge variant="secondary" className="max-w-[165px] flex-shrink-0 truncate text-[10px]">
+                <Building2 className="h-3 w-3 mr-1" />
+                {clientChipLabel}
+              </Badge>
+              <Badge variant="secondary" className="max-w-[140px] flex-shrink-0 truncate text-[10px]">
+                <CalendarDays className="h-3 w-3 mr-1" />
+                {dateRangeLabel}
+              </Badge>
+              <Badge variant="outline" className="max-w-[180px] flex-shrink-0 truncate text-[10px] border-border/40 bg-background/40">
+                {dateRangeWindowChipLabel}
+              </Badge>
 
           {visibleVehicleLabels.length === 0 ? (
             <Badge variant="secondary" className="flex-shrink-0 text-[10px]">
@@ -395,8 +359,12 @@ export function FilterControls({
           ) : (
             <>
               {visibleVehicleLabels.map((label, index) => (
-                <Badge key={`mobile-${label}-${index}`} variant="secondary" className="flex-shrink-0 text-[10px]">
-                  {label}
+                <Badge
+                  key={`mobile-${label}-${index}`}
+                  variant="secondary"
+                  className="max-w-[145px] flex-shrink-0 truncate text-[10px]"
+                >
+                  {compactLabel(label, 18)}
                 </Badge>
               ))}
               {hiddenVehicleCount > 0 && (
@@ -443,122 +411,108 @@ export function FilterControls({
             </Button>
           )}
 
-          <Badge
-            variant="outline"
-            className={`flex-shrink-0 text-[10px] border-border/40 bg-background/40 ${refreshEnabled ? "" : "opacity-70"}`}
-          >
-            <div className={`mr-1 h-1.5 w-1.5 rounded-full ${refreshEnabled ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground/40"}`} />
-            {refreshEnabled ? `Auto ${getRefreshIntervalLabel(state.refreshInterval)}` : "Auto Off"}
-          </Badge>
-        </div>
-      </div>
+            </div>
+          </div>
 
-      {/* Applied Filters Strip */}
-      <div className="hidden md:flex items-center gap-2 rounded-xl border border-border/30 bg-card/30 px-3 py-2 max-w-[960px]">
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Applied</span>
-        <Badge
-          variant="secondary"
-          className="flex items-center gap-1 text-xs"
-          data-testid="badge-selected-client"
-        >
-          <Building2 className="h-3 w-3" />
-          {selectedClientName}
-        </Badge>
-        <Badge
-          variant="secondary"
-          className="flex items-center gap-1 text-xs"
-          data-testid="badge-date-range"
-        >
-          <CalendarDays className="h-3 w-3" />
-          {dateRangeLabel}
-        </Badge>
-        <Badge variant="outline" className="text-xs border-border/40 bg-background/40">
-          {dateRangeWindow}
-        </Badge>
+          {/* Applied Filters Strip */}
+          <div className="hidden max-w-[960px] items-center gap-2 overflow-x-auto rounded-xl border border-border/30 bg-card/30 px-3 py-1.5 md:flex [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Applied</span>
+            <Badge
+              variant="secondary"
+              className="max-w-[220px] truncate text-xs"
+              data-testid="badge-selected-client"
+            >
+              <Building2 className="h-3 w-3" />
+              {clientChipLabel}
+            </Badge>
+            <Badge
+              variant="secondary"
+              className="flex items-center gap-1 text-xs"
+              data-testid="badge-date-range"
+            >
+              <CalendarDays className="h-3 w-3" />
+              {dateRangeLabel}
+            </Badge>
+            <Badge variant="outline" className="max-w-[220px] truncate text-xs border-border/40 bg-background/40">
+              {dateRangeWindowChipLabel}
+            </Badge>
 
-        {visibleVehicleLabels.length === 0 ? (
-          <Badge variant="secondary" className="flex items-center gap-1 text-xs" data-testid="badge-selected-vehicles">
-            <Truck className="h-3 w-3" />
-            All vehicles
-          </Badge>
-        ) : (
-          <>
-            {visibleVehicleLabels.map((label, index) => (
-              <Badge
-                key={`${label}-${index}`}
-                variant="secondary"
-                className="text-xs"
-                data-testid={index === 0 ? "badge-selected-vehicles" : undefined}
-              >
-                {label}
+            {visibleVehicleLabels.length === 0 ? (
+              <Badge variant="secondary" className="flex items-center gap-1 text-xs" data-testid="badge-selected-vehicles">
+                <Truck className="h-3 w-3" />
+                All vehicles
               </Badge>
-            ))}
-            {hiddenVehicleCount > 0 && (
-              <Badge variant="outline" className="text-xs border-border/40 bg-background/40">
-                +{hiddenVehicleCount} more
-              </Badge>
+            ) : (
+              <>
+                {visibleVehicleLabels.map((label, index) => (
+                  <Badge
+                    key={`${label}-${index}`}
+                    variant="secondary"
+                    className="max-w-[170px] truncate text-xs"
+                    data-testid={index === 0 ? "badge-selected-vehicles" : undefined}
+                  >
+                    {compactLabel(label, 20)}
+                  </Badge>
+                ))}
+                {hiddenVehicleCount > 0 && (
+                  <Badge variant="outline" className="text-xs border-border/40 bg-background/40">
+                    +{hiddenVehicleCount} more
+                  </Badge>
+                )}
+              </>
             )}
-          </>
-        )}
 
-        {state.selectedVehicles.length > 0 && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => actions.setSelectedVehicles([])}
-            className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
-            data-testid="button-clear-vehicle-filter"
-          >
-            <X className="h-3 w-3 mr-1" />
-            Clear Vehicles
-          </Button>
-        )}
+            {state.selectedVehicles.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => actions.setSelectedVehicles([])}
+                className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
+                data-testid="button-clear-vehicle-filter"
+              >
+                <X className="h-3 w-3 mr-1" />
+                Clear Vehicles
+              </Button>
+            )}
 
-        {hasClientFilter && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => actions.setSelectedClientId("all")}
-            className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
-            data-testid="button-clear-client-filter"
-          >
-            <X className="h-3 w-3 mr-1" />
-            All Clients
-          </Button>
-        )}
+            {hasClientFilter && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => actions.setSelectedClientId("all")}
+                className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
+                data-testid="button-clear-client-filter"
+              >
+                <X className="h-3 w-3 mr-1" />
+                All Clients
+              </Button>
+            )}
 
-        {hasDateRangeFilter && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setDateRange(buildDateRangeFromPreset(defaultDatePreset))}
-            className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
-            data-testid="button-reset-date-range"
-          >
-            <X className="h-3 w-3 mr-1" />
-            Reset Range
-          </Button>
-        )}
-      </div>
+            {hasDateRangeFilter && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setDateRange(buildDateRangeFromPreset(defaultDatePreset))}
+                className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
+                data-testid="button-reset-date-range"
+              >
+                <X className="h-3 w-3 mr-1" />
+                Reset Range
+              </Button>
+            )}
+          </div>
 
-      {/* Refresh Indicator */}
-      <Badge
-        variant="outline"
-        className={`hidden sm:flex items-center gap-2 bg-card/40 backdrop-blur-sm border-border/30 text-xs ${refreshEnabled ? "" : "opacity-70"}`}
-        data-testid="badge-auto-refresh"
-      >
-        <div className={`h-1.5 w-1.5 rounded-full ${refreshEnabled ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground/40"}`} />
-        <Settings2 className="h-3 w-3" />
-        {refreshEnabled ? `Auto: ${getRefreshIntervalLabel(state.refreshInterval)}` : "Auto: Off"}
-      </Badge>
-
-      {/* Loading Indicator */}
-      {state.isLoading && (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-          <span className="hidden sm:inline">Updating...</span>
-        </div>
+          {/* Loading Indicator */}
+          {state.isLoading && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              <span className="hidden sm:inline">Updating...</span>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
 }
+
+

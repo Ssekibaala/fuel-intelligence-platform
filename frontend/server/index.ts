@@ -1,12 +1,22 @@
 import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
 const isDev = process.env.NODE_ENV !== "production";
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+function log(message: string, source = "express") {
+  const formattedTime = new Date().toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
+
+  console.log(`${formattedTime} [${source}] ${message}`);
+}
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -41,7 +51,9 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  log("startup: begin");
   const server = await registerRoutes(app);
+  log("startup: routes registered");
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
@@ -62,9 +74,15 @@ app.use((req, res, next) => {
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
   if (app.get("env") === "development") {
+    log("startup: loading vite");
+    const { setupVite } = await import("./vite");
     await setupVite(app, server);
+    log("startup: vite ready");
   } else {
+    log("startup: loading static handler");
+    const { serveStatic } = await import("./vite");
     serveStatic(app);
+    log("startup: static handler ready");
   }
 
   // ALWAYS serve the app on the port specified in the environment variable PORT

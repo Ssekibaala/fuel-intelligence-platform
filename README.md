@@ -10,11 +10,20 @@ This repo contains a full-stack fleet intelligence platform with a Supabase back
 
 ## Setup
 1. **Create a Supabase project**
-2. **Apply the database schema**
-   - Open Supabase SQL Editor and run: `supabase/schema.sql`
-3. **Create your first admin**
+2. **Apply the full database setup**
+   - Run `supabase/migrations/0001_all_in_one.sql` in Supabase SQL Editor
+   - Then run:
+     - `supabase/migrations/20260226110000_drop_user_settings.sql`
+     - `supabase/migrations/20260226123000_rename_daily_movement_reports_to_trip_reports.sql`
+     - `supabase/migrations/20260226131000_trim_trip_reports_and_backfill_departure_date.sql`
+   - Do not use `supabase/schema.sql` for telemetry ingestion setup; that file is app-schema-only and does not install the ingestion worker pipeline
+3. **Deploy the Supabase edge function**
+   - `npx supabase link --project-ref <your-project-ref>`
+   - `npx supabase functions deploy ingest-telemetry --project-ref <your-project-ref>`
+   - `npx supabase functions deploy process-telemetry --project-ref <your-project-ref>`
+4. **Create your first admin**
    - Create a user in Supabase Auth, then run `supabase/seed.sql` with your user ID
-4. **Create environment file**
+5. **Create environment file**
    - Copy `frontend/.env.example` to `frontend/.env`
    - Fill in your Supabase keys:
      - `SUPABASE_URL`
@@ -79,7 +88,7 @@ Client users will only see data for their assigned clients.
 - Keep the **service role key** server-side only.
 - Use `VITE_API_BASE_URL` only if you deploy the API separately.
 - Enable RLS in Supabase if you allow direct client queries.
-  - The provided `supabase/schema.sql` already enables RLS with safe policies.
+  - The ingestion-ready setup is the consolidated migration at `supabase/migrations/0001_all_in_one.sql`.
 
 ## Duplicate Cleanup (Recommended)
 If you already have duplicate telemetry rows, run:

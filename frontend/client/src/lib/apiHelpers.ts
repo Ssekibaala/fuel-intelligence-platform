@@ -1,5 +1,15 @@
 import { GlobalFilter } from "@shared/schema";
 
+function toLocalDayKey(value?: string): string | undefined {
+  if (!value) return undefined;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return undefined;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export function buildApiUrl(
   baseUrl: string,
   filters?: {
@@ -45,6 +55,8 @@ export function globalFilterToApiParams(filterState: GlobalFilter) {
     clientId: filterState.selectedClientId !== "all" ? filterState.selectedClientId : undefined,
     vehicleIds: filterState.selectedVehicles.length > 0 ? filterState.selectedVehicles : undefined,
     startDate: filterState.dateRange.startDate,
-    endDate: filterState.dateRange.endDate
+    endDate: filterState.dateRange.endDate,
+    startDay: toLocalDayKey(filterState.dateRange.startDate),
+    endDay: toLocalDayKey(filterState.dateRange.endDate),
   };
 }

@@ -41,7 +41,7 @@ const initialState: GlobalFilterState = {
   selectedClientId: "all", // "all" or a specific client id
   selectedVehicles: [], // Empty array means "all vehicles"
   dateRange: getInitialDateRange(),
-  currency: "KES",
+  currency: "UGX",
   fuelCostPerLiter: 145.50,
   consumptionUnit: "KM/L",
   consumptionExcellentThreshold: 3.0,
@@ -363,33 +363,29 @@ export function useGlobalFilter() {
 
 export function getDateRangeFromPreset(preset: string, customRange?: { startDate: string; endDate: string }): { startDate: Date; endDate: Date } {
   const now = new Date();
-
-  // Anchor to UTC midnight of today so all presets line up with how Supabase
-  // stores UTC timestamps. Using Date.UTC prevents the "3h off" shift that
-  // occurs when new Date(year, month, date) (local midnight) is serialised
-  // to ISO (UTC) in non-UTC timezones like EAT (UTC+3).
   const MS_DAY = 24 * 60 * 60 * 1000;
-  const todayUtcMidnight = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const startOfLocalDay = (value: Date) => new Date(value.getFullYear(), value.getMonth(), value.getDate(), 0, 0, 0, 0);
+  const endOfLocalDay = (value: Date) => new Date(value.getFullYear(), value.getMonth(), value.getDate(), 23, 59, 59, 999);
+  const todayLocalMidnight = startOfLocalDay(now);
 
   switch (preset) {
     case "today":
       return {
-        startDate: todayUtcMidnight,
-        endDate: new Date(todayUtcMidnight.getTime() + MS_DAY - 1)
+        startDate: todayLocalMidnight,
+        endDate: endOfLocalDay(now)
       };
 
     case "yesterday": {
-      const yesterday = new Date(todayUtcMidnight.getTime() - MS_DAY);
+      const yesterday = new Date(todayLocalMidnight.getTime() - MS_DAY);
       return {
         startDate: yesterday,
-        endDate: new Date(yesterday.getTime() + MS_DAY - 1)
+        endDate: endOfLocalDay(yesterday)
       };
     }
 
     case "week_to_date": {
-      // Use UTC day-of-week so the week boundary doesn't shift with timezone
-      const dayOfWeek = now.getUTCDay(); // 0 = Sunday
-      const weekStart = new Date(todayUtcMidnight.getTime() - dayOfWeek * MS_DAY);
+      const dayOfWeek = now.getDay(); // 0 = Sunday
+      const weekStart = new Date(todayLocalMidnight.getTime() - dayOfWeek * MS_DAY);
       return {
         startDate: weekStart,
         endDate: now
@@ -397,7 +393,7 @@ export function getDateRangeFromPreset(preset: string, customRange?: { startDate
     }
 
     case "month_to_date": {
-      const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
       return {
         startDate: monthStart,
         endDate: now
@@ -406,32 +402,34 @@ export function getDateRangeFromPreset(preset: string, customRange?: { startDate
 
     case "last_7_days":
       return {
-        startDate: new Date(todayUtcMidnight.getTime() - 6 * MS_DAY),
+        startDate: new Date(todayLocalMidnight.getTime() - 6 * MS_DAY),
         endDate: now
       };
 
     case "last_30_days":
       return {
-        startDate: new Date(todayUtcMidnight.getTime() - 29 * MS_DAY),
+        startDate: new Date(todayLocalMidnight.getTime() - 29 * MS_DAY),
         endDate: now
       };
 
     case "custom":
       if (customRange?.startDate && customRange?.endDate) {
+        const customStart = new Date(customRange.startDate);
+        const customEnd = new Date(customRange.endDate);
         return {
-          startDate: new Date(customRange.startDate),
-          endDate: new Date(customRange.endDate)
+          startDate: startOfLocalDay(customStart),
+          endDate: endOfLocalDay(customEnd)
         };
       }
       // Fallback to last 7 days if custom range is invalid
       return {
-        startDate: new Date(todayUtcMidnight.getTime() - 6 * MS_DAY),
+        startDate: new Date(todayLocalMidnight.getTime() - 6 * MS_DAY),
         endDate: now
       };
 
     default:
       return {
-        startDate: new Date(todayUtcMidnight.getTime() - 6 * MS_DAY),
+        startDate: new Date(todayLocalMidnight.getTime() - 6 * MS_DAY),
         endDate: now
       };
   }

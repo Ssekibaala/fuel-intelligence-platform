@@ -11,6 +11,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Search, Filter, Download, AlertTriangle, Fuel, MapPin, Route, SortAsc, SortDesc } from "lucide-react";
 import { useGlobalFilter } from "./GlobalFilterContext";
 import { api, globalFilterToApiParams } from "../lib/api";
+import { formatDateTimeEAT } from "../lib/dateTime";
 
 type TabKey = "drains" | "thefts" | "trips";
 
@@ -48,14 +49,7 @@ const toDate = (value: unknown) => {
 
 const formatDate = (value: unknown) => {
   const parsed = toDate(value);
-  return parsed ? parsed.toLocaleDateString() : "Unknown";
-};
-
-const formatTime = (value: unknown) => {
-  const parsed = toDate(value);
-  return parsed
-    ? parsed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-    : "--";
+  return parsed ? formatDateTimeEAT(parsed) : "Unknown";
 };
 
 const toNumber = (value: unknown) => {
@@ -157,7 +151,7 @@ export function DataVisualizationTables({ initialTab = "drains" }: DataVisualiza
           location: String(event?.location || latestLocationByVehicle.get(vehicleId) || "Unknown"),
           status,
           type: status,
-          eventTime: formatTime(event?.eventTimestamp),
+          eventTime: formatDate(event?.eventTimestamp),
         };
       });
   }, [fuelEventsData, vehicleLabelById, latestLocationByVehicle]);
@@ -175,7 +169,7 @@ export function DataVisualizationTables({ initialTab = "drains" }: DataVisualiza
           location: String(event?.location || latestLocationByVehicle.get(vehicleId) || "Unknown"),
           status: "theft",
           type: "theft",
-          eventTime: formatTime(event?.eventTimestamp),
+          eventTime: formatDate(event?.eventTimestamp),
         };
       });
   }, [fuelEventsData, vehicleLabelById, latestLocationByVehicle]);
@@ -514,7 +508,7 @@ export function DataVisualizationTables({ initialTab = "drains" }: DataVisualiza
                     </th>
                     <th className="text-left p-3 font-medium">
                       <Button variant="ghost" size="sm" onClick={() => handleSort("date")} className="h-auto p-0 font-medium">
-                        Date
+                        Date / Time (EAT)
                         {sortField === "date" && (sortDirection === "asc" ? <SortAsc className="w-3 h-3 ml-1" /> : <SortDesc className="w-3 h-3 ml-1" />)}
                       </Button>
                     </th>
@@ -527,7 +521,7 @@ export function DataVisualizationTables({ initialTab = "drains" }: DataVisualiza
                       </>
                     ) : (
                       <>
-                        <th className="text-left p-3 font-medium">Event Time</th>
+                        <th className="text-left p-3 font-medium">Event Time (EAT)</th>
                         <th className="text-left p-3 font-medium">Volume (L)</th>
                         <th className="text-left p-3 font-medium">Type</th>
                       </>

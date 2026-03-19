@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { DollarSign, Gauge, Palette, Upload, Save, X } from "lucide-react";
+import { DollarSign, Gauge, Palette, Upload, Save, X, RefreshCw } from "lucide-react";
 import { useGlobalFilter } from "./GlobalFilterContext";
 import { useAuth } from "./AuthProvider";
 import { api } from "@/lib/api";
@@ -19,6 +19,7 @@ import { resolveBrandingClientId, setStoredBrandLogo } from "@/lib/branding";
 interface SettingsData {
   fuelCostPerLiter: number;
   defaultCurrency: string;
+  autoRefreshInterval: number;
   consumptionUnit: "KM/L" | "HRS/L";
   consumptionExcellentThreshold: number;
   consumptionAcceptableThreshold: number;
@@ -75,6 +76,7 @@ export function SettingsPage({ pageId }: SettingsPageProps) {
   const [settings, setSettings] = useState<SettingsData>({
     fuelCostPerLiter: filterState.fuelCostPerLiter,
     defaultCurrency: filterState.currency,
+    autoRefreshInterval: filterState.refreshInterval,
     consumptionUnit: filterState.consumptionUnit,
     consumptionExcellentThreshold: filterState.consumptionExcellentThreshold,
     consumptionAcceptableThreshold: filterState.consumptionAcceptableThreshold,
@@ -107,8 +109,8 @@ export function SettingsPage({ pageId }: SettingsPageProps) {
   }, [brandingClientId, brandingQuery.data?.logoUrl, brandingQuery.isSuccess]);
 
   const currencies = [
-    { value: "KES", label: "KES (Kenyan Shilling)" },
     { value: "UGX", label: "UGX (Ugandan Shilling)" },
+    { value: "KES", label: "KES (Kenyan Shilling)" },
     { value: "USD", label: "USD (US Dollar)" }
   ];
 
@@ -124,11 +126,20 @@ export function SettingsPage({ pageId }: SettingsPageProps) {
     { value: "alerts", label: "Alerts" }
   ];
 
+  const autoRefreshOptions = [
+    { value: 15000, label: "15 seconds" },
+    { value: 30000, label: "30 seconds" },
+    { value: 60000, label: "1 minute" },
+    { value: 300000, label: "5 minutes" },
+    { value: 0, label: "Disabled" },
+  ];
+
   const handleSaveSettings = async () => {
     setIsSaving(true);
     
     // Update global settings
     actions.setCurrency(settings.defaultCurrency as "KES" | "UGX" | "USD");
+    actions.setRefreshInterval(settings.autoRefreshInterval);
     actions.setFuelCostPerLiter(settings.fuelCostPerLiter);
     actions.setConsumptionUnit(settings.consumptionUnit);
     actions.setConsumptionThresholds({
@@ -356,6 +367,31 @@ export function SettingsPage({ pageId }: SettingsPageProps) {
               </Select>
               <p className="text-xs text-muted-foreground">
                 Used for all financial displays and reports
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-foreground">Auto Refresh</Label>
+              <Select
+                value={String(settings.autoRefreshInterval)}
+                onValueChange={(value) => updateSetting("autoRefreshInterval", Number.parseInt(value, 10) || 0)}
+              >
+                <SelectTrigger data-testid="select-auto-refresh-settings">
+                  <div className="flex items-center gap-2">
+                    <RefreshCw className="h-4 w-4 text-muted-foreground" />
+                    <SelectValue />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  {autoRefreshOptions.map((option) => (
+                    <SelectItem key={option.value} value={String(option.value)}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Controls how often live data refreshes across dashboard, assets, alerts, and reports.
               </p>
             </div>
 

@@ -12,6 +12,15 @@ import { FilterControls } from "./FilterControls";
 import { CountUpAnimation } from "./CountUpAnimation";
 import { useGlobalFilter } from "./GlobalFilterContext";
 import { api, globalFilterToApiParams } from "../lib/api";
+import {
+  combineMetricTotals,
+  deriveHoursPerLiter,
+  deriveConsumption,
+  getTodayLocalDayKey,
+  rangeIncludesToday as rangeEndsToday,
+  sumDailyMetricTotals,
+  sumVehicleTodayTotals,
+} from "../lib/fleetMetrics";
 
 interface DashboardProps {
   selectedVehicle?: string;
@@ -113,34 +122,35 @@ export function Dashboard({ selectedVehicle, pageId }: DashboardProps) {
     return map;
   }, [vehicles]);
 
-  const aggregatedDailyMetrics = useMemo(
+  const isTodaySelected = filterState.dateRange.preset === "today";
+  const rangeIncludesToday = useMemo(() => {
+    return rangeEndsToday(filterState.dateRange.endDate, isTodaySelected);
+  }, [filterState.dateRange.endDate, isTodaySelected]);
+
+  const historicalMetricTotals = useMemo(
     () =>
-      dailyMetricsData.reduce(
-        (acc: { fuel: number; distance: number; engineHours: number }, metric: any) => ({
-          fuel: acc.fuel + Number(metric.totalFuelConsumed || 0),
-          distance: acc.distance + Number(metric.totalDistanceTraveled || 0),
-          engineHours: acc.engineHours + Number(metric.totalEngineHours || 0),
-        }),
-        { fuel: 0, distance: 0, engineHours: 0 }
-      ),
-    [dailyMetricsData]
+      sumDailyMetricTotals(dailyMetricsData, {
+        excludeUtcDay: rangeIncludesToday && !isTodaySelected ? getTodayLocalDayKey() : null,
+      }),
+    [dailyMetricsData, isTodaySelected, rangeIncludesToday]
+  );
+  const todayVehicleTotals = useMemo(() => sumVehicleTodayTotals(filteredVehicles), [filteredVehicles]);
+  const resolvedMetricTotals = useMemo(
+    () =>
+      combineMetricTotals({
+        isTodaySelected,
+        includeToday: rangeIncludesToday,
+        historical: historicalMetricTotals,
+        today: todayVehicleTotals,
+      }),
+    [historicalMetricTotals, isTodaySelected, rangeIncludesToday, todayVehicleTotals]
   );
 
-  const isTodaySelected = filterState.dateRange.preset === "today";
-
-  const totalFuelUsed = Math.max(0, isTodaySelected
-    ? filteredVehicles.reduce((sum: number, v: any) => sum + (Number(v.totalFuelUsed) || 0), 0)
-    : aggregatedDailyMetrics.fuel);
-
-  const totalDistance = Math.max(0, isTodaySelected
-    ? filteredVehicles.reduce((sum: number, v: any) => sum + (Number(v.totalDistance) || 0), 0)
-    : aggregatedDailyMetrics.distance);
-
-  const totalEngineHours = Math.max(0, isTodaySelected
-    ? filteredVehicles.reduce((sum: number, v: any) => sum + (Number(v.totalEngineHours) || 0), 0)
-    : aggregatedDailyMetrics.engineHours);
-  const consumptionHrsPerL = totalFuelUsed > 0 ? totalEngineHours / totalFuelUsed : 0;
-  const consumptionKmPerL = totalFuelUsed > 0 ? totalDistance / totalFuelUsed : 0;
+  const totalFuelUsed = Math.max(0, resolvedMetricTotals.fuel);
+  const totalDistance = Math.max(0, resolvedMetricTotals.distance);
+  const totalEngineHours = Math.max(0, resolvedMetricTotals.engineHours);
+  const consumptionHrsPerL = deriveHoursPerLiter(totalEngineHours, totalFuelUsed) ?? 0;
+  const consumptionKmPerL = deriveConsumption(totalDistance, totalFuelUsed) ?? 0;
   const selectedConsumptionValue =
     filterState.consumptionUnit === "KM/L" ? consumptionKmPerL : consumptionHrsPerL;
   const alternateConsumptionValue =
@@ -178,7 +188,7 @@ export function Dashboard({ selectedVehicle, pageId }: DashboardProps) {
   const selectedConsumptionDisplay =
     selectedConsumptionBand.label === "No Data" ? "--" : selectedConsumptionValue.toFixed(2);
   const totalAssets = (kpis?.totalVehicles ?? filteredVehicles.length);
-  const activeAssets = (kpis?.activeVehicles ?? filteredVehicles.filter((v: any) => v.status === "Active").length);
+  const activeAssets = (kpis?.activeVehicles ?? filteredVehicles.filter((v: any) => v.status === "Moving" || v.status === "Idling").length);
   const totalFuelCost = useMemo(() => {
     return Math.round(totalFuelUsed * (filterState.fuelCostPerLiter || 0));
   }, [totalFuelUsed, filterState.fuelCostPerLiter]);
@@ -725,7 +735,7 @@ export function Dashboard({ selectedVehicle, pageId }: DashboardProps) {
       {/* Page Header with Filter Controls */}
       <div className="mb-6 flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
         <PageHeader pageId={pageId || "dashboard"} className="mb-0" />
-        <FilterControls />
+        <FilterControls compact />
       </div>
 
       {/* Redesigned KPI Cards Section - 7 Cards with Count-up Animations */}
