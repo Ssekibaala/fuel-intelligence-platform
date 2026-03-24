@@ -207,6 +207,138 @@ export function globalFilterToApiParams(filterState: GlobalFilter) {
   };
 }
 
+export interface JourneyLocationSuggestion {
+  location: string;
+  normalizedLocation: string;
+  usageCount: number;
+  lastSeenAt: string | null;
+}
+
+export interface JourneyOccurrence {
+  id: string;
+  routePattern: "round_trip" | "one_way";
+  vehicleId: string | null;
+  vehicleKey: string;
+  vehicleLabel: string;
+  registrationNumber: string | null;
+  outboundTripId: string;
+  returnTripId: string | null;
+  departureLocation: string;
+  destinationLocation: string;
+  departureTime: string;
+  destinationArrivalTime: string;
+  returnDepartureTime: string | null;
+  returnArrivalTime: string;
+  outboundLegDurationHours: number;
+  roundTripDurationHours: number;
+  destinationDwellHours: number | null;
+  returnLegDurationHours: number | null;
+  routeDistanceKm: number;
+  routeFuelUsedLitres: number;
+  routeEfficiency: number | null;
+  routeDrivingHours: number | null;
+  maxSpeedKmh: number | null;
+  contextStartDay: string;
+  contextEndDay: string;
+  contextualFuelUsedLitres: number;
+  contextualDistanceKm: number;
+  contextualEngineHours: number;
+  contextualIdleHours: number;
+  contextualRefills: number;
+  contextualDrains: number;
+}
+
+export interface JourneyIncompleteOccurrence {
+  id: string;
+  routePattern: "round_trip" | "one_way";
+  vehicleId: string | null;
+  vehicleKey: string;
+  vehicleLabel: string;
+  registrationNumber: string | null;
+  departureLocation: string;
+  destinationLocation: string;
+  departureTime: string;
+  destinationArrivalTime: string;
+  routeDistanceKm: number;
+  routeFuelUsedLitres: number;
+}
+
+export interface JourneyVehiclePerformance {
+  vehicleId: string | null;
+  vehicleKey: string;
+  vehicleLabel: string;
+  registrationNumber: string | null;
+  tripCount: number;
+  averageDistanceKm: number;
+  averageFuelUsedLitres: number;
+  averageOutboundLegHours: number;
+  averageDurationHours: number;
+  averageDestinationDwellHours: number;
+  averageReturnLegHours: number;
+  averageRouteEfficiency: number;
+  averageContextIdleHours: number;
+  lastDepartureTime: string | null;
+}
+
+export interface JourneyTrendPoint {
+  dateKey: string;
+  tripCount: number;
+  totalDistanceKm: number;
+  totalFuelUsedLitres: number;
+  averageDurationHours: number;
+  averageRouteEfficiency: number;
+}
+
+export interface JourneyException {
+  type: "incomplete_return" | "high_fuel" | "long_duration" | "long_dwell";
+  occurrenceId?: string;
+  vehicleLabel: string;
+  message: string;
+  departureTime: string;
+}
+
+export interface JourneySavedRoute {
+  id: string;
+  clientId: string | null;
+  name: string;
+  departureLocation: string;
+  destinationLocation: string;
+  filters: Record<string, unknown>;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+  isArchived: boolean;
+}
+
+export interface JourneyAnalysis {
+  route: {
+    routePattern: "round_trip" | "one_way";
+    departureLocation: string;
+    destinationLocation: string;
+    startDate: string | null;
+    endDate: string | null;
+  };
+  summary: {
+    totalRoundTrips: number;
+    incompleteTrips: number;
+    uniqueVehicles: number;
+    averageDistanceKm: number;
+    averageFuelUsedLitres: number;
+    averageOutboundLegHours: number;
+    averageDurationHours: number;
+    averageDestinationDwellHours: number;
+    averageReturnLegHours: number;
+    averageRouteEfficiency: number;
+    averageContextIdleHours: number;
+    completionRate: number;
+  };
+  occurrences: JourneyOccurrence[];
+  incompleteOccurrences: JourneyIncompleteOccurrence[];
+  vehiclePerformance: JourneyVehiclePerformance[];
+  trends: JourneyTrendPoint[];
+  exceptions: JourneyException[];
+}
+
 export const api = {
   // Basic HTTP methods
   get: (url: string) => apiRequest("GET", url),
@@ -215,6 +347,7 @@ export const api = {
   delete: (url: string) => apiRequest("DELETE", url),
 
   getMe: () => apiRequest("GET", "/api/me"),
+  getPublicBrandingLogo: () => apiRequestLocal("GET", "/api/public/branding/logo"),
 
   // Dashboard API with filters
   getDashboardKPIs: (filters?: { clientId?: string; vehicleIds?: string[]; startDate?: string; endDate?: string }) =>
@@ -260,6 +393,37 @@ export const api = {
     clientId?: string;
   }) => apiRequest("GET", `/api/raw-sensor-data?${buildQueryParams(filters)}`),
 
+  getJourneyLocations: (filters?: { q?: string; clientId?: string }) =>
+    apiRequest("GET", `/api/journey-intelligence/locations?${buildQueryParams(filters)}`) as Promise<JourneyLocationSuggestion[]>,
+
+  getJourneyAnalysis: (filters: {
+    departureLocation: string;
+    destinationLocation: string;
+    routePattern?: "round_trip" | "one_way";
+    clientId?: string;
+    vehicleIds?: string[];
+    startDate?: string;
+    endDate?: string;
+    startDay?: string;
+    endDay?: string;
+  }) =>
+    apiRequest("GET", `/api/journey-intelligence/analysis?${buildQueryParams(filters)}`) as Promise<JourneyAnalysis>,
+
+  getJourneySavedRoutes: () =>
+    apiRequest("GET", "/api/journey-intelligence/saved-routes") as Promise<JourneySavedRoute[]>,
+
+  createJourneySavedRoute: (data: {
+    name: string;
+    departureLocation: string;
+    destinationLocation: string;
+    clientId?: string;
+    filters?: Record<string, unknown>;
+  }) =>
+    apiRequest("POST", "/api/journey-intelligence/saved-routes", data) as Promise<JourneySavedRoute>,
+
+  deleteJourneySavedRoute: (id: string) =>
+    apiRequest("DELETE", `/api/journey-intelligence/saved-routes/${id}`),
+
   // Chart data APIs (for backward compatibility)
   getFuelConsumptionChart: (filters?: { vehicleIds?: string[]; dateRange?: any }) =>
     apiRequest("POST", `/api/charts/fuel-consumption`, filters),
@@ -298,10 +462,16 @@ export const api = {
   },
   getBrandingLogo: (filters?: { clientId?: string }) =>
     apiRequest("GET", `/api/settings/branding/logo?${buildQueryParams(filters)}`),
+  getDefaultBrandingLogo: () =>
+    apiRequest("GET", "/api/settings/branding/default-logo"),
   uploadBrandingLogo: (formData: FormData) =>
     apiRequest("POST", "/api/settings/branding/logo", formData),
+  uploadDefaultBrandingLogo: (formData: FormData) =>
+    apiRequest("POST", "/api/settings/branding/default-logo", formData),
   deleteBrandingLogo: (filters?: { clientId?: string }) =>
     apiRequest("DELETE", `/api/settings/branding/logo?${buildQueryParams(filters)}`),
+  deleteDefaultBrandingLogo: () =>
+    apiRequest("DELETE", "/api/settings/branding/default-logo"),
   uploadAdminSourceOfTruth: (formData: FormData) =>
     apiRequestLocalJson("POST", "/api/admin/source-of-truth/upload", formData),
   previewAdminSourceOfTruth: (formData: FormData) =>

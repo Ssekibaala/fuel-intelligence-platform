@@ -6,6 +6,7 @@ import { useGlobalFilter } from "@/components/GlobalFilterContext";
 import { api } from "@/lib/api";
 import {
   BRAND_LOGO_UPDATED_EVENT,
+  getAnyStoredBrandLogo,
   getStoredBrandLogo,
   resolveBrandingClientId,
   setStoredBrandLogo,
@@ -18,20 +19,34 @@ type BrandingLogoResponse = {
   requiresClientSelection?: boolean;
 };
 
-export function useBrandingLogo() {
+type UseBrandingLogoOptions = {
+  preferAnyStoredLogo?: boolean;
+};
+
+export function useBrandingLogo(options: UseBrandingLogoOptions = {}) {
   const { state } = useGlobalFilter();
   const { clientIds } = useAuth();
+  const { preferAnyStoredLogo = false } = options;
 
   const brandingClientId = useMemo(
     () => resolveBrandingClientId(state.selectedClientId, clientIds),
     [state.selectedClientId, clientIds]
   );
 
-  const [logoSrc, setLogoSrc] = useState<string>(() => getStoredBrandLogo(brandingClientId) || teletracLogo);
+  const resolveInitialLogo = () =>
+    getStoredBrandLogo(brandingClientId)
+    || (preferAnyStoredLogo ? getAnyStoredBrandLogo() : null)
+    || teletracLogo;
+
+  const [logoSrc, setLogoSrc] = useState<string>(resolveInitialLogo);
 
   useEffect(() => {
-    setLogoSrc(getStoredBrandLogo(brandingClientId) || teletracLogo);
-  }, [brandingClientId]);
+    setLogoSrc(
+      getStoredBrandLogo(brandingClientId)
+      || (preferAnyStoredLogo ? getAnyStoredBrandLogo() : null)
+      || teletracLogo
+    );
+  }, [brandingClientId, preferAnyStoredLogo]);
 
   const brandingQuery = useQuery<BrandingLogoResponse>({
     queryKey: ["/api/settings/branding/logo", brandingClientId ?? "none"],
@@ -40,9 +55,17 @@ export function useBrandingLogo() {
     staleTime: 60 * 1000,
   });
 
+  const publicBrandingQuery = useQuery<BrandingLogoResponse>({
+    queryKey: ["/api/public/branding/logo"],
+    enabled: preferAnyStoredLogo && !brandingClientId,
+    queryFn: () => api.getPublicBrandingLogo(),
+    staleTime: 60 * 1000,
+  });
+
   useEffect(() => {
     if (!brandingClientId) {
-      setLogoSrc(teletracLogo);
+      const publicLogoUrl = preferAnyStoredLogo ? publicBrandingQuery.data?.logoUrl ?? null : null;
+      setLogoSrc(publicLogoUrl || (preferAnyStoredLogo ? getAnyStoredBrandLogo() : null) || teletracLogo);
       return;
     }
     if (!brandingQuery.isSuccess) return;
@@ -50,11 +73,23 @@ export function useBrandingLogo() {
     const persistedLogoUrl = brandingQuery.data?.logoUrl ?? null;
     setStoredBrandLogo(persistedLogoUrl, brandingClientId);
     setLogoSrc(persistedLogoUrl || teletracLogo);
-  }, [brandingClientId, brandingQuery.data?.logoUrl, brandingQuery.isSuccess]);
+  }, [
+    brandingClientId,
+    brandingQuery.data?.logoUrl,
+    brandingQuery.isSuccess,
+    preferAnyStoredLogo,
+    publicBrandingQuery.data?.logoUrl,
+  ]);
 
   useEffect(() => {
     const syncLogo = () => {
-      setLogoSrc(getStoredBrandLogo(brandingClientId) || teletracLogo);
+      setLogoSrc(
+        (preferAnyStoredLogo && !brandingClientId ? publicBrandingQuery.data?.logoUrl ?? null : null)
+        || 
+        getStoredBrandLogo(brandingClientId)
+        || (preferAnyStoredLogo ? getAnyStoredBrandLogo() : null)
+        || teletracLogo
+      );
     };
 
     syncLogo();
@@ -64,7 +99,7 @@ export function useBrandingLogo() {
       window.removeEventListener(BRAND_LOGO_UPDATED_EVENT, syncLogo as EventListener);
       window.removeEventListener("storage", syncLogo);
     };
-  }, [brandingClientId]);
+  }, [brandingClientId, preferAnyStoredLogo, publicBrandingQuery.data?.logoUrl]);
 
   return {
     logoSrc,

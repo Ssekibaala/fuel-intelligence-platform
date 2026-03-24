@@ -36,6 +36,7 @@ type Report0LiveResult = {
 
 type VehicleIdentity = {
   imei: string | null;
+  clientId: string | null;
   clientName: string | null;
   assignedAsset: string | null;
 };
@@ -990,6 +991,94 @@ function toIsoTimestamp(value: unknown): string | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
 }
 
+function toIsoTimestampEatLocal(value: unknown): string | null {
+  const raw = toCleanString(value);
+  if (!raw) return null;
+  if (/[zZ]$|[+-]\d{2}:\d{2}$/.test(raw)) {
+    return toIsoTimestamp(raw);
+  }
+
+  const match = raw.match(
+    /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2})(\.\d{1,6})?)?$/
+  );
+  if (!match) return toIsoTimestamp(raw);
+
+  const milliseconds = match[7]
+    ? Math.round(Number(`0${match[7]}`) * 1000)
+    : 0;
+
+  const utcMillis = Date.UTC(
+    Number(match[1]),
+    Number(match[2]) - 1,
+    Number(match[3]),
+    Number(match[4]) - 3,
+    Number(match[5]),
+    Number(match[6] || "0"),
+    milliseconds
+  );
+  const parsed = new Date(utcMillis);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
+function extractIsoDayText(value: unknown): string | null {
+  const raw = toCleanString(value);
+  if (!raw) return null;
+  const match = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (match) return match[1];
+  return null;
+}
+
+function extractClockText(value: unknown): string | null {
+  const raw = toCleanString(value);
+  if (!raw) return null;
+  const match = raw.match(/(?:T| )(\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?)$/);
+  return match ? match[1] : null;
+}
+
+function combineEatDayAndClock(dayValue: unknown, timeValue: unknown): string | null {
+  const day = extractIsoDayText(dayValue) ?? toDateOnlyStrict(dayValue);
+  const clock = extractClockText(timeValue);
+  if (!day || !clock) return null;
+  return toIsoTimestampEatLocal(`${day}T${clock}`);
+}
+
+function addHoursToIso(iso: string | null, hours: number | null): string | null {
+  if (!iso || hours === null || !Number.isFinite(hours)) return null;
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return new Date(parsed.getTime() + hours * 3_600_000).toISOString();
+}
+
+function parseDurationHours(value: unknown): number | null {
+  const raw = toCleanString(value);
+  if (!raw) return null;
+
+  const directNumeric = toNumeric(raw);
+  if (/^\d+(\.\d+)?$/.test(raw) && directNumeric !== null) {
+    return directNumeric;
+  }
+
+  let totalSeconds = 0;
+  const hourMatch = raw.match(/(\d+(?:\.\d+)?)\s*h(?:ou)?rs?/i);
+  if (hourMatch) totalSeconds += Number(hourMatch[1]) * 3600;
+  const minuteMatch = raw.match(/(\d+(?:\.\d+)?)\s*m(?:in(?:ute)?s?)?/i);
+  if (minuteMatch) totalSeconds += Number(minuteMatch[1]) * 60;
+  const secondMatch = raw.match(/(\d+(?:\.\d+)?)\s*s(?:ec(?:ond)?s?)?/i);
+  if (secondMatch) totalSeconds += Number(secondMatch[1]);
+
+  if (totalSeconds > 0) return totalSeconds / 3600;
+
+  const colonMatch = raw.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (colonMatch) {
+    const hours = Number(colonMatch[1]);
+    const minutes = Number(colonMatch[2]);
+    const seconds = Number(colonMatch[3] || "0");
+    return (hours * 3600 + minutes * 60 + seconds) / 3600;
+  }
+
+  return null;
+}
+
 function toDateOnly(value: unknown): string {
   const iso = toIsoTimestamp(value);
   if (iso) return iso.slice(0, 10);
@@ -1437,11 +1526,23 @@ async function upsertTripRowsOneByOne(
 }
 
 function buildTripSourceKey(context: any, payload: any): string {
+  const tripAnchorDay =
+    extractIsoDayText(context?.date) ??
+    extractIsoDayText(payload?.start_date) ??
+    extractIsoDayText(payload?.end_date) ??
+    null;
+  const anchoredStart =
+    combineEatDayAndClock(tripAnchorDay, context?.date ?? context?.start_time) ??
+    toIsoTimestampEatLocal(context?.date ?? context?.start_time);
+  const anchoredEnd =
+    addHoursToIso(anchoredStart, parseDurationHours(context?.duration)) ??
+    combineEatDayAndClock(tripAnchorDay, context?.end_time ?? context?.arrival_time) ??
+    toIsoTimestampEatLocal(context?.end_time ?? context?.arrival_time ?? context?.date);
   const parts = [
     normalizeImei(context?.imei ?? context?.imei_number ?? payload?.imei ?? payload?.imei_number) ?? "",
     toOriginalText(context?.asset ?? context?.registration_number) ?? "",
-    toIsoTimestamp(context?.start_time ?? context?.date) ?? "",
-    toIsoTimestamp(context?.end_time ?? context?.arrival_time ?? context?.date) ?? "",
+    anchoredStart ?? "",
+    anchoredEnd ?? "",
     String(toNumeric(context?.start_odometer) ?? ""),
     String(toNumeric(context?.end_odometer) ?? ""),
     String(toNumeric(context?.kilometers ?? context?.distance_km ?? context?.distance) ?? ""),
@@ -1826,6 +1927,55 @@ function parseClientFromReportName(reportNameValue: unknown): string | null {
   return null;
 }
 
+function normalizeClientKey(value: unknown): string | null {
+  const text = toOriginalText(value);
+  if (!text) return null;
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isPlaceholderClientName(value: unknown): boolean {
+  const normalized = normalizeClientKey(value);
+  return normalized === null || normalized === "teletrac ingestion";
+}
+
+async function resolveClientIdFromName(
+  supabaseAdmin: any,
+  clientName: string | null,
+  cache: Map<string, string | null>
+): Promise<string | null> {
+  const key = normalizeClientKey(clientName);
+  if (!key) return null;
+  if (cache.has(key)) return cache.get(key) ?? null;
+
+  const { data, error } = await supabaseAdmin.from("clients").select("id,name");
+  if (error) throw error;
+
+  const rows = Array.isArray(data) ? data : [];
+  const exactMatches = rows.filter((row: any) => normalizeClientKey(row?.name) === key);
+  if (exactMatches.length === 1) {
+    const resolved = String(exactMatches[0].id);
+    cache.set(key, resolved);
+    return resolved;
+  }
+
+  const partialMatches = rows.filter((row: any) => {
+    const normalizedRow = normalizeClientKey(row?.name);
+    return normalizedRow ? normalizedRow.includes(key) || key.includes(normalizedRow) : false;
+  });
+  if (partialMatches.length === 1) {
+    const resolved = String(partialMatches[0].id);
+    cache.set(key, resolved);
+    return resolved;
+  }
+
+  cache.set(key, null);
+  return null;
+}
+
 async function fetchVehicleIdentityByImei(
   supabaseAdmin: any,
   imei: string | null
@@ -1833,7 +1983,7 @@ async function fetchVehicleIdentityByImei(
   const normalizedImei = normalizeImei(imei);
   if (!normalizedImei) return null;
 
-  const selectColumns = "imei,client_name,asset_id,vehicle_plate";
+  const selectColumns = "imei,client_id,client_name,asset_id,vehicle_plate";
 
   const lookupByColumn = async (column: "imei" | "asset_id" | "vehicle_plate", value: string) => {
     const { data, error } = await supabaseAdmin
@@ -1854,6 +2004,7 @@ async function fetchVehicleIdentityByImei(
 
   return {
     imei: normalizeImei(vehicleMatch.imei),
+    clientId: toCleanString(vehicleMatch.client_id),
     clientName: toOriginalText(vehicleMatch.client_name),
     assignedAsset: toOriginalText(vehicleMatch.vehicle_plate) ?? toOriginalText(vehicleMatch.asset_id)
   };
@@ -1866,7 +2017,7 @@ async function fetchVehicleIdentityByAsset(
   const cleanAsset = toOriginalText(assignedAsset);
   if (!cleanAsset) return null;
 
-  const selectColumns = "imei,client_name,asset_id,vehicle_plate";
+  const selectColumns = "imei,client_id,client_name,asset_id,vehicle_plate";
   const byAssetId = await supabaseAdmin
     .from("vehicles")
     .select(selectColumns)
@@ -1877,6 +2028,7 @@ async function fetchVehicleIdentityByAsset(
   if (byAssetId.data) {
     return {
       imei: normalizeImei(byAssetId.data.imei),
+      clientId: toCleanString(byAssetId.data.client_id),
       clientName: toOriginalText(byAssetId.data.client_name),
       assignedAsset: toOriginalText(byAssetId.data.vehicle_plate) ?? toOriginalText(byAssetId.data.asset_id)
     };
@@ -1893,6 +2045,7 @@ async function fetchVehicleIdentityByAsset(
 
   return {
     imei: normalizeImei(byVehiclePlate.data.imei),
+    clientId: toCleanString(byVehiclePlate.data.client_id),
     clientName: toOriginalText(byVehiclePlate.data.client_name),
     assignedAsset: toOriginalText(byVehiclePlate.data.vehicle_plate) ?? toOriginalText(byVehiclePlate.data.asset_id)
   };
@@ -1903,16 +2056,17 @@ async function fillVehicleIdentityGaps(
   vehicleId: string | null,
   identity: {
     imei: string | null;
+    clientId: string | null;
     clientName: string | null;
     assignedAsset: string | null;
   }
 ): Promise<void> {
   if (!vehicleId) return;
-  if (!identity.imei && !identity.clientName && !identity.assignedAsset) return;
+  if (!identity.imei && !identity.clientId && !identity.clientName && !identity.assignedAsset) return;
 
   const { data: vehicleRow, error: vehicleReadError } = await supabaseAdmin
     .from("vehicles")
-    .select("imei,asset_id,vehicle_plate,client_name")
+    .select("imei,asset_id,vehicle_plate,client_id,client_name")
     .eq("id", vehicleId)
     .maybeSingle();
   if (vehicleReadError) throw vehicleReadError;
@@ -1924,8 +2078,10 @@ async function fillVehicleIdentityGaps(
   const existingImei = normalizeImei(vehicleRow.imei);
   const existingAssetId = toOriginalText(vehicleRow.asset_id);
   const existingVehiclePlate = toOriginalText(vehicleRow.vehicle_plate);
+  const existingClientId = toCleanString(vehicleRow.client_id);
   const existingClientName = toOriginalText(vehicleRow.client_name);
   const incomingImei = normalizeImei(identity.imei);
+  const incomingClientId = toCleanString(identity.clientId);
   const incomingAsset = toOriginalText(identity.assignedAsset);
   const incomingClient = toOriginalText(identity.clientName);
 
@@ -1944,8 +2100,12 @@ async function fillVehicleIdentityGaps(
     patch.vehicle_plate = incomingAsset;
     hasPatch = true;
   }
-  if (incomingClient && !existingClientName) {
+  if (incomingClient && (!existingClientName || isPlaceholderClientName(existingClientName))) {
     patch.client_name = incomingClient;
+    hasPatch = true;
+  }
+  if (incomingClientId && !existingClientId) {
+    patch.client_id = incomingClientId;
     hasPatch = true;
   }
 
@@ -2036,7 +2196,9 @@ function enrichFuelRecordFromPayload(
 
   transformed.report_name = parsed.report_name;
   if (parsed.imei_number) transformed.source_imei = parsed.imei_number;
-  if (parsed.client_name) transformed.client_name = transformed.client_name ?? parsed.client_name;
+  if (parsed.client_name && (isPlaceholderClientName(transformed.client_name) || !toOriginalText(transformed.client_name))) {
+    transformed.client_name = parsed.client_name;
+  }
   if (parsed.assigned_asset) transformed.source_assigned_asset = parsed.assigned_asset;
 
   if (!transformed.registration_number && parsed.assigned_asset) {
@@ -2665,6 +2827,7 @@ async function resolveIdentityForProfileItem(
     if (!imeiIdentity) {
       imeiIdentity = (await fetchVehicleIdentityByImei(supabaseAdmin, resolvedImei)) ?? {
         imei: null,
+        clientId: null,
         clientName: null,
         assignedAsset: null
       };
@@ -2681,6 +2844,7 @@ async function resolveIdentityForProfileItem(
     if (!assetIdentity) {
       assetIdentity = (await fetchVehicleIdentityByAsset(supabaseAdmin, item.asset)) ?? {
         imei: null,
+        clientId: null,
         clientName: null,
         assignedAsset: null
       };
@@ -2955,6 +3119,8 @@ async function upsertDailyMovementFromTripReport(
     parseClientFromReportName(reportName ?? row.report_name);
   const identityCache = new Map<string, string | null>();
   const imeiIdentityCache = new Map<string, VehicleIdentity | null>();
+  const assetIdentityCache = new Map<string, VehicleIdentity | null>();
+  const clientIdCache = new Map<string, string | null>();
   const tripRows: any[] = [];
 
   for (const item of items) {
@@ -2992,16 +3158,40 @@ async function upsertDailyMovementFromTripReport(
       }
     }
 
-    const clientName =
-      toOriginalText(context?.client_name ?? context?.client) ??
-      imeiIdentity?.clientName ??
-      fallbackClient;
-    const registrationNumber =
+    const explicitRegistration =
       toOriginalText(context?.registration_number) ??
       toOriginalText(context?.asset) ??
       toOriginalText(transformed.registration_number) ??
-      toOriginalText(transformed.asset_description) ??
+      toOriginalText(transformed.asset_description);
+
+    let assetIdentity: VehicleIdentity | null = null;
+    if (explicitRegistration) {
+      const assetKey = explicitRegistration.toLowerCase();
+      if (assetIdentityCache.has(assetKey)) {
+        assetIdentity = assetIdentityCache.get(assetKey) ?? null;
+      } else {
+        assetIdentity = await fetchVehicleIdentityByAsset(supabaseAdmin, explicitRegistration);
+        assetIdentityCache.set(assetKey, assetIdentity);
+      }
+    }
+
+    const explicitClientName = toOriginalText(context?.client_name ?? context?.client);
+    const normalizedExplicitClientName = isPlaceholderClientName(explicitClientName) ? null : explicitClientName;
+    const clientName =
+      normalizedExplicitClientName ??
+      fallbackClient ??
+      imeiIdentity?.clientName ??
+      assetIdentity?.clientName;
+    const clientId =
+      toCleanString(context?.client_id) ??
+      await resolveClientIdFromName(supabaseAdmin, clientName, clientIdCache) ??
+      imeiIdentity?.clientId ??
+      assetIdentity?.clientId ??
+      null;
+    const registrationNumber =
+      explicitRegistration ??
       imeiIdentity?.assignedAsset ??
+      assetIdentity?.assignedAsset ??
       null;
 
     const vehicleIdentityKey = `${imei ?? ""}|${clientName ?? ""}|${registrationNumber ?? ""}`;
@@ -3024,6 +3214,7 @@ async function upsertDailyMovementFromTripReport(
 
       await fillVehicleIdentityGaps(supabaseAdmin, vehicleId, {
         imei,
+        clientId,
         clientName,
         assignedAsset: registrationNumber
       });
@@ -3032,17 +3223,37 @@ async function upsertDailyMovementFromTripReport(
     transformed.source_trip_key = toOriginalText(transformed.source_trip_key) ?? buildTripSourceKey(context, payload);
     transformed.report_name = transformed.report_name ?? reportName;
     transformed.source_imei = imei ?? transformed.source_imei ?? null;
-    transformed.client_name = transformed.client_name ?? clientName;
+    if (clientName && (isPlaceholderClientName(transformed.client_name) || !toOriginalText(transformed.client_name))) {
+      transformed.client_name = clientName;
+    }
+    transformed.client_id = transformed.client_id ?? clientId;
     transformed.source_assigned_asset = transformed.source_assigned_asset ?? registrationNumber;
     transformed.vehicle_id = transformed.vehicle_id ?? vehicleId;
     transformed.asset_description = transformed.asset_description ?? registrationNumber;
     transformed.registration_number = transformed.registration_number ?? registrationNumber;
+    const tripAnchorDay =
+      extractIsoDayText(context?.date) ??
+      extractIsoDayText(payload?.start_date) ??
+      extractIsoDayText(payload?.end_date) ??
+      extractIsoDayText(row?.received_at) ??
+      null;
+    const anchoredDepartureTime =
+      combineEatDayAndClock(tripAnchorDay, context?.date ?? context?.start_time) ??
+      toIsoTimestampEatLocal(context?.date ?? context?.start_time);
+    const anchoredArrivalTime =
+      addHoursToIso(anchoredDepartureTime, parseDurationHours(context?.duration)) ??
+      combineEatDayAndClock(tripAnchorDay, context?.end_time ?? context?.arrival_time) ??
+      toIsoTimestampEatLocal(context?.end_time ?? context?.arrival_time);
     transformed.report_date =
-      toIsoTimestamp(context?.date ?? context?.start_time ?? payload?.generated_date ?? payload?.start_date ?? row.received_at) ??
+      combineEatDayAndClock(tripAnchorDay, context?.date ?? context?.start_time) ??
+      toIsoTimestampEatLocal(context?.date ?? payload?.start_date ?? payload?.generated_date ?? row.received_at) ??
       transformed.report_date;
-    transformed.departure_time = transformed.departure_time ?? toIsoTimestamp(context?.start_time);
-    transformed.departure_date = transformed.departure_date ?? toDateOnly(transformed.departure_time ?? transformed.report_date);
-    transformed.arrival_time = transformed.arrival_time ?? toIsoTimestamp(context?.end_time);
+    transformed.departure_time = anchoredDepartureTime ?? transformed.departure_time;
+    transformed.departure_date =
+      tripAnchorDay ??
+      transformed.departure_date ??
+      toDateOnly(transformed.departure_time ?? transformed.report_date);
+    transformed.arrival_time = anchoredArrivalTime ?? transformed.arrival_time;
     transformed.departed_from = transformed.departed_from ?? toOriginalText(context?.start_Location ?? context?.start_location);
     transformed.arrived_at = transformed.arrived_at ?? toOriginalText(context?.endLocation ?? context?.end_location);
     transformed.driving_time = transformed.driving_time ?? toOriginalText(context?.duration);
@@ -3054,17 +3265,17 @@ async function upsertDailyMovementFromTripReport(
     tripRows.push(transformed);
   }
 
+  const { error: cleanupError } = await supabaseAdmin.from(TRIP_REPORT_TABLE).delete().eq("raw_inbound_id", row.id);
+  if (cleanupError && extractMissingColumn(cleanupError, TRIP_REPORT_TABLE) !== "raw_inbound_id") {
+    throw cleanupError;
+  }
+
   if (!tripRows.length) return { count: 0, firstImei: null, firstReportName: reportName };
 
   const deduped = dedupeRecordsForUpsert(tripRows, "source_trip_key").map(sanitizeTripReportRow);
   const payloadDuplicates = Math.max(0, tripRows.length - deduped.length);
   if (payloadDuplicates > 0) {
     noteDuplicateHandling(diagnostics, `trip_reports payload deduped ${payloadDuplicates}`);
-  }
-
-  const { error: cleanupError } = await supabaseAdmin.from(TRIP_REPORT_TABLE).delete().eq("raw_inbound_id", row.id);
-  if (cleanupError && extractMissingColumn(cleanupError, TRIP_REPORT_TABLE) !== "raw_inbound_id") {
-    throw cleanupError;
   }
 
   let { error: upsertError } = await executeWithMissingColumnFallback(

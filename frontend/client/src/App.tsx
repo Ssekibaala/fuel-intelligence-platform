@@ -17,8 +17,9 @@ import { SettingsPage } from "./components/SettingsPage";
 import { AlertsPage } from "./components/AlertsPage";
 import { ReportsPage } from "./components/ReportsPage";
 import { AdminPage } from "./components/AdminPage";
+import { RouteIntelligencePage } from "./components/RouteIntelligencePage";
 import { config } from "./lib/config";
-import { AlertTriangle, FileText, LayoutDashboard, Settings, ShieldCheck, Truck } from "lucide-react";
+import { AlertTriangle, FileText, LayoutDashboard, Route, Settings, ShieldCheck, Truck } from "lucide-react";
 
 // Main app content component that can access global filter context
 function AppContent() {
@@ -30,6 +31,7 @@ function AppContent() {
   const navigationItems = [
     { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { key: "assets", label: "Assets", icon: Truck },
+    { key: "journeys", label: "Journeys", icon: Route },
     { key: "alerts", label: "Alerts", icon: AlertTriangle },
     { key: "reports", label: "Reports", icon: FileText },
     ...(isAdmin ? [{ key: "admin", label: "Admin", icon: ShieldCheck }] : []),
@@ -88,6 +90,8 @@ function AppContent() {
         return <Dashboard pageId="dashboard" />;
       case "assets":
         return <VehiclesPage pageId="assets" />;
+      case "journeys":
+        return <RouteIntelligencePage pageId="journeys" />;
       case "alerts":
         return <AlertsPage pageId="alerts" />;
       case "reports":
@@ -109,13 +113,13 @@ function AppContent() {
       <div className="relative z-10 flex min-h-[100dvh]">
         {/* Sidebar (desktop/tablet) */}
         <div className="hidden md:block">
-          <Sidebar activePage={activePage} onNavigate={handleNavigate} theme={theme} toggleTheme={toggleTheme} />
+          <Sidebar activePage={activePage} onNavigate={handleNavigate} />
         </div>
 
         {/* Main content */}
         <main className="flex min-w-0 flex-1 flex-col">
           {/* Header with global filters */}
-          <Header onRefresh={handleRefresh} />
+          <Header onRefresh={handleRefresh} theme={theme} toggleTheme={toggleTheme} pageId={activePage} />
 
           {/* Page content */}
           <section className="flex-1 px-3 pt-3 pb-24 sm:px-4 sm:pt-4 sm:pb-24 lg:px-6 lg:pt-6 lg:pb-8">

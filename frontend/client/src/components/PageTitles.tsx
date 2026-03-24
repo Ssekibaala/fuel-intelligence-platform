@@ -16,12 +16,16 @@ export const pageTitles: PageTitlesMap = {
     subtitle: "Fleet Totals - Professional Data Density"
   },
   assets: {
-    title: "Vehicle Management Hub",
-    subtitle: "Monitor and optimize your fleet in real-time"
+    title: "Fleet Assets",
+    subtitle: "High-density overview of all fleet vehicles with key performance metrics"
+  },
+  journeys: {
+    title: "Journey Intelligence",
+    subtitle: "Find real A → B → A route behaviour, compare repeated visits, and save premium route analyses"
   },
   vehicles: {
-    title: "Vehicle Management Hub",
-    subtitle: "Monitor and optimize your fleet in real-time"
+    title: "Fleet Assets",
+    subtitle: "High-density overview of all fleet vehicles with key performance metrics"
   },
   alerts: {
     title: "Alerts Monitoring",

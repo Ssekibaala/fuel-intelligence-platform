@@ -37,6 +37,24 @@ export function getStoredBrandLogo(clientId?: string | null): string | null {
   }
 }
 
+export function getAnyStoredBrandLogo(): string | null {
+  if (!isBrowser()) return null;
+  try {
+    const storage = window.localStorage;
+    for (let index = 0; index < storage.length; index += 1) {
+      const key = storage.key(index);
+      if (!key || !key.startsWith(`${BRAND_LOGO_STORAGE_KEY}:`)) continue;
+      const value = storage.getItem(key);
+      if (value && value.trim().length > 0) {
+        return value;
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 export function setStoredBrandLogo(dataUrl: string | null, clientId?: string | null) {
   if (!isBrowser()) return;
   const normalizedClientId = normalizeBrandingClientId(clientId);

@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import { storage } from "./storage";
 import { setupReportsRoutes } from "./reports";
+import { setupJourneyIntelligenceRoutes } from "./journeyIntelligence";
 import { requireAuth, requireAdmin } from "./auth";
 import { supabaseAdmin } from "./supabase";
 import { importSourceOfTruthFile } from "./sourceOfTruthImport";
@@ -28,6 +29,7 @@ const brandingLogoUpload = multer({
 
 const BRANDING_LOGO_BUCKET = "client-branding";
 const BRANDING_LOGO_OBJECT_NAME = "heading-logo";
+const DEFAULT_BRANDING_SCOPE = "__default__";
 const BRANDING_LOGO_SIGNED_URL_TTL_SECONDS = 60 * 60 * 24 * 30;
 const ALLOWED_BRANDING_MIME_TYPES = new Set([
   "image/png",
@@ -115,6 +117,85 @@ async function fetchBrandingLogo(clientId: string) {
     logoUrl: signedUrlData?.signedUrl ?? null,
     updatedAt: logoObject.updated_at || logoObject.created_at || null,
   };
+}
+
+async function fetchDefaultBrandingLogo() {
+  return fetchBrandingLogo(DEFAULT_BRANDING_SCOPE);
+}
+
+async function fetchEffectiveBrandingLogo(clientId: string) {
+  const customLogo = await fetchBrandingLogo(clientId);
+  if (customLogo.logoUrl) {
+    return {
+      clientId,
+      logoUrl: customLogo.logoUrl,
+      updatedAt: customLogo.updatedAt,
+      source: "custom" as const,
+      hasCustomLogo: true,
+    };
+  }
+
+  const defaultLogo = await fetchDefaultBrandingLogo();
+  if (defaultLogo.logoUrl) {
+    return {
+      clientId,
+      logoUrl: defaultLogo.logoUrl,
+      updatedAt: defaultLogo.updatedAt,
+      source: "default" as const,
+      hasCustomLogo: false,
+    };
+  }
+
+  return {
+    clientId,
+    logoUrl: null as string | null,
+    updatedAt: null as string | null,
+    source: "builtin" as const,
+    hasCustomLogo: false,
+  };
+}
+
+async function fetchLatestBrandingLogo() {
+  await ensureBrandingBucket();
+
+  const defaultLogo = await fetchDefaultBrandingLogo();
+  if (defaultLogo.logoUrl) {
+    return {
+      clientId: DEFAULT_BRANDING_SCOPE,
+      logoUrl: defaultLogo.logoUrl,
+      updatedAt: defaultLogo.updatedAt,
+      source: "default" as const,
+    };
+  }
+
+  const { data: clientEntries, error: listError } = await supabaseAdmin.storage
+    .from(BRANDING_LOGO_BUCKET)
+    .list("", { limit: 1000 });
+  if (listError) throw listError;
+
+  const candidateClientIds = (clientEntries || [])
+    .filter((entry: any) => entry?.id === null && entry?.name)
+    .map((entry: any) => String(entry.name).trim())
+    .filter((value: string) => value.length > 0 && value !== DEFAULT_BRANDING_SCOPE);
+
+  let latest: { clientId: string; logoUrl: string | null; updatedAt: string | null; source: "custom" } | null = null;
+
+  for (const clientId of candidateClientIds) {
+    const logo = await fetchBrandingLogo(clientId);
+    if (!logo.logoUrl) continue;
+    if (!latest) {
+      latest = { clientId, ...logo, source: "custom" };
+      continue;
+    }
+
+    const latestTime = latest.updatedAt ? new Date(latest.updatedAt).getTime() : 0;
+    const currentTime = logo.updatedAt ? new Date(logo.updatedAt).getTime() : 0;
+    if (currentTime >= latestTime) {
+      latest = { clientId, ...logo, source: "custom" };
+    }
+  }
+
+  return latest || { clientId: null, logoUrl: null, updatedAt: null, source: "builtin" as const };
 }
 
 function isMissingColumnError(error: any): boolean {
@@ -471,6 +552,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/public/branding/logo", async (_req, res) => {
+    try {
+      const logo = await fetchLatestBrandingLogo();
+      return res.json({
+        clientId: logo.clientId,
+        logoUrl: logo.logoUrl,
+        updatedAt: logo.updatedAt,
+        source: logo.source,
+      });
+    } catch (error: any) {
+      return res.status(500).json({ error: error?.message || "Failed to fetch public branding logo" });
+    }
+  });
+
   // Require auth for all API routes
   app.use("/api", requireAuth);
 
@@ -512,15 +607,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           clientId: null,
           logoUrl: null,
           updatedAt: null,
+          source: "builtin",
+          hasCustomLogo: false,
           requiresClientSelection: true,
         });
       }
 
-      const logo = await fetchBrandingLogo(clientId);
+      const logo = await fetchEffectiveBrandingLogo(clientId);
       return res.json({
         clientId,
         logoUrl: logo.logoUrl,
         updatedAt: logo.updatedAt,
+        source: logo.source,
+        hasCustomLogo: logo.hasCustomLogo,
         requiresClientSelection: false,
       });
     } catch (error: any) {
@@ -528,7 +627,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/settings/branding/logo", brandingLogoUpload.single("file"), async (req, res) => {
+  app.get("/api/settings/branding/default-logo", requireAdmin, async (_req, res) => {
+    try {
+      const logo = await fetchDefaultBrandingLogo();
+      return res.json({
+        clientId: DEFAULT_BRANDING_SCOPE,
+        logoUrl: logo.logoUrl,
+        updatedAt: logo.updatedAt,
+        source: logo.logoUrl ? "default" : "builtin",
+      });
+    } catch (error: any) {
+      return res.status(500).json({ error: error?.message || "Failed to fetch default branding logo" });
+    }
+  });
+
+  app.post("/api/settings/branding/logo", requireAdmin, brandingLogoUpload.single("file"), async (req, res) => {
     try {
       const uploaded = req.file;
       if (!uploaded || !uploaded.buffer || !uploaded.originalname) {
@@ -559,11 +672,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       if (uploadError) throw uploadError;
 
-      const logo = await fetchBrandingLogo(clientId);
+      const logo = await fetchEffectiveBrandingLogo(clientId);
       return res.json({
         clientId,
         logoUrl: logo.logoUrl,
         updatedAt: logo.updatedAt,
+        source: logo.source,
+        hasCustomLogo: logo.hasCustomLogo,
         requiresClientSelection: false,
       });
     } catch (error: any) {
@@ -571,7 +686,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/settings/branding/logo", async (req, res) => {
+  app.post("/api/settings/branding/default-logo", requireAdmin, brandingLogoUpload.single("file"), async (req, res) => {
+    try {
+      const uploaded = req.file;
+      if (!uploaded || !uploaded.buffer || !uploaded.originalname) {
+        return res.status(400).json({ error: "Logo file is required." });
+      }
+
+      if (!ALLOWED_BRANDING_MIME_TYPES.has(uploaded.mimetype)) {
+        return res.status(400).json({ error: "Unsupported logo format. Use PNG, JPG, WEBP, or SVG." });
+      }
+
+      await ensureBrandingBucket();
+      const fullPath = brandingObjectPath(DEFAULT_BRANDING_SCOPE);
+      const { error: uploadError } = await supabaseAdmin.storage
+        .from(BRANDING_LOGO_BUCKET)
+        .upload(fullPath, uploaded.buffer, {
+          upsert: true,
+          contentType: uploaded.mimetype,
+          cacheControl: "3600",
+        });
+      if (uploadError) throw uploadError;
+
+      const logo = await fetchDefaultBrandingLogo();
+      return res.json({
+        clientId: DEFAULT_BRANDING_SCOPE,
+        logoUrl: logo.logoUrl,
+        updatedAt: logo.updatedAt,
+        source: logo.logoUrl ? "default" : "builtin",
+      });
+    } catch (error: any) {
+      return res.status(400).json({ error: error?.message || "Failed to upload default branding logo" });
+    }
+  });
+
+  app.delete("/api/settings/branding/logo", requireAdmin, async (req, res) => {
     try {
       const requestedClientId = getRequestedBrandingClientId(req);
       const clientId = resolveBrandingClientId(req, requestedClientId);
@@ -589,14 +738,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .remove([fullPath]);
       if (removeError) throw removeError;
 
+      const logo = await fetchEffectiveBrandingLogo(clientId);
       return res.json({
         clientId,
-        logoUrl: null,
-        updatedAt: null,
+        logoUrl: logo.logoUrl,
+        updatedAt: logo.updatedAt,
+        source: logo.source,
+        hasCustomLogo: logo.hasCustomLogo,
         requiresClientSelection: false,
       });
     } catch (error: any) {
       return res.status(400).json({ error: error?.message || "Failed to reset branding logo" });
+    }
+  });
+
+  app.delete("/api/settings/branding/default-logo", requireAdmin, async (_req, res) => {
+    try {
+      await ensureBrandingBucket();
+      const fullPath = brandingObjectPath(DEFAULT_BRANDING_SCOPE);
+      const { error: removeError } = await supabaseAdmin.storage
+        .from(BRANDING_LOGO_BUCKET)
+        .remove([fullPath]);
+      if (removeError) throw removeError;
+
+      return res.json({
+        clientId: DEFAULT_BRANDING_SCOPE,
+        logoUrl: null,
+        updatedAt: null,
+        source: "builtin",
+      });
+    } catch (error: any) {
+      return res.status(400).json({ error: error?.message || "Failed to reset default branding logo" });
     }
   });
 
@@ -1366,6 +1538,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Reports routes
   setupReportsRoutes(app);
+  setupJourneyIntelligenceRoutes(app);
 
   const httpServer = createServer(app);
   return httpServer;

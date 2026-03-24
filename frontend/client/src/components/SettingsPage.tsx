@@ -40,6 +40,8 @@ type BrandingLogoResponse = {
   logoUrl: string | null;
   updatedAt?: string | null;
   requiresClientSelection?: boolean;
+  source?: "custom" | "default" | "builtin";
+  hasCustomLogo?: boolean;
 };
 
 const getConsumptionThresholdConfig = (unit: "KM/L" | "HRS/L") =>
@@ -66,7 +68,7 @@ const getConsumptionThresholdConfig = (unit: "KM/L" | "HRS/L") =>
 export function SettingsPage({ pageId }: SettingsPageProps) {
   const { toast } = useToast();
   const { state: filterState, actions } = useGlobalFilter();
-  const { clientIds } = useAuth();
+  const { clientIds, isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const brandingClientId = useMemo(
     () => resolveBrandingClientId(filterState.selectedClientId, clientIds),
@@ -93,6 +95,13 @@ export function SettingsPage({ pageId }: SettingsPageProps) {
     queryKey: ["/api/settings/branding/logo", brandingClientId ?? "none"],
     enabled: Boolean(brandingClientId),
     queryFn: () => api.getBrandingLogo({ clientId: brandingClientId || undefined }),
+    staleTime: 60 * 1000,
+  });
+
+  const defaultBrandingQuery = useQuery<BrandingLogoResponse>({
+    queryKey: ["/api/settings/branding/default-logo"],
+    enabled: isAdmin,
+    queryFn: () => api.getDefaultBrandingLogo(),
     staleTime: 60 * 1000,
   });
 
@@ -161,6 +170,15 @@ export function SettingsPage({ pageId }: SettingsPageProps) {
   const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    if (!isAdmin) {
+      toast({
+        variant: "destructive",
+        title: "Admin access required",
+        description: "Branding can only be changed from an admin account.",
+      });
+      event.target.value = "";
+      return;
+    }
     if (!brandingClientId) {
       toast({
         variant: "destructive",
@@ -217,6 +235,14 @@ export function SettingsPage({ pageId }: SettingsPageProps) {
   };
 
   const handleResetLogo = async () => {
+    if (!isAdmin) {
+      toast({
+        variant: "destructive",
+        title: "Admin access required",
+        description: "Branding can only be changed from an admin account.",
+      });
+      return;
+    }
     if (!brandingClientId) return;
     try {
       const response = await api.deleteBrandingLogo({ clientId: brandingClientId });
@@ -236,6 +262,107 @@ export function SettingsPage({ pageId }: SettingsPageProps) {
         variant: "destructive",
         title: "Reset failed",
         description: error?.message || "Could not reset logo. Please try again.",
+      });
+    }
+  };
+
+  const handleDefaultLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!isAdmin) {
+      toast({
+        variant: "destructive",
+        title: "Admin access required",
+        description: "Only admins can change the platform default logo.",
+      });
+      event.target.value = "";
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      toast({
+        variant: "destructive",
+        title: "Invalid file",
+        description: "Please upload an image file.",
+      });
+      event.target.value = "";
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast({
+        variant: "destructive",
+        title: "File too large",
+        description: "Logo must be 2MB or smaller.",
+      });
+      event.target.value = "";
+      return;
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await api.uploadDefaultBrandingLogo(formData);
+      queryClient.setQueryData(["/api/settings/branding/default-logo"], response);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/settings/branding/logo"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/public/branding/logo"] }),
+      ]);
+
+      if (brandingClientId && !brandingQuery.data?.hasCustomLogo) {
+        setSettings((prev) => ({
+          ...prev,
+          companyLogo: response?.logoUrl ?? null,
+        }));
+      }
+
+      toast({
+        title: "Default logo updated",
+        description: "Clients without a custom logo will now inherit this default.",
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Upload failed",
+        description: error?.message || "Could not upload the default logo. Please try again.",
+      });
+    } finally {
+      event.target.value = "";
+    }
+  };
+
+  const handleResetDefaultLogo = async () => {
+    if (!isAdmin) {
+      toast({
+        variant: "destructive",
+        title: "Admin access required",
+        description: "Only admins can change the platform default logo.",
+      });
+      return;
+    }
+
+    try {
+      const response = await api.deleteDefaultBrandingLogo();
+      queryClient.setQueryData(["/api/settings/branding/default-logo"], response);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/settings/branding/logo"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/public/branding/logo"] }),
+      ]);
+
+      if (brandingClientId && !brandingQuery.data?.hasCustomLogo) {
+        setSettings((prev) => ({
+          ...prev,
+          companyLogo: response?.logoUrl ?? null,
+        }));
+      }
+
+      toast({
+        title: "Default logo reset",
+        description: "Clients without a custom logo will fall back to the built-in Teletrac logo.",
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Reset failed",
+        description: error?.message || "Could not reset the default logo. Please try again.",
       });
     }
   };
@@ -290,9 +417,16 @@ export function SettingsPage({ pageId }: SettingsPageProps) {
 
   const thresholdConfig = getConsumptionThresholdConfig(settings.consumptionUnit);
 
-  const currentHeadingLogo = settings.companyLogo || teletracLogo;
+  const platformDefaultLogo = defaultBrandingQuery.data?.logoUrl || teletracLogo;
+  const currentHeadingLogo = settings.companyLogo || platformDefaultLogo;
   const requiresSpecificClientSelection =
     !brandingClientId && (filterState.selectedClientId === "all" || !filterState.selectedClientId) && clientIds.length !== 1;
+  const canManageBranding = isAdmin && Boolean(brandingClientId);
+  const brandingManagementBlockedReason = !isAdmin
+    ? "Branding is managed in admin accounts only."
+    : requiresSpecificClientSelection
+      ? "Select a specific client in filters to manage branding."
+      : null;
 
   return (
     <div className="space-y-8">
@@ -514,67 +648,130 @@ export function SettingsPage({ pageId }: SettingsPageProps) {
         </GlassCard>
 
         {/* Branding & Defaults */}
-        <GlassCard className="p-6" hover={false}>
-          <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
-            <Palette className="w-5 h-5 text-primary" />
-            Branding & Defaults
-          </h2>
-          
-          <div className="space-y-6">
-            <div className="space-y-3">
-              <Label className="text-sm font-medium text-foreground">Page Heading Logo</Label>
-              <div className="flex items-center gap-4">
-                <div className="h-16 w-40 border border-border/30 rounded-lg overflow-hidden bg-white p-2">
-                  <img
-                    src={currentHeadingLogo}
-                    alt="Page heading logo"
-                    className="w-full h-full object-contain"
-                  />
-                </div>
-                <div className="flex-1">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleLogoUpload}
-                    className="hidden"
-                    id="logo-upload"
-                    data-testid="input-logo-upload"
-                  />
-                  <Button 
-                    variant="outline" 
-                    onClick={() => document.getElementById('logo-upload')?.click()}
-                    disabled={requiresSpecificClientSelection}
-                    className="flex items-center gap-2"
-                  >
-                    <Upload className="w-4 h-4" />
-                    Upload Logo
-                  </Button>
-                  {settings.companyLogo && (
+        {isAdmin && (
+          <GlassCard className="p-6" hover={false}>
+            <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
+              <Palette className="w-5 h-5 text-primary" />
+              Branding & Defaults
+            </h2>
+            
+            <div className="space-y-6">
+              <div className="space-y-3">
+                <Label className="text-sm font-medium text-foreground">Platform Default Logo</Label>
+                <div className="flex items-center gap-4">
+                  <div className="h-16 w-40 border border-border/30 rounded-lg overflow-hidden bg-white p-2">
+                    <img
+                      src={platformDefaultLogo}
+                      alt="Platform default logo"
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleDefaultLogoUpload}
+                      className="hidden"
+                      id="default-logo-upload"
+                      data-testid="input-default-logo-upload"
+                    />
                     <Button
-                      variant="ghost"
-                      onClick={handleResetLogo}
-                      disabled={requiresSpecificClientSelection}
-                      className="ml-2"
+                      variant="outline"
+                      onClick={() => document.getElementById("default-logo-upload")?.click()}
+                      className="flex items-center gap-2"
                     >
-                      <X className="w-4 h-4 mr-1" />
-                      Reset
+                      <Upload className="w-4 h-4" />
+                      Upload Default
                     </Button>
-                  )}
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Upload your brand logo here. It will appear in the page heading on each page.
-                  </p>
-                  {requiresSpecificClientSelection && (
-                    <p className="text-xs text-amber-600 mt-1">
-                      Select a specific client in filters to manage branding.
+                    {defaultBrandingQuery.data?.logoUrl && (
+                      <Button
+                        variant="ghost"
+                        onClick={handleResetDefaultLogo}
+                        className="ml-2"
+                      >
+                        <X className="w-4 h-4 mr-1" />
+                        Reset Default
+                      </Button>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Used automatically when a client does not have its own uploaded logo.
                     </p>
-                  )}
-                  {!requiresSpecificClientSelection && brandingQuery.isFetching && (
-                    <p className="text-xs text-muted-foreground mt-1">Loading saved logo...</p>
-                  )}
+                    {defaultBrandingQuery.isFetching && (
+                      <p className="text-xs text-muted-foreground mt-1">Loading default logo...</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <Label className="text-sm font-medium text-foreground">Client Override Logo</Label>
+                <div className="flex items-center gap-4">
+                  <div className="h-16 w-40 border border-border/30 rounded-lg overflow-hidden bg-white p-2">
+                    <img
+                      src={currentHeadingLogo}
+                      alt="Page heading logo"
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleLogoUpload}
+                      className="hidden"
+                      id="logo-upload"
+                      data-testid="input-logo-upload"
+                    />
+                    <Button 
+                      variant="outline" 
+                      onClick={() => document.getElementById('logo-upload')?.click()}
+                      disabled={!canManageBranding}
+                      className="flex items-center gap-2"
+                    >
+                      <Upload className="w-4 h-4" />
+                      Upload Logo
+                    </Button>
+                    {brandingQuery.data?.hasCustomLogo && (
+                      <Button
+                        variant="ghost"
+                        onClick={handleResetLogo}
+                        disabled={!canManageBranding}
+                        className="ml-2"
+                      >
+                        <X className="w-4 h-4 mr-1" />
+                        Reset
+                      </Button>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Upload a client-specific logo. If none is uploaded, this client inherits the platform default.
+                    </p>
+                    {brandingManagementBlockedReason && (
+                      <p className="text-xs text-amber-600 mt-1">
+                        {brandingManagementBlockedReason}
+                      </p>
+                    )}
+                    {brandingQuery.data?.source === "default" && brandingClientId && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        No custom client logo is uploaded. This client is currently using the platform default.
+                      </p>
+                    )}
+                    {brandingClientId && brandingQuery.isFetching && (
+                      <p className="text-xs text-muted-foreground mt-1">Loading saved logo...</p>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
-
+          </GlassCard>
+        )}
+        
+        <GlassCard className="p-6" hover={false}>
+          <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
+            <Palette className="w-5 h-5 text-primary" />
+            Interface & Defaults
+          </h2>
+          
+          <div className="space-y-6">
             <div className="space-y-3">
               <Label className="text-sm font-medium text-foreground">Default Theme</Label>
               <Select value={settings.defaultTheme} onValueChange={(value) => updateSetting('defaultTheme', value)}>

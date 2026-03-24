@@ -168,7 +168,7 @@ export function AlertsPage({ pageId }: AlertsPageProps) {
     <div className="space-y-6 animate-fade-in">
       {/* Alert Command Center Header */}
       <div className="mb-6 flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-        <PageHeader pageId={pageId || "alerts"} className="mb-0" />
+        <PageHeader pageId={pageId || "alerts"} className="mb-0 md:hidden" />
         <FilterControls compact />
       </div>
 

@@ -16,6 +16,9 @@ export default function HeaderExample() {
           selectedVehicle={selectedVehicle} 
           onVehicleChange={setSelectedVehicle}
           onRefresh={handleRefresh}
+          theme="dark"
+          toggleTheme={() => {}}
+          pageId="dashboard"
         />
         <div className="p-4">
           <p className="text-muted-foreground">Header component with vehicle selection and theme toggle</p>

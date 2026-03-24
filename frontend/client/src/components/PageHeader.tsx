@@ -10,7 +10,7 @@ export function PageHeader({ pageId, className = "" }: PageHeaderProps) {
   const { title, subtitle } = getPageTitle(pageId);
 
   return (
-    <div className={`mb-5 sm:mb-6 ${className}`}>
+    <div className={`mb-5 sm:mb-6 md:hidden ${className}`}>
       <div className="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:gap-3">
         <HeadingLogo className="shrink-0" />
         <div className="min-w-0 max-w-4xl">

@@ -7,12 +7,14 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
 import { type Vehicle } from "@shared/schema";
+import { api } from "../lib/api";
 
 interface VehicleMultiSelectProps {
   selectedVehicleIds: string[];
   onSelectionChange: (vehicleIds: string[]) => void;
   className?: string;
   selectionMode?: "single" | "multiple";
+  clientId?: string;
 }
 
 function getVehicleDisplayLabel(vehicle: Partial<Vehicle>) {
@@ -30,7 +32,8 @@ export function VehicleMultiSelect({
   selectedVehicleIds, 
   onSelectionChange,
   className = "",
-  selectionMode = "multiple"
+  selectionMode = "multiple",
+  clientId
 }: VehicleMultiSelectProps) {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -38,8 +41,12 @@ export function VehicleMultiSelect({
 
   // Fetch vehicles from API
   const { data: vehicles = [], isLoading, error } = useQuery<Vehicle[]>({
-    queryKey: ["/api/vehicles"],
+    queryKey: ["/api/vehicles", clientId],
     staleTime: 5 * 60 * 1000, // 5 minutes
+    queryFn: () =>
+      api.getVehicles({
+        clientId,
+      }),
   });
 
   // Filter vehicles based on search query

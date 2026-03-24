@@ -256,6 +256,13 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
   const [brushRange, setBrushRange] = useState<{ startIndex: number; endIndex: number } | null>(null);
   const [sensorConfigs, setSensorConfigs] = useState<Record<string, any>>({});
 
+  const activateFocusedVehicle = (vehicleId: string) => {
+    setCurrentVehicle(vehicleId);
+    onVehicleChange?.(vehicleId);
+    filterActions.setSelectedVehicles([vehicleId]);
+    setViewMode("focused");
+  };
+
   useEffect(() => {
     void queryClient.invalidateQueries({
       predicate: (query) => {
@@ -1121,7 +1128,8 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
     }
   }, [currentVehicle, vehiclesData]);
 
-  // Focused view is single-asset: keep the selected asset in sync with global filter when one is chosen.
+  // Follow explicit single-vehicle selections from the global filter.
+  // In focused mode this allows the page-level filter to switch assets cleanly.
   useEffect(() => {
     if (filterState.selectedVehicles.length !== 1) return;
     const selectedId = filterState.selectedVehicles[0];
@@ -1140,10 +1148,23 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
   // Focused view filter is single-asset only.
   useEffect(() => {
     if (viewMode !== "focused") return;
-    if (!currentVehicle) return;
+    const allowedIds = new Set(((vehiclesData as any[]) || []).map((vehicle: any) => vehicle.id));
+    const currentIsValid = !!currentVehicle && allowedIds.has(currentVehicle);
+
+    if (!currentIsValid) {
+      const fallbackVehicleId = filterState.selectedVehicles.find((id) => allowedIds.has(id)) ?? (vehiclesData as any[])?.[0]?.id ?? "";
+      if (fallbackVehicleId && fallbackVehicleId !== currentVehicle) {
+        setCurrentVehicle(fallbackVehicleId);
+      }
+      if (fallbackVehicleId && (filterState.selectedVehicles.length !== 1 || filterState.selectedVehicles[0] !== fallbackVehicleId)) {
+        filterActions.setSelectedVehicles([fallbackVehicleId]);
+      }
+      return;
+    }
+
     if (filterState.selectedVehicles.length === 1 && filterState.selectedVehicles[0] === currentVehicle) return;
     filterActions.setSelectedVehicles([currentVehicle]);
-  }, [viewMode, currentVehicle, filterState.selectedVehicles, filterActions]);
+  }, [viewMode, currentVehicle, filterState.selectedVehicles, filterActions, vehiclesData]);
 
   // Helper function to handle preview configuration changes
   const handlePreviewConfigChange = (field: string, value: any) => {
@@ -1350,28 +1371,54 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
     });
   }, [vehiclesData, dailyMetricsByVehicle, fuelEventsByVehicle, isTodaySelected, rangeIncludesToday]);
 
+  const fleetEventTotals = useMemo(() => {
+    return fleetFuelEventsData.reduce(
+      (
+        acc: {
+          refillCount: number;
+          refillVolume: number;
+          theftCount: number;
+          theftVolume: number;
+        },
+        event: any
+      ) => {
+        const eventType = String(event?.eventType || "").toLowerCase();
+        const volume = Math.max(0, Math.abs(Number(event?.volumeLiters || 0)));
+
+        if (eventType === "refill") {
+          acc.refillCount += 1;
+          acc.refillVolume += volume;
+        }
+
+        if (eventType === "theft" || eventType === "leak" || eventType === "drain") {
+          acc.theftCount += 1;
+          acc.theftVolume += volume;
+        }
+
+        return acc;
+      },
+      { refillCount: 0, refillVolume: 0, theftCount: 0, theftVolume: 0 }
+    );
+  }, [fleetFuelEventsData]);
+
   // Fleet-wide metrics for Proactive Scorecard
   const getFleetMetrics = () => {
     const movingAssets = fleetAssets.filter(asset => asset.status === "Moving").length;
     const parkedAssets = fleetAssets.filter(asset => asset.status === "Parked").length;
     const idlingAssets = fleetAssets.filter(asset => asset.status === "Idling").length;
 
-    const totalRefillsInRange = fleetAssets.reduce(
-      (sum, asset) => sum + Math.max(0, Math.trunc(Number(asset.refillCount || 0))),
-      0
-    );
-    const totalRefillVolumeInRange = fleetAssets.reduce(
-      (sum, asset) => sum + Math.max(0, Number(asset.refillVolume || 0)),
-      0
-    );
-    const totalTheftsInRange = fleetAssets.reduce(
-      (sum, asset) => sum + Math.max(0, Math.trunc(Number(asset.theftIncidents || 0))),
-      0
-    );
-    const totalTheftVolumeInRange = fleetAssets.reduce(
-      (sum, asset) => sum + Math.max(0, Number(asset.theftVolume || 0)),
-      0
-    );
+    const totalRefillsInRange =
+      fleetEventTotals.refillCount ||
+      fleetAssets.reduce((sum, asset) => sum + Math.max(0, Math.trunc(Number(asset.refillCount || 0))), 0);
+    const totalRefillVolumeInRange =
+      fleetEventTotals.refillVolume ||
+      fleetAssets.reduce((sum, asset) => sum + Math.max(0, Number(asset.refillVolume || 0)), 0);
+    const totalTheftsInRange =
+      fleetEventTotals.theftCount ||
+      fleetAssets.reduce((sum, asset) => sum + Math.max(0, Math.trunc(Number(asset.theftIncidents || 0))), 0);
+    const totalTheftVolumeInRange =
+      fleetEventTotals.theftVolume ||
+      fleetAssets.reduce((sum, asset) => sum + Math.max(0, Number(asset.theftVolume || 0)), 0);
 
     return {
       movingAssets,
@@ -1391,7 +1438,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
     <div className="space-y-4 animate-fade-in">
       {/* Fleet Assets Header */}
       <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-        <div className="space-y-2">
+        <div className="space-y-2 md:hidden">
           <div className="flex items-start gap-3">
             <HeadingLogo className="shrink-0" />
             <div className="space-y-1">
@@ -1586,8 +1633,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
                       data-active={currentVehicle === asset.id}
                       className="cursor-pointer transition-all duration-200 hover:-translate-y-0.5"
                       onClick={() => {
-                        setCurrentVehicle(asset.id);
-                        setViewMode("focused");
+                        activateFocusedVehicle(asset.id);
                       }}
                     >
                       <td className="min-w-[290px] px-4 py-3">
@@ -1785,8 +1831,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
                             variant="ghost"
                             size="sm"
                             onClick={() => {
-                              setCurrentVehicle(asset.id);
-                              setViewMode("focused");
+                              activateFocusedVehicle(asset.id);
                             }}
                             className="h-7 w-7 rounded-md p-0 hover:bg-primary/10"
                           >
