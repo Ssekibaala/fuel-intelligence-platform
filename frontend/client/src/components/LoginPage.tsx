@@ -39,13 +39,15 @@ export function LoginPage() {
               <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.18em] text-emerald-200">
                 Fuel Intelligence Platform
               </div>
-              <div className="mb-8 w-48 rounded-2xl bg-white/95 p-3 shadow-lg shadow-black/20">
-                <img
-                  src={logoSrc}
-                  alt="Teletrac Fuel logo"
-                  className="h-14 w-full object-contain"
-                />
-              </div>
+              {logoSrc ? (
+                <div className="mb-8 w-48 rounded-2xl bg-white/95 p-3 shadow-lg shadow-black/20">
+                  <img
+                    src={logoSrc}
+                    alt="Teletrac Fuel logo"
+                    className="h-14 w-full object-contain"
+                  />
+                </div>
+              ) : null}
               <h1 className="max-w-xl text-4xl font-semibold leading-tight text-white sm:text-5xl">
                 Turn every litre, trip, and anomaly into operational fuel insight.
               </h1>

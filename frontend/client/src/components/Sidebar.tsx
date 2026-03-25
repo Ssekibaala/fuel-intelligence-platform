@@ -63,9 +63,11 @@ export function Sidebar({ activePage, onNavigate }: SidebarProps) {
               isExpanded ? "justify-start gap-2 pl-1" : "justify-center gap-0"
             }`}
           >
-            <div className="h-8 w-8 rounded-md bg-white border border-border/40 shadow-sm p-1.5 shrink-0">
-              <img src={brandLogo} alt="Teletrac Fuel logo" className="h-full w-full object-contain" />
-            </div>
+            {brandLogo ? (
+              <div className="h-8 w-8 rounded-md bg-white border border-border/40 shadow-sm p-1.5 shrink-0">
+                <img src={brandLogo} alt="Teletrac Fuel logo" className="h-full w-full object-contain" />
+              </div>
+            ) : null}
             <span
               className={`whitespace-nowrap text-sm font-semibold tracking-tight text-foreground overflow-hidden transition-all duration-300 ease-out ${
                 isExpanded ? "max-w-[140px] opacity-100 translate-x-0" : "max-w-0 opacity-0 -translate-x-2"

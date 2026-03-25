@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import teletracLogo from "@/assets/teletrac-logo.png";
 import { useAuth } from "@/components/AuthProvider";
 import { useGlobalFilter } from "@/components/GlobalFilterContext";
 import { api } from "@/lib/api";
@@ -35,16 +34,15 @@ export function useBrandingLogo(options: UseBrandingLogoOptions = {}) {
 
   const resolveInitialLogo = () =>
     getStoredBrandLogo(brandingClientId)
-    || (preferAnyStoredLogo ? getAnyStoredBrandLogo() : null)
-    || teletracLogo;
+    || (preferAnyStoredLogo ? getAnyStoredBrandLogo() : null);
 
-  const [logoSrc, setLogoSrc] = useState<string>(resolveInitialLogo);
+  const [logoSrc, setLogoSrc] = useState<string | null>(resolveInitialLogo);
 
   useEffect(() => {
     setLogoSrc(
       getStoredBrandLogo(brandingClientId)
       || (preferAnyStoredLogo ? getAnyStoredBrandLogo() : null)
-      || teletracLogo
+      || null
     );
   }, [brandingClientId, preferAnyStoredLogo]);
 
@@ -65,14 +63,14 @@ export function useBrandingLogo(options: UseBrandingLogoOptions = {}) {
   useEffect(() => {
     if (!brandingClientId) {
       const publicLogoUrl = preferAnyStoredLogo ? publicBrandingQuery.data?.logoUrl ?? null : null;
-      setLogoSrc(publicLogoUrl || (preferAnyStoredLogo ? getAnyStoredBrandLogo() : null) || teletracLogo);
+      setLogoSrc(publicLogoUrl || (preferAnyStoredLogo ? getAnyStoredBrandLogo() : null) || null);
       return;
     }
     if (!brandingQuery.isSuccess) return;
 
     const persistedLogoUrl = brandingQuery.data?.logoUrl ?? null;
     setStoredBrandLogo(persistedLogoUrl, brandingClientId);
-    setLogoSrc(persistedLogoUrl || teletracLogo);
+    setLogoSrc(persistedLogoUrl || null);
   }, [
     brandingClientId,
     brandingQuery.data?.logoUrl,
@@ -88,7 +86,7 @@ export function useBrandingLogo(options: UseBrandingLogoOptions = {}) {
         || 
         getStoredBrandLogo(brandingClientId)
         || (preferAnyStoredLogo ? getAnyStoredBrandLogo() : null)
-        || teletracLogo
+        || null
       );
     };
 

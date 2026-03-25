@@ -7,6 +7,8 @@ interface HeadingLogoProps {
 export function HeadingLogo({ className = "" }: HeadingLogoProps) {
   const { logoSrc } = useBrandingLogo();
 
+  if (!logoSrc) return null;
+
   return (
     <div className={`inline-flex items-center rounded-lg border border-border/40 bg-white px-2 py-1.5 shadow-sm sm:px-3 sm:py-2 ${className}`}>
       <img

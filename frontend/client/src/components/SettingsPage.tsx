@@ -13,7 +13,6 @@ import { DollarSign, Gauge, Palette, Upload, Save, X, RefreshCw } from "lucide-r
 import { useGlobalFilter } from "./GlobalFilterContext";
 import { useAuth } from "./AuthProvider";
 import { api } from "@/lib/api";
-import teletracLogo from "@/assets/teletrac-logo.png";
 import { resolveBrandingClientId, setStoredBrandLogo } from "@/lib/branding";
 
 interface SettingsData {
@@ -417,7 +416,7 @@ export function SettingsPage({ pageId }: SettingsPageProps) {
 
   const thresholdConfig = getConsumptionThresholdConfig(settings.consumptionUnit);
 
-  const platformDefaultLogo = defaultBrandingQuery.data?.logoUrl || teletracLogo;
+  const platformDefaultLogo = defaultBrandingQuery.data?.logoUrl || null;
   const currentHeadingLogo = settings.companyLogo || platformDefaultLogo;
   const requiresSpecificClientSelection =
     !brandingClientId && (filterState.selectedClientId === "all" || !filterState.selectedClientId) && clientIds.length !== 1;
@@ -660,11 +659,13 @@ export function SettingsPage({ pageId }: SettingsPageProps) {
                 <Label className="text-sm font-medium text-foreground">Platform Default Logo</Label>
                 <div className="flex items-center gap-4">
                   <div className="h-16 w-40 border border-border/30 rounded-lg overflow-hidden bg-white p-2">
-                    <img
-                      src={platformDefaultLogo}
-                      alt="Platform default logo"
-                      className="w-full h-full object-contain"
-                    />
+                    {platformDefaultLogo ? (
+                      <img
+                        src={platformDefaultLogo}
+                        alt="Platform default logo"
+                        className="w-full h-full object-contain"
+                      />
+                    ) : null}
                   </div>
                   <div className="flex-1">
                     <input
@@ -707,11 +708,13 @@ export function SettingsPage({ pageId }: SettingsPageProps) {
                 <Label className="text-sm font-medium text-foreground">Client Override Logo</Label>
                 <div className="flex items-center gap-4">
                   <div className="h-16 w-40 border border-border/30 rounded-lg overflow-hidden bg-white p-2">
-                    <img
-                      src={currentHeadingLogo}
-                      alt="Page heading logo"
-                      className="w-full h-full object-contain"
-                    />
+                    {currentHeadingLogo ? (
+                      <img
+                        src={currentHeadingLogo}
+                        alt="Page heading logo"
+                        className="w-full h-full object-contain"
+                      />
+                    ) : null}
                   </div>
                   <div className="flex-1">
                     <input
