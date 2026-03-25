@@ -296,7 +296,32 @@ export function Dashboard({ selectedVehicle, pageId }: DashboardProps) {
       .sort((a, b) => a.dateKey.localeCompare(b.dateKey));
   }
 
-  const chartData = useMemo(() => transformDailyMetricsToChartData(dailyMetricsData), [dailyMetricsData]);
+  const chartData = useMemo(() => {
+    const historicalEntries = transformDailyMetricsToChartData(dailyMetricsData);
+    const includeTodayEntry = isTodaySelected || rangeIncludesToday;
+
+    if (!includeTodayEntry) {
+      return historicalEntries;
+    }
+
+    const todayDateKey = getTodayLocalDayKey();
+    const todayDate = new Date(`${todayDateKey}T00:00:00`);
+    const todayEntry = {
+      dateKey: todayDateKey,
+      day: todayDate.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      consumption: clampChartMetric(todayVehicleTotals.fuel),
+      distance: clampChartMetric(todayVehicleTotals.distance),
+      engineHours: clampChartMetric(todayVehicleTotals.engineHours),
+    };
+
+    const withoutToday = historicalEntries.filter((entry) => entry.dateKey !== todayDateKey);
+
+    if (isTodaySelected) {
+      return [todayEntry];
+    }
+
+    return [...withoutToday, todayEntry].sort((a, b) => a.dateKey.localeCompare(b.dateKey));
+  }, [dailyMetricsData, isTodaySelected, rangeIncludesToday, todayVehicleTotals]);
   const averageDailyFuelUsed = chartData.length
     ? chartData.reduce((sum, entry) => sum + Number(entry.consumption || 0), 0) / chartData.length
     : 0;
@@ -1156,7 +1181,7 @@ export function Dashboard({ selectedVehicle, pageId }: DashboardProps) {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
           {/* Column 1: Daily Fuel Consumption */}
-          <GlassCard className="flex min-h-[336px] flex-col p-6 hover-elevate motion-premium" data-testid="daily-fuel-consumption-chart">
+          <GlassCard className="flex min-h-[316px] flex-col p-6 hover-elevate motion-premium" data-testid="daily-fuel-consumption-chart">
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
                 <h3 className="text-lg font-semibold text-foreground">Daily Fuel Used</h3>
@@ -1171,7 +1196,7 @@ export function Dashboard({ selectedVehicle, pageId }: DashboardProps) {
             </div>
 
             <div className={`flex flex-1 flex-col ${chartStageClass}`}>
-              <ChartContainer config={consumptionChartConfig} className="h-full min-h-[272px] w-full flex-1">
+              <ChartContainer config={consumptionChartConfig} className="h-full min-h-[252px] w-full flex-1">
                 <BarChart data={chartData} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted/70" vertical={false} />
                   <XAxis
@@ -1210,7 +1235,7 @@ export function Dashboard({ selectedVehicle, pageId }: DashboardProps) {
           </GlassCard>
 
           {/* Column 2: Daily Distance Traveled */}
-          <GlassCard className="flex min-h-[336px] flex-col p-6 hover-elevate motion-premium" data-testid="daily-performance-chart">
+          <GlassCard className="flex min-h-[316px] flex-col p-6 hover-elevate motion-premium" data-testid="daily-performance-chart">
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
                 <h3 className="text-lg font-semibold text-foreground">Daily Distance Traveled</h3>
@@ -1225,7 +1250,7 @@ export function Dashboard({ selectedVehicle, pageId }: DashboardProps) {
             </div>
 
             <div className={`flex flex-1 flex-col ${chartStageClass}`}>
-              <ChartContainer config={performanceChartConfig} className="h-full min-h-[272px] w-full flex-1">
+              <ChartContainer config={performanceChartConfig} className="h-full min-h-[252px] w-full flex-1">
                 <BarChart data={chartData} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted/70" vertical={false} />
                   <XAxis
@@ -1265,7 +1290,7 @@ export function Dashboard({ selectedVehicle, pageId }: DashboardProps) {
           </GlassCard>
 
           {/* Column 3: Fleet Consumption Trend */}
-          <GlassCard className="flex min-h-[336px] flex-col p-6 hover-elevate motion-premium" data-testid="fleet-efficiency-chart">
+          <GlassCard className="flex min-h-[316px] flex-col p-6 hover-elevate motion-premium" data-testid="fleet-efficiency-chart">
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
                 <h3 className="text-lg font-semibold text-foreground">Fleet Consumption Trend</h3>
@@ -1300,7 +1325,7 @@ export function Dashboard({ selectedVehicle, pageId }: DashboardProps) {
                   {consumptionTrendSummary.total} measured days
                 </div>
               </div>
-              <ChartContainer config={efficiencyChartConfig} className="h-full min-h-[239px] w-full flex-1">
+              <ChartContainer config={efficiencyChartConfig} className="h-full min-h-[224px] w-full flex-1">
                 <BarChart
                   data={consumptionTrendData}
                   margin={{ top: 12, right: 8, left: 0, bottom: 0 }}

@@ -32,7 +32,7 @@ async function fetchProfile(token: string) {
   });
 
   if (!res.ok) {
-    throw new Error("Failed to load profile");
+    throw new Error(`Failed to load profile (${res.status})`);
   }
 
   return res.json();
@@ -44,6 +44,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<AuthProfile | null>(null);
   const [clientIds, setClientIds] = useState<string[]>([]);
   const [clients, setClients] = useState<Array<{ id: string; name: string }>>([]);
+
+  const applySessionUser = (session: Awaited<ReturnType<typeof supabase.auth.getSession>>["data"]["session"]) => {
+    if (session?.user) {
+      setUser({
+        id: session.user.id,
+        email: session.user.email ?? null,
+      });
+    } else {
+      setUser(null);
+    }
+  };
 
   const loadProfile = async (token: string) => {
     const data = await fetchProfile(token);
@@ -61,6 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (session?.access_token) {
         setAuthToken(session.access_token);
+        applySessionUser(session);
         try {
           await loadProfile(session.access_token);
         } catch (err) {
@@ -82,6 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session?.access_token) {
         setAuthToken(session.access_token);
+        applySessionUser(session);
         try {
           await loadProfile(session.access_token);
         } catch (err) {
