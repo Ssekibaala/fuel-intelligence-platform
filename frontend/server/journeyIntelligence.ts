@@ -20,6 +20,7 @@ type JourneyAnalysisFilters = {
   endDay?: string;
   clientIds?: string[];
   vehicleIds?: string[];
+  skipAvailabilityLookup?: boolean;
 };
 
 type MovementRow = {
@@ -117,6 +118,14 @@ type JourneyAnalysisResult = {
     startDate: string | null;
     endDate: string | null;
   };
+  routeAvailability: {
+    hasMatchesOutsideSelectedRange: boolean;
+    totalOccurrences: number;
+    firstDepartureTime: string | null;
+    lastArrivalTime: string | null;
+    suggestedStartDate: string | null;
+    suggestedEndDate: string | null;
+  } | null;
   summary: {
     totalRoundTrips: number;
     incompleteTrips: number;
@@ -242,6 +251,13 @@ function normalizeLocation(value: string): string {
 
 function locationMatches(actual: string | null | undefined, expected: string): boolean {
   return normalizeLocation(actual || "") === normalizeLocation(expected);
+}
+
+function isMeaningfulDepartureFrom(row: MovementRow, originLocation: string): boolean {
+  if (!locationMatches(row.departed_from, originLocation)) return false;
+  const arrivalLocation = String(row.arrived_at || "").trim();
+  if (!arrivalLocation) return false;
+  return !locationMatches(arrivalLocation, originLocation);
 }
 
 function toNumber(value: unknown): number {
@@ -657,16 +673,16 @@ export async function analyzeJourneyRoute(filters: JourneyAnalysisFilters): Prom
 
   legsByVehicle.forEach((vehicleRows, vehicleKey) => {
     for (let startIndex = 0; startIndex < vehicleRows.length; startIndex += 1) {
-      const startRow = vehicleRows[startIndex];
-      if (!locationMatches(startRow.departed_from, departureLocation)) continue;
+      const initialRow = vehicleRows[startIndex];
+      if (!locationMatches(initialRow.departed_from, departureLocation)) continue;
 
-      const outboundDeparture = parseIso(startRow.departure_time);
-      if (!outboundDeparture) continue;
+      const scanStartDeparture = parseIso(initialRow.departure_time);
+      if (!scanStartDeparture) continue;
 
       let destinationArrivalIndex = -1;
       for (let i = startIndex; i < vehicleRows.length; i += 1) {
         const arrival = parseIso(vehicleRows[i].arrival_time);
-        if (!arrival || arrival.getTime() < outboundDeparture.getTime()) continue;
+        if (!arrival || arrival.getTime() < scanStartDeparture.getTime()) continue;
         if (locationMatches(vehicleRows[i].arrived_at, destinationLocation)) {
           destinationArrivalIndex = i;
           break;
@@ -674,6 +690,25 @@ export async function analyzeJourneyRoute(filters: JourneyAnalysisFilters): Prom
       }
 
       if (destinationArrivalIndex === -1) continue;
+
+      let actualStartIndex = -1;
+      for (let i = startIndex; i <= destinationArrivalIndex; i += 1) {
+        if (isMeaningfulDepartureFrom(vehicleRows[i], departureLocation)) {
+          actualStartIndex = i;
+        }
+      }
+
+      if (actualStartIndex === -1) {
+        startIndex = destinationArrivalIndex;
+        continue;
+      }
+
+      const startRow = vehicleRows[actualStartIndex];
+      const outboundDeparture = parseIso(startRow.departure_time);
+      if (!outboundDeparture) {
+        startIndex = destinationArrivalIndex;
+        continue;
+      }
 
       const destinationArrivalRow = vehicleRows[destinationArrivalIndex];
       const destinationArrival = parseIso(destinationArrivalRow.arrival_time)!;
@@ -706,10 +741,10 @@ export async function analyzeJourneyRoute(filters: JourneyAnalysisFilters): Prom
             departureTime: outboundDeparture.toISOString(),
             destinationArrivalTime: destinationArrival.toISOString(),
             routeDistanceKm: vehicleRows
-              .slice(startIndex, destinationArrivalIndex + 1)
+              .slice(actualStartIndex, destinationArrivalIndex + 1)
               .reduce((sum, row) => sum + toNumber(row.distance_km), 0),
             routeFuelUsedLitres: vehicleRows
-              .slice(startIndex, destinationArrivalIndex + 1)
+              .slice(actualStartIndex, destinationArrivalIndex + 1)
               .reduce((sum, row) => sum + toNumber(row.fuel_used_litres), 0),
           });
           startIndex = destinationArrivalIndex;
@@ -725,13 +760,13 @@ export async function analyzeJourneyRoute(filters: JourneyAnalysisFilters): Prom
         for (let i = destinationArrivalIndex + 1; i <= finalArrivalIndex; i += 1) {
           const departure = parseIso(vehicleRows[i].departure_time);
           if (!departure || departure.getTime() < destinationArrival.getTime()) continue;
-          if (locationMatches(vehicleRows[i].departed_from, destinationLocation)) {
+          if (isMeaningfulDepartureFrom(vehicleRows[i], destinationLocation)) {
             lastDepartureFromB = departure;
           }
         }
       }
 
-      const segmentRows = vehicleRows.slice(startIndex, finalArrivalIndex + 1);
+      const segmentRows = vehicleRows.slice(actualStartIndex, finalArrivalIndex + 1);
       const contextStartDay = toDayKey(outboundDeparture);
       const contextEndDay = toDayKey(finalArrival);
       const vehicleId = startRow.vehicle_id || finalArrivalRow.vehicle_id || null;
@@ -946,6 +981,38 @@ export async function analyzeJourneyRoute(filters: JourneyAnalysisFilters): Prom
     .sort((a, b) => b.departureTime.localeCompare(a.departureTime))
     .slice(0, 12);
 
+  let routeAvailability: JourneyAnalysisResult["routeAvailability"] = null;
+  if (!filters.skipAvailabilityLookup && occurrenceCount === 0) {
+    const broaderStartDate = new Date(endExclusive);
+    broaderStartDate.setUTCDate(broaderStartDate.getUTCDate() - 365);
+
+    const broaderAnalysis = await analyzeJourneyRoute({
+      ...filters,
+      startDate: broaderStartDate.toISOString(),
+      endDate: new Date(endExclusive.getTime() - 1).toISOString(),
+      startDay: undefined,
+      endDay: undefined,
+      skipAvailabilityLookup: true,
+    });
+
+    if (broaderAnalysis.occurrences.length > 0) {
+      const chronologicallySorted = broaderAnalysis.occurrences
+        .slice()
+        .sort((a, b) => a.departureTime.localeCompare(b.departureTime));
+      const firstOccurrence = chronologicallySorted[0];
+      const lastOccurrence = chronologicallySorted[chronologicallySorted.length - 1];
+
+      routeAvailability = {
+        hasMatchesOutsideSelectedRange: true,
+        totalOccurrences: broaderAnalysis.occurrences.length,
+        firstDepartureTime: firstOccurrence?.departureTime || null,
+        lastArrivalTime: lastOccurrence?.returnArrivalTime || null,
+        suggestedStartDate: firstOccurrence?.departureTime || null,
+        suggestedEndDate: lastOccurrence?.returnArrivalTime || null,
+      };
+    }
+  }
+
   return {
     route: {
       routePattern,
@@ -954,6 +1021,7 @@ export async function analyzeJourneyRoute(filters: JourneyAnalysisFilters): Prom
       startDate: startDate.toISOString(),
       endDate: new Date(endExclusive.getTime() - 1).toISOString(),
     },
+    routeAvailability,
     summary: {
       totalRoundTrips: occurrenceCount,
       incompleteTrips: incomplete.length,

@@ -37,27 +37,27 @@ function AppContent() {
     ...(isAdmin ? [{ key: "admin", label: "Admin", icon: ShieldCheck }] : []),
     { key: "settings", label: "Settings", icon: Settings },
   ];
-  const invalidateApiQueries = () =>
+
+  const pageQueryPrefixes: Record<string, string[]> = {
+    dashboard: ["/api/dashboard/kpis", "/api/vehicles", "/api/fuel-events", "/api/daily-metrics"],
+    assets: ["/api/vehicles", "/api/fuel-events", "/api/daily-metrics", "/api/raw-sensor-data"],
+    journeys: ["/api/journey-intelligence"],
+    alerts: ["/api/vehicles", "/api/fuel-events"],
+    reports: ["/api/reports"],
+    admin: ["/api/admin"],
+    settings: ["/api/settings/branding", "/api/public/branding/logo"],
+  };
+
+  const invalidateActivePageQueries = () =>
     queryClient.invalidateQueries({
       predicate: (query) => {
         const firstKey = query.queryKey?.[0];
-        return typeof firstKey === "string" && firstKey.startsWith("/api");
+        if (typeof firstKey !== "string") return false;
+        const prefixes = pageQueryPrefixes[activePage] || [];
+        return prefixes.some((prefix) => firstKey.startsWith(prefix));
       },
       refetchType: "active",
     });
-
-  // Auto-refresh functionality based on refresh interval
-  useEffect(() => {
-    if (state.refreshInterval > 0) {
-      const interval = setInterval(() => {
-        actions.updateTimestamp();
-        // Trigger data refresh by invalidating queries
-        invalidateApiQueries();
-      }, state.refreshInterval);
-
-      return () => clearInterval(interval);
-    }
-  }, [state.refreshInterval, actions]);
 
   useEffect(() => {
     if (!hasAutoNavigated && isAdmin) {
@@ -69,8 +69,7 @@ function AppContent() {
   const handleRefresh = () => {
     actions.toggleLoading(true);
     
-    // Invalidate all queries to trigger fresh data fetch
-    invalidateApiQueries()
+    invalidateActivePageQueries()
       .then(() => {
         actions.updateTimestamp();
       })

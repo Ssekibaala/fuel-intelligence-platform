@@ -46,7 +46,7 @@ export function Sidebar({ activePage, onNavigate }: SidebarProps) {
   return (
     <aside
       className={`
-        h-screen transition-all duration-300 ease-out select-none flex-shrink-0 relative
+        h-screen transition-all duration-150 ease-out select-none flex-shrink-0 relative
         ${isExpanded ? "w-64" : "w-16"}
       `}
       onMouseEnter={() => setIsExpanded(true)}
@@ -54,12 +54,12 @@ export function Sidebar({ activePage, onNavigate }: SidebarProps) {
       data-testid="sidebar"
     >
       {/* Glass morphism background */}
-      <div className="flex h-full flex-col bg-card/30 backdrop-blur-xl border-r border-border/40">
+      <div className="flex h-full flex-col bg-card/55 backdrop-blur-sm border-r border-border/40">
         <div
           className="h-14 border-b border-border/20 px-2 overflow-hidden"
         >
           <div
-            className={`h-full flex items-center transition-all duration-300 ease-out ${
+            className={`h-full flex items-center transition-all duration-150 ease-out ${
               isExpanded ? "justify-start gap-2 pl-1" : "justify-center gap-0"
             }`}
           >
@@ -69,7 +69,7 @@ export function Sidebar({ activePage, onNavigate }: SidebarProps) {
               </div>
             ) : null}
             <span
-              className={`whitespace-nowrap text-sm font-semibold tracking-tight text-foreground overflow-hidden transition-all duration-300 ease-out ${
+              className={`whitespace-nowrap text-sm font-semibold tracking-tight text-foreground overflow-hidden transition-all duration-150 ease-out ${
                 isExpanded ? "max-w-[140px] opacity-100 translate-x-0" : "max-w-0 opacity-0 -translate-x-2"
               }`}
             >
@@ -90,7 +90,7 @@ export function Sidebar({ activePage, onNavigate }: SidebarProps) {
                 variant={isActive ? "default" : "ghost"}
                 size="sm"
                 className={`
-                  w-full justify-start gap-3 mb-1 h-10 transition-all duration-200
+                  w-full justify-start gap-3 mb-1 h-10 transition-all duration-150
                   ${isActive 
                     ? "bg-primary/20 text-primary border-l-4 border-primary shadow-lg" 
                     : "hover:bg-accent/50 text-muted-foreground hover:text-foreground"
@@ -106,7 +106,7 @@ export function Sidebar({ activePage, onNavigate }: SidebarProps) {
                 </div>
                 {isExpanded && (
                   <>
-                    <span className="text-sm font-medium animate-fade-in">{item.title}</span>
+                    <span className="text-sm font-medium">{item.title}</span>
                     {item.badge && (
                       <span className="ml-auto bg-destructive text-destructive-foreground text-xs px-1.5 py-0.5 rounded-full">
                         {item.badge}
@@ -130,7 +130,7 @@ export function Sidebar({ activePage, onNavigate }: SidebarProps) {
                 variant={isActive ? "default" : "ghost"}
                 size="sm"
                 className={`
-                  mb-1 h-10 w-full justify-start gap-3 transition-all duration-200
+                  mb-1 h-10 w-full justify-start gap-3 transition-all duration-150
                   ${isActive 
                     ? "bg-primary/20 text-primary border-l-4 border-primary shadow-lg" 
                     : "hover:bg-accent/50 text-muted-foreground hover:text-foreground"
@@ -145,7 +145,7 @@ export function Sidebar({ activePage, onNavigate }: SidebarProps) {
                   <Icon className="w-5 h-5" />
                 </div>
                 {isExpanded && (
-                  <span className="text-sm font-medium animate-fade-in">{item.title}</span>
+                  <span className="text-sm font-medium">{item.title}</span>
                 )}
               </Button>
             );

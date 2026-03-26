@@ -818,10 +818,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         id: u.id,
         email: u.email,
         createdAt: u.created_at,
+        deletedAt: u.deleted_at,
         role: profileMap.get(u.id)?.role || "client",
         displayName: profileMap.get(u.id)?.display_name || u.email,
         clientIds: assignmentMap.get(u.id) || [],
-      }));
+      })).filter((u) => !u.deletedAt);
 
       res.json(users);
     } catch (error: any) {
@@ -865,6 +866,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json({ id: data.user.id, email });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to create user" });
+    }
+  });
+
+  app.delete("/api/admin/users/:id", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      if (!id) {
+        return res.status(400).json({ error: "User id is required" });
+      }
+
+      if (req.auth?.user?.id === id) {
+        return res.status(400).json({ error: "You cannot delete the currently signed-in admin user" });
+      }
+
+      const { data: existingUser, error: existingUserError } = await supabaseAdmin.auth.admin.getUserById(id);
+      if (existingUserError) throw existingUserError;
+      if (!existingUser?.user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const { error: assignmentsError } = await supabaseAdmin.from("client_users").delete().eq("user_id", id);
+      if (assignmentsError) throw assignmentsError;
+
+      const { error: profileError } = await supabaseAdmin.from("profiles").delete().eq("id", id);
+      if (profileError) throw profileError;
+
+      const { error: deleteUserError } = await supabaseAdmin.auth.admin.deleteUser(id);
+      if (deleteUserError) throw deleteUserError;
+
+      return res.status(204).send();
+    } catch (error: any) {
+      return res.status(500).json({ error: error.message || "Failed to delete user" });
     }
   });
 

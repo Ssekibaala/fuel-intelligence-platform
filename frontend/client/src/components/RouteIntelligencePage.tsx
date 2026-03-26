@@ -582,6 +582,36 @@ export function RouteIntelligencePage({ pageId = "journeys" }: RouteIntelligence
 
       {analysisEnabled && !analysisQuery.isLoading && !analysisQuery.isError && analysis ? (
         <>
+          {analysis.summary.totalRoundTrips === 0 && analysis.routeAvailability?.hasMatchesOutsideSelectedRange ? (
+            <GlassCard className="border-amber-500/25 bg-amber-500/5 p-4" hover={false}>
+              <div className="flex items-start gap-3">
+                <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-2 text-amber-700 dark:text-amber-300">
+                  <AlertTriangle className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="text-sm font-semibold text-foreground">
+                    This route exists, but not in the current date window.
+                  </div>
+                  <div className="mt-1 text-sm text-muted-foreground">
+                    {analysis.routeAvailability.totalOccurrences} matching {routePattern === "round_trip" ? "round trip" : "one-way journey"}
+                    {analysis.routeAvailability.totalOccurrences === 1 ? "" : "s"} were found in the last year for this same path and scope.
+                  </div>
+                  <div className="mt-2 text-xs text-muted-foreground">
+                    First detected departure:{" "}
+                    {analysis.routeAvailability.firstDepartureTime
+                      ? formatDateTimeEAT(analysis.routeAvailability.firstDepartureTime)
+                      : "--"}
+                    {" • "}
+                    Most recent arrival:{" "}
+                    {analysis.routeAvailability.lastArrivalTime
+                      ? formatDateTimeEAT(analysis.routeAvailability.lastArrivalTime)
+                      : "--"}
+                  </div>
+                </div>
+              </div>
+            </GlassCard>
+          ) : null}
+
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <KpiCard
               label={routePattern === "round_trip" ? "Completed Round Trips" : "Completed One-Way Journeys"}
@@ -598,7 +628,7 @@ export function RouteIntelligencePage({ pageId = "journeys" }: RouteIntelligence
             <KpiCard
               label="Average Fuel Used"
               value={`${formatDecimal(analysis.summary.averageFuelUsedLitres)} L`}
-              helper={`${formatDecimal(analysis.summary.averageDistanceKm)} km per completed round trip`}
+              helper={`${formatDecimal(analysis.summary.averageDistanceKm)} km per completed ${routePattern === "round_trip" ? "journey cycle" : "journey"}`}
               icon={Fuel}
             />
             <KpiCard
@@ -696,6 +726,11 @@ export function RouteIntelligencePage({ pageId = "journeys" }: RouteIntelligence
                     {analysis.route.startDate ? formatDateTimeEAT(analysis.route.startDate) : "Unknown"} to{" "}
                     {analysis.route.endDate ? formatDateTimeEAT(analysis.route.endDate) : "Unknown"}
                   </div>
+                  {analysis.summary.totalRoundTrips === 0 && analysis.routeAvailability?.hasMatchesOutsideSelectedRange ? (
+                    <div className="mt-2 text-xs text-amber-700 dark:text-amber-300">
+                      Current filters exclude historical matches for this route. Expand the date range to see them.
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </GlassCard>
@@ -817,10 +852,12 @@ export function RouteIntelligencePage({ pageId = "journeys" }: RouteIntelligence
                 <div className="flex flex-col gap-2 border-b border-border/30 px-5 py-4 md:flex-row md:items-end md:justify-between">
                   <div>
                     <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                      Round-trip occurrences
+                      {routePattern === "round_trip" ? "Round-trip occurrences" : "One-way occurrences"}
                     </div>
                     <h3 className="mt-2 text-lg font-semibold text-foreground">
-                      Every completed A → B → A event in the selected scope
+                      {routePattern === "round_trip"
+                        ? "Every completed A → B → A event in the selected scope"
+                        : "Every completed one-way journey in the selected scope"}
                     </h3>
                   </div>
                   <div className="text-sm text-muted-foreground">
@@ -847,7 +884,13 @@ export function RouteIntelligencePage({ pageId = "journeys" }: RouteIntelligence
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {analysis.occurrences.map((occurrence) => {
+                      {analysis.occurrences.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={routePattern === "round_trip" ? 13 : 11} className="py-8 text-center text-sm text-muted-foreground">
+                            No completed {routePattern === "round_trip" ? "round trips" : "one-way journeys"} were found in the selected scope.
+                          </TableCell>
+                        </TableRow>
+                      ) : analysis.occurrences.map((occurrence) => {
                         const fuelDelta = occurrence.routeFuelUsedLitres - routeAverageFuel;
                         const durationDelta = occurrence.roundTripDurationHours - routeAverageDuration;
                         return (

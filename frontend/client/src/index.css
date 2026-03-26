@@ -521,7 +521,13 @@
 
   /* Physics-Based Motion */
   .motion-premium {
-    transition: all var(--motion-duration-normal) var(--motion-ease-premium);
+    transition:
+      transform var(--motion-duration-fast) var(--motion-ease-premium),
+      opacity var(--motion-duration-fast) var(--motion-ease-premium),
+      background-color var(--motion-duration-fast) var(--motion-ease-premium),
+      border-color var(--motion-duration-fast) var(--motion-ease-premium),
+      box-shadow var(--motion-duration-fast) var(--motion-ease-premium),
+      color var(--motion-duration-fast) var(--motion-ease-premium);
   }
 
   .motion-bounce {

@@ -47,7 +47,7 @@ const initialState: GlobalFilterState = {
   consumptionExcellentThreshold: 3.0,
   consumptionAcceptableThreshold: 1.5,
   consumptionAlertThreshold: 1.0,
-  refreshInterval: 15000, // 15 seconds
+  refreshInterval: 10000, // 10 seconds
   isLoading: false,
   lastUpdated: new Date()
 };

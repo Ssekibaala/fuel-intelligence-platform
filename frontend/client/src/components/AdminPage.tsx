@@ -1,15 +1,28 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { GlassCard } from "./GlassCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "./AuthProvider";
 import { api } from "@/lib/api";
 import { PageHeader } from "./PageHeader";
-import { Database, FileSpreadsheet, UploadCloud } from "lucide-react";
+import {
+  Building2,
+  Database,
+  FileSpreadsheet,
+  Link2,
+  ShieldCheck,
+  Trash2,
+  UploadCloud,
+  UserCog,
+  UserPlus,
+  Users,
+} from "lucide-react";
 
 interface AdminPageProps {
   pageId?: string;
@@ -198,12 +211,16 @@ function normalizeSourceOfTruthResult(value: unknown): SourceOfTruthResult {
 }
 
 export function AdminPage({ pageId = "admin" }: AdminPageProps) {
-  const { isAdmin } = useAuth();
+  const { isAdmin, user: authUser } = useAuth();
   const [userEmail, setUserEmail] = useState("");
   const [userPassword, setUserPassword] = useState("");
   const [userRole, setUserRole] = useState<"admin" | "client">("client");
   const [userDisplayName, setUserDisplayName] = useState("");
   const [newUserClientIds, setNewUserClientIds] = useState<string[]>([]);
+  const [showCreateUserForm, setShowCreateUserForm] = useState(false);
+  const [userSearchTerm, setUserSearchTerm] = useState("");
+  const [userDirectoryRoleFilter, setUserDirectoryRoleFilter] = useState<"all" | "admin" | "client">("all");
+  const [hiddenDeletedUserIds, setHiddenDeletedUserIds] = useState<string[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [sourceFile, setSourceFile] = useState<File | null>(null);
@@ -222,6 +239,29 @@ export function AdminPage({ pageId = "admin" }: AdminPageProps) {
     queryFn: () => api.getAdminUsers(),
   });
 
+  const visibleUsers = useMemo(
+    () => (users || []).filter((user: any) => Boolean(user?.id) && !hiddenDeletedUserIds.includes(user.id)),
+    [users, hiddenDeletedUserIds]
+  );
+
+  const filteredVisibleUsers = useMemo(() => {
+    const search = userSearchTerm.trim().toLowerCase();
+
+    return visibleUsers.filter((user: any) => {
+      const matchesRole = userDirectoryRoleFilter === "all" ? true : user.role === userDirectoryRoleFilter;
+      if (!matchesRole) return false;
+
+      if (!search) return true;
+
+      const haystack = [user.displayName, user.email, ...(user.clientIds || [])]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return haystack.includes(search);
+    });
+  }, [visibleUsers, userDirectoryRoleFilter, userSearchTerm]);
+
   const safeClients = (clients || []).filter((client: any) => Boolean(client?.id));
   const clientsWithVehicles = safeClients;
 
@@ -232,10 +272,10 @@ export function AdminPage({ pageId = "admin" }: AdminPageProps) {
   });
 
   useEffect(() => {
-    if (!selectedUserId && users.length > 0 && users[0]?.id) {
-      setSelectedUserId(users[0].id);
+    if (!selectedUserId && visibleUsers.length > 0 && visibleUsers[0]?.id) {
+      setSelectedUserId(visibleUsers[0].id);
     }
-  }, [selectedUserId, users]);
+  }, [selectedUserId, visibleUsers]);
 
   const showError = (title: string, error: unknown) => {
     const description = error instanceof Error ? error.message : String(error);
@@ -275,6 +315,7 @@ export function AdminPage({ pageId = "admin" }: AdminPageProps) {
       setUserRole("client");
       setUserDisplayName("");
       setNewUserClientIds([]);
+      setShowCreateUserForm(false);
       refetchUsers();
     } catch (error) {
       showError("Failed to create user", error);
@@ -307,6 +348,30 @@ export function AdminPage({ pageId = "admin" }: AdminPageProps) {
       refetchUsers();
     } catch (error) {
       showError("Failed to remove assignment", error);
+    }
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    const targetUser = visibleUsers.find((user: any) => user.id === userId);
+    if (!targetUser) return;
+    if (!window.confirm(`Delete ${targetUser.displayName || targetUser.email} permanently? This removes profile access and client assignments.`)) {
+      return;
+    }
+
+    try {
+      await api.deleteAdminUser(userId);
+      setHiddenDeletedUserIds((current) => [...current, userId]);
+      if (selectedUserId === userId) {
+        setSelectedUserId(null);
+      }
+      refetchAssignments();
+      refetchUsers();
+      toast({
+        title: "User deleted",
+        description: `${targetUser.displayName || targetUser.email} was removed successfully.`,
+      });
+    } catch (error) {
+      showError("Failed to delete user", error);
     }
   };
 
@@ -411,190 +476,405 @@ export function AdminPage({ pageId = "admin" }: AdminPageProps) {
     (sourceResult as any).preview
   );
 
+  const selectedUser = visibleUsers.find((user: any) => user.id === selectedUserId) || null;
+  const adminCount = visibleUsers.filter((user: any) => user.role === "admin").length;
+  const clientUserCount = visibleUsers.filter((user: any) => user.role !== "admin").length;
+  const assignedCount = assignments.length;
+
   return (
     <div className="space-y-6">
       <PageHeader pageId={pageId} />
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <GlassCard className="p-6" hover={false}>
-          <h2 className="text-lg font-semibold mb-4">Clients (Auto from Vehicles)</h2>
-          <p className="text-sm text-muted-foreground">
-            Clients are derived from vehicle data. Manual client creation is disabled.
-          </p>
-          <div className="mt-6">
-            <h3 className="text-sm font-medium text-muted-foreground mb-2">Active Clients</h3>
-            <div className="space-y-2 text-sm">
-              {clientsWithVehicles.map((client: any) => (
-                <div key={client.id} className="flex items-center justify-between">
-                  <span>{client.name}</span>
-                  <span className="text-xs text-muted-foreground">{client.id}</span>
-                </div>
-              ))}
-              {clientsWithVehicles.length === 0 && (
-                <div className="text-xs text-muted-foreground">
-                  No clients detected from vehicles yet.
-                </div>
-              )}
+      <GlassCard className="overflow-hidden border-border/50 bg-card/50 p-0" hover={false}>
+        <div className="grid gap-px bg-border/30 md:grid-cols-4">
+          <div className="bg-background/80 p-4">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              <Building2 className="h-4 w-4" />
+              Client Registry
             </div>
+            <div className="mt-3 text-3xl font-semibold">{clientsWithVehicles.length}</div>
+            <div className="mt-1 text-sm text-muted-foreground">Active client scopes derived from fleet data.</div>
           </div>
-        </GlassCard>
-
-        <GlassCard className="p-6" hover={false}>
-          <h2 className="text-lg font-semibold mb-4">Create User</h2>
-          <div className="space-y-3">
-            <div className="space-y-2">
-              <Label htmlFor="user-email">Email</Label>
-              <Input
-                id="user-email"
-                type="email"
-                value={userEmail}
-                onChange={(e) => setUserEmail(e.target.value)}
-                placeholder="user@company.com"
-              />
+          <div className="bg-background/80 p-4">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              <Users className="h-4 w-4" />
+              User Accounts
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="user-password">Password</Label>
-              <Input
-                id="user-password"
-                type="password"
-                value={userPassword}
-                onChange={(e) => setUserPassword(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="user-display">Display Name</Label>
-              <Input
-                id="user-display"
-                value={userDisplayName}
-                onChange={(e) => setUserDisplayName(e.target.value)}
-                placeholder="Jane Doe"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>User Role</Label>
-              <Select value={userRole} onValueChange={(value) => setUserRole(value as "admin" | "client")}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="client">Client User</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Assign Clients</Label>
-              <div className="space-y-2 max-h-32 overflow-y-auto border border-border/20 rounded-md p-2">
-                {clientsWithVehicles.map((client: any) => {
-                  const checked = newUserClientIds.includes(client.id);
-                  return (
-                    <label key={client.id} className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setNewUserClientIds((prev) => [...prev, client.id]);
-                          } else {
-                            setNewUserClientIds((prev) => prev.filter((id) => id !== client.id));
-                          }
-                        }}
-                      />
-                      <span>{client.name}</span>
-                    </label>
-                  );
-                })}
-                {clientsWithVehicles.length === 0 && (
-                  <div className="text-xs text-muted-foreground">No clients available from vehicles.</div>
-                )}
-              </div>
-            </div>
-            <Button onClick={handleCreateUser}>Create User</Button>
+            <div className="mt-3 text-3xl font-semibold">{visibleUsers.length}</div>
+            <div className="mt-1 text-sm text-muted-foreground">{clientUserCount} client users and {adminCount} admins.</div>
           </div>
-        </GlassCard>
-      </div>
+          <div className="bg-background/80 p-4">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              <Link2 className="h-4 w-4" />
+              Access Links
+            </div>
+            <div className="mt-3 text-3xl font-semibold">{assignedCount}</div>
+            <div className="mt-1 text-sm text-muted-foreground">Assignments for the currently selected user.</div>
+          </div>
+          <div className="bg-background/80 p-4">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              <Database className="h-4 w-4" />
+              Data Control
+            </div>
+            <div className="mt-3 text-3xl font-semibold">{sourceResult?.rows?.matched ?? 0}</div>
+            <div className="mt-1 text-sm text-muted-foreground">Rows staged in the latest source-of-truth preview.</div>
+          </div>
+        </div>
+      </GlassCard>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <GlassCard className="p-6" hover={false}>
-          <h2 className="text-lg font-semibold mb-4">Users</h2>
-          <div className="space-y-3">
-            {users.map((user: any) => (
-              <div
-                key={user.id}
-                className={`p-3 rounded-lg border border-border/30 cursor-pointer ${
-                  selectedUserId === user.id ? "bg-primary/10" : "bg-card/20"
-                }`}
-                onClick={() => setSelectedUserId(user.id)}
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="font-medium">{user.displayName || user.email}</div>
-                    <div className="text-xs text-muted-foreground">{user.email}</div>
+      <GlassCard className="p-0" hover={false}>
+        <Accordion type="multiple" defaultValue={["clients", "users"]} className="w-full">
+          <AccordionItem value="clients" className="border-border/30 px-5">
+            <AccordionTrigger className="py-4 text-left hover:no-underline">
+              <div className="flex items-center gap-3">
+                <div className="rounded-xl border border-border/40 bg-background/70 p-2">
+                  <Building2 className="h-4 w-4 text-primary" />
+                </div>
+                <div>
+                  <div className="text-base font-semibold">Client Registry</div>
+                  <div className="text-sm font-normal text-muted-foreground">
+                    View the active client scopes automatically discovered from vehicle ownership data.
                   </div>
-                  <div className="text-xs font-medium">{user.role}</div>
-                </div>
-                <div className="mt-2 text-xs text-muted-foreground">
-                  Assigned Clients: {user.clientIds?.length || 0}
                 </div>
               </div>
-            ))}
-          </div>
-        </GlassCard>
-
-        <GlassCard className="p-6" hover={false}>
-          <h2 className="text-lg font-semibold mb-4">Assignments</h2>
-          {selectedUserId ? (
-            <>
-              <div className="space-y-3">
-                <div className="space-y-2">
-                  <Label>Select Client</Label>
-                  <Select value={selectedClientId || ""} onValueChange={(value) => setSelectedClientId(value)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Choose a client" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {clientsWithVehicles.map((client: any) => (
-                        <SelectItem key={client.id} value={client.id}>
-                          {client.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+            </AccordionTrigger>
+            <AccordionContent className="pb-5">
+              <div className="rounded-xl border border-border/30 bg-background/60 p-3.5">
+                <div className="mb-3 flex items-center justify-between">
+                  <div className="text-sm font-medium text-foreground">Detected clients</div>
+                  <Badge variant="outline">{clientsWithVehicles.length} active</Badge>
                 </div>
-                <Button onClick={handleAssignClient} disabled={!selectedClientId}>
-                  Assign Client
-                </Button>
-              </div>
-
-              <div className="mt-6">
-                <h3 className="text-sm font-medium text-muted-foreground mb-2">Current Assignments</h3>
-                <div className="space-y-2">
-                  {assignments.map((assignment: any) => (
-                    <div key={assignment.id} className="flex items-center justify-between p-2 border border-border/20 rounded-lg">
-                      <div className="text-sm">
-                        {assignment.clients?.name || assignment.client_id}
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleRemoveAssignment(assignment.id)}
-                      >
-                        Remove
-                      </Button>
+                <div className="space-y-2 text-sm">
+                  {clientsWithVehicles.map((client: any) => (
+                    <div key={client.id} className="flex items-center justify-between rounded-lg border border-border/20 bg-card/30 px-2.5 py-1.5">
+                      <span className="font-medium">{client.name}</span>
+                      <span className="text-xs text-muted-foreground">{client.id}</span>
                     </div>
                   ))}
-                  {assignments.length === 0 && (
-                    <div className="text-sm text-muted-foreground">No assignments yet.</div>
+                  {clientsWithVehicles.length === 0 && (
+                    <div className="text-xs text-muted-foreground">No clients detected from vehicles yet.</div>
                   )}
                 </div>
               </div>
-            </>
-          ) : (
-            <div className="text-sm text-muted-foreground">Select a user to manage assignments.</div>
-          )}
-        </GlassCard>
-      </div>
+            </AccordionContent>
+          </AccordionItem>
 
-      <GlassCard className="p-6" hover={false}>
+          <AccordionItem value="users" className="border-border/30 px-5">
+            <AccordionTrigger className="py-4 text-left hover:no-underline">
+              <div className="flex items-center gap-3">
+                <div className="rounded-xl border border-border/40 bg-background/70 p-2">
+                  <UserPlus className="h-4 w-4 text-primary" />
+                </div>
+                <div>
+                  <div className="text-base font-semibold">User Provisioning</div>
+                  <div className="text-sm font-normal text-muted-foreground">
+                    Create admin or client accounts and attach their initial client access in one step.
+                  </div>
+                </div>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="pb-5">
+              <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+                <div className="space-y-3 rounded-xl border border-border/30 bg-background/60 p-3.5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-medium">Create account</div>
+                      <div className="text-xs text-muted-foreground">Open the provisioning form only when you want to add a new user.</div>
+                    </div>
+                    <Button
+                      variant={showCreateUserForm ? "outline" : "default"}
+                      size="sm"
+                      onClick={() => setShowCreateUserForm((current) => !current)}
+                    >
+                      <UserPlus className="mr-2 h-4 w-4" />
+                      {showCreateUserForm ? "Hide Form" : "Create User"}
+                    </Button>
+                  </div>
+                  {!showCreateUserForm ? (
+                    <div className="rounded-lg border border-dashed border-border/30 px-3 py-4 text-sm text-muted-foreground">
+                      The provisioning form stays hidden until you click <span className="font-medium text-foreground">Create User</span>.
+                    </div>
+                  ) : (
+                    <>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="user-email">Email</Label>
+                          <Input id="user-email" type="email" value={userEmail} onChange={(e) => setUserEmail(e.target.value)} placeholder="user@company.com" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="user-password">Password</Label>
+                          <Input id="user-password" type="password" value={userPassword} onChange={(e) => setUserPassword(e.target.value)} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="user-display">Display Name</Label>
+                          <Input id="user-display" value={userDisplayName} onChange={(e) => setUserDisplayName(e.target.value)} placeholder="Jane Doe" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>User Role</Label>
+                          <Select value={userRole} onValueChange={(value) => setUserRole(value as "admin" | "client")}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select role" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="client">Client User</SelectItem>
+                              <SelectItem value="admin">Admin</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Initial Client Access</Label>
+                        <div className="grid gap-1.5 rounded-xl border border-border/20 bg-card/20 p-2.5 md:grid-cols-2">
+                          {clientsWithVehicles.map((client: any) => {
+                            const checked = newUserClientIds.includes(client.id);
+                            return (
+                              <label key={client.id} className="flex items-center gap-2 rounded-md px-2 py-1 text-sm hover:bg-background/60">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setNewUserClientIds((prev) => [...prev, client.id]);
+                                    } else {
+                                      setNewUserClientIds((prev) => prev.filter((id) => id !== client.id));
+                                    }
+                                  }}
+                                />
+                                <span>{client.name}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div className="flex justify-end">
+                        <Button onClick={handleCreateUser}>
+                          <UserPlus className="mr-2 h-4 w-4" />
+                          Create User
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-border/30 bg-background/60 p-3">
+                  <div className="mb-3 flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-medium">Account posture</div>
+                      <div className="text-xs text-muted-foreground">At-a-glance view of the current admin estate.</div>
+                    </div>
+                    <Badge variant="outline">{visibleUsers.length} total</Badge>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="rounded-lg border border-border/20 bg-card/25 px-3 py-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Administrators</span>
+                        <ShieldCheck className="h-4 w-4 text-primary" />
+                      </div>
+                      <div className="mt-2 text-2xl font-semibold">{adminCount}</div>
+                    </div>
+                    <div className="rounded-lg border border-border/20 bg-card/25 px-3 py-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Client users</span>
+                        <Users className="h-4 w-4 text-primary" />
+                      </div>
+                      <div className="mt-2 text-2xl font-semibold">{clientUserCount}</div>
+                    </div>
+                    <div className="rounded-lg border border-border/20 bg-card/25 px-3 py-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Client scopes</span>
+                        <Building2 className="h-4 w-4 text-primary" />
+                      </div>
+                      <div className="mt-2 text-2xl font-semibold">{clientsWithVehicles.length}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          <AccordionItem value="access" className="border-border/30 px-5">
+            <AccordionTrigger className="py-4 text-left hover:no-underline">
+              <div className="flex items-center gap-3">
+                <div className="rounded-xl border border-border/40 bg-background/70 p-2">
+                  <UserCog className="h-4 w-4 text-primary" />
+                </div>
+                <div>
+                  <div className="text-base font-semibold">User Access Management</div>
+                  <div className="text-sm font-normal text-muted-foreground">
+                    Review every user, assign or revoke client access, and remove obsolete accounts cleanly.
+                  </div>
+                </div>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="pb-5">
+              <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+                <div className="rounded-xl border border-border/30 bg-background/60 p-3">
+                  <div className="mb-3 flex items-center justify-between">
+                    <div className="text-sm font-medium">User directory</div>
+                    <Badge variant="outline">{filteredVisibleUsers.length} users</Badge>
+                  </div>
+                  <div className="mb-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px_auto]">
+                    <Input
+                      value={userSearchTerm}
+                      onChange={(event) => setUserSearchTerm(event.target.value)}
+                      placeholder="Search by name or email"
+                      className="h-8"
+                    />
+                    <Select
+                      value={userDirectoryRoleFilter}
+                      onValueChange={(value) => setUserDirectoryRoleFilter(value as "all" | "admin" | "client")}
+                    >
+                      <SelectTrigger className="h-8">
+                        <SelectValue placeholder="All roles" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All roles</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="client">Client</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <div className="flex items-center justify-end">
+                      {(userSearchTerm || userDirectoryRoleFilter !== "all") && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setUserSearchTerm("");
+                            setUserDirectoryRoleFilter("all");
+                          }}
+                        >
+                          Clear
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="max-h-[520px] space-y-1 overflow-y-auto pr-1">
+                    {filteredVisibleUsers.map((user: any) => (
+                      <button
+                        type="button"
+                        key={user.id}
+                        onClick={() => setSelectedUserId(user.id)}
+                        className={`w-full rounded-lg border px-2.5 py-2 text-left transition-colors ${
+                          selectedUserId === user.id ? "border-primary/40 bg-primary/8" : "border-border/20 bg-card/20"
+                        }`}
+                      >
+                        <div className="grid gap-2 sm:grid-cols-[minmax(0,1.35fr)_auto_auto_auto] sm:items-center">
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-medium">{user.displayName || user.email}</div>
+                            <div className="truncate text-[11px] text-muted-foreground">{user.email}</div>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <Badge variant={user.role === "admin" ? "default" : "outline"} className="px-2 py-0 text-[10px]">
+                              {user.role}
+                            </Badge>
+                            <Badge variant="outline" className="px-2 py-0 text-[10px]">
+                              {user.clientIds?.length || 0} scopes
+                            </Badge>
+                          </div>
+                          <div className="flex items-center justify-between gap-2 sm:justify-end">
+                            <div className="text-[11px] text-muted-foreground">
+                              {user.createdAt ? new Date(user.createdAt).toLocaleDateString("en-GB") : "-"}
+                            </div>
+                          </div>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleDeleteUser(user.id);
+                            }}
+                            disabled={authUser?.id === user.id}
+                            className="min-h-7 whitespace-nowrap px-2.5 text-[11px] sm:justify-self-end"
+                          >
+                            <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                            Delete User
+                          </Button>
+                        </div>
+                      </button>
+                    ))}
+                    {filteredVisibleUsers.length === 0 && (
+                      <div className="rounded-lg border border-dashed border-border/30 px-3 py-4 text-sm text-muted-foreground">
+                        No users match the current search or role filter.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-border/30 bg-background/60 p-3">
+                  <div className="mb-3 flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-medium">Access control</div>
+                      <div className="text-xs text-muted-foreground">
+                        {selectedUser ? `Managing ${selectedUser.displayName || selectedUser.email}` : "Select a user to manage client access."}
+                      </div>
+                    </div>
+                    {selectedUser ? <Badge variant="outline">{assignments.length} assignments</Badge> : null}
+                  </div>
+                  {selectedUser ? (
+                    <>
+                      <div className="space-y-2.5">
+                        <div className="space-y-2">
+                          <Label>Select Client</Label>
+                          <Select value={selectedClientId || ""} onValueChange={(value) => setSelectedClientId(value)}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Choose a client" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {clientsWithVehicles.map((client: any) => (
+                                <SelectItem key={client.id} value={client.id}>
+                                  {client.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <Button onClick={handleAssignClient} disabled={!selectedClientId}>
+                          <Link2 className="mr-2 h-4 w-4" />
+                          Assign Client
+                        </Button>
+                      </div>
+
+                      <div className="mt-5 max-h-[320px] space-y-1.5 overflow-y-auto pr-1">
+                        {assignments.map((assignment: any) => (
+                          <div key={assignment.id} className="flex items-center justify-between rounded-lg border border-border/20 bg-card/20 px-2.5 py-1.5">
+                            <div className="text-sm">{assignment.clients?.name || assignment.client_id}</div>
+                            <Button variant="outline" size="sm" onClick={() => handleRemoveAssignment(assignment.id)}>
+                              Remove
+                            </Button>
+                          </div>
+                        ))}
+                        {assignments.length === 0 && (
+                          <div className="rounded-lg border border-dashed border-border/30 px-3 py-3 text-sm text-muted-foreground">
+                            No assignments yet for this user.
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-border/30 px-3 py-5 text-sm text-muted-foreground">
+                      Select a user from the directory to manage client assignments or remove the account.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          <AccordionItem value="source" className="border-border/30 px-5">
+            <AccordionTrigger className="py-4 text-left hover:no-underline">
+              <div className="flex items-center gap-3">
+                <div className="rounded-xl border border-border/40 bg-background/70 p-2">
+                  <Database className="h-4 w-4 text-primary" />
+                </div>
+                <div>
+                  <div className="text-base font-semibold">Source Of Truth Backfill</div>
+                  <div className="text-sm font-normal text-muted-foreground">
+                    Controlled backfill tooling for replacing period data using validated CSV or XLSX source files.
+                  </div>
+                </div>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="pb-5">
+              <div className="rounded-xl border border-border/30 bg-background/60 p-3.5">
         <div className="flex items-start justify-between gap-4 mb-6">
           <div>
             <h2 className="text-lg font-semibold flex items-center gap-2">
@@ -792,6 +1072,10 @@ export function AdminPage({ pageId = "admin" }: AdminPageProps) {
             </div>
           </div>
         )}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
       </GlassCard>
     </div>
   );

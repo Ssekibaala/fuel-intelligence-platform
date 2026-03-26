@@ -28,7 +28,7 @@ export function Header({ onRefresh: _onRefresh, theme, toggleTheme, pageId }: He
   const welcomeName = email ? email.split("@")[0] : "User";
 
   return (
-    <header className="sticky top-0 z-20 hidden border-b border-border/20 bg-background/55 backdrop-blur-xl md:block">
+    <header className="sticky top-0 z-20 hidden border-b border-border/20 bg-background/70 backdrop-blur-sm md:block">
       <div className="flex items-center justify-between gap-3 px-3 py-1.5 lg:px-4">
         <div className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden">
           <HeadingLogo className="shrink-0 px-1.5 py-1 sm:px-2 sm:py-1.5" />

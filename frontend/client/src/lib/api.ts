@@ -318,6 +318,14 @@ export interface JourneyAnalysis {
     startDate: string | null;
     endDate: string | null;
   };
+  routeAvailability: {
+    hasMatchesOutsideSelectedRange: boolean;
+    totalOccurrences: number;
+    firstDepartureTime: string | null;
+    lastArrivalTime: string | null;
+    suggestedStartDate: string | null;
+    suggestedEndDate: string | null;
+  } | null;
   summary: {
     totalRoundTrips: number;
     incompleteTrips: number;
@@ -442,6 +450,7 @@ export const api = {
     displayName?: string;
     clientIds?: string[];
   }) => apiRequest("POST", "/api/admin/users", data),
+  deleteAdminUser: (id: string) => apiRequest("DELETE", `/api/admin/users/${id}`),
   getAdminAssignments: (filters?: { userId?: string; clientId?: string }) =>
     apiRequest("GET", `/api/admin/assignments?${buildQueryParams(filters)}`),
   createAdminAssignment: async (data: { userId: string; clientId: string }) => {

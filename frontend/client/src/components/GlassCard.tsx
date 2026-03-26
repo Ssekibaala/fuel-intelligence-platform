@@ -43,7 +43,7 @@ export function GlassCard({
     <Card
       className={cn(
         // Base glass styling for backwards compatibility
-        "bg-card/40 backdrop-blur-xl border-border/30 shadow-lg shadow-black/5",
+        "bg-card/55 backdrop-blur-sm border-border/30 shadow-md shadow-black/5",
         // Premium surface system - conditional based on interactivity
         premium && (hover && interactive ? "card-surface-premium-interactive" : "card-surface-premium"),
         // Additional motion class for non-premium cards
