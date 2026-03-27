@@ -1420,7 +1420,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       const totalRefills = fuelEvents.filter((e) => e.eventType === "refill").length;
-      const totalThefts = fuelEvents.filter((e) => e.eventType === "theft").length;
+      const totalThefts = fuelEvents.filter((e) => e.eventType === "theft" || e.eventType === "leak" || e.eventType === "drain").length;
       const startDate = parseDate(req.query.startDate || req.query.start_date);
       const endDate = parseDate(req.query.endDate || req.query.end_date);
       const startDay = parseDayKey(req.query.startDay || req.query.start_day) || (startDate ? getLocalDayKey(startDate) : undefined);

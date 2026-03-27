@@ -419,7 +419,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
         entry.refills += 1;
         entry.refillVolume += volume;
       }
-      if (event.eventType === "theft" || event.eventType === "leak") {
+      if (event.eventType === "theft" || event.eventType === "leak" || event.eventType === "drain") {
         entry.thefts += 1;
         entry.theftVolume += volume;
       }
@@ -579,7 +579,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
   );
 
   const focusedTheftEvents = useMemo(
-    () => focusedFuelEvents.filter((event: any) => event.eventType === "theft" || event.eventType === "leak"),
+    () => focusedFuelEvents.filter((event: any) => event.eventType === "theft" || event.eventType === "leak" || event.eventType === "drain"),
     [focusedFuelEvents]
   );
 
@@ -654,6 +654,61 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
       ? focusedVehicle.tankCapacity
       : null;
   const focusedTankCapacity = focusedTankCapacityValue ?? 0;
+  const focusedConsumptionThresholds = useMemo(() => ({
+    excellent: Number(filterState.consumptionExcellentThreshold || 0),
+    acceptable: Number(filterState.consumptionAcceptableThreshold || 0),
+    alert: Number(filterState.consumptionAlertThreshold || 0),
+  }), [
+    filterState.consumptionExcellentThreshold,
+    filterState.consumptionAcceptableThreshold,
+    filterState.consumptionAlertThreshold,
+  ]);
+  const focusedConsumptionBand = useMemo(() => {
+    const value = fuelKPIs.consumption;
+    if (!Number.isFinite(value)) {
+      return {
+        label: "No data",
+        valueClass: "text-muted-foreground",
+        chipClass: "border-border/30 bg-background/70 text-muted-foreground",
+        panelClass: "border-border/20 bg-gradient-to-br from-muted/10 via-muted/5 to-transparent",
+        iconClass: "text-muted-foreground",
+      };
+    }
+    if (value >= focusedConsumptionThresholds.excellent) {
+      return {
+        label: "Efficient",
+        valueClass: "text-emerald-700 dark:text-emerald-300",
+        chipClass: "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+        panelClass: "border-emerald-500/15 bg-gradient-to-br from-emerald-500/12 via-teal-500/6 to-transparent",
+        iconClass: "text-emerald-700 dark:text-emerald-300",
+      };
+    }
+    if (value >= focusedConsumptionThresholds.acceptable) {
+      return {
+        label: "Average",
+        valueClass: "text-amber-700 dark:text-amber-300",
+        chipClass: "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+        panelClass: "border-amber-500/15 bg-gradient-to-br from-amber-500/12 via-orange-500/6 to-transparent",
+        iconClass: "text-amber-700 dark:text-amber-300",
+      };
+    }
+    if (value >= focusedConsumptionThresholds.alert) {
+      return {
+        label: "Watch",
+        valueClass: "text-orange-700 dark:text-orange-300",
+        chipClass: "border-orange-500/20 bg-orange-500/10 text-orange-700 dark:text-orange-300",
+        panelClass: "border-orange-500/15 bg-gradient-to-br from-orange-500/12 via-amber-500/6 to-transparent",
+        iconClass: "text-orange-700 dark:text-orange-300",
+      };
+    }
+    return {
+      label: "Critical",
+      valueClass: "text-destructive",
+      chipClass: "border-destructive/20 bg-destructive/10 text-destructive",
+      panelClass: "border-destructive/15 bg-gradient-to-br from-destructive/12 via-destructive/6 to-transparent",
+      iconClass: "text-destructive",
+    };
+  }, [fuelKPIs.consumption, focusedConsumptionThresholds]);
 
   const fuelLevelChartData = useMemo(() => {
     const eventByDate = new Map<string, { refills: number; thefts: number }>();
@@ -661,7 +716,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
       const dateKey = new Date(event.eventTimestamp).toISOString().split("T")[0];
       const entry = eventByDate.get(dateKey) || { refills: 0, thefts: 0 };
       if (event.eventType === "refill") entry.refills += Math.abs(Number(event.volumeLiters || 0));
-      if (event.eventType === "theft" || event.eventType === "leak") entry.thefts += Math.abs(Number(event.volumeLiters || 0));
+      if (event.eventType === "theft" || event.eventType === "leak" || event.eventType === "drain") entry.thefts += Math.abs(Number(event.volumeLiters || 0));
       eventByDate.set(dateKey, entry);
     });
 
@@ -924,7 +979,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
 
     const theftTimes = (
       focusedFuelEvents
-        .filter((event: any) => event.eventType === "theft" || event.eventType === "leak")
+        .filter((event: any) => event.eventType === "theft" || event.eventType === "leak" || event.eventType === "drain")
         .map((event: any) => new Date(event.eventTimestamp).getTime())
         .filter((value: number) => Number.isFinite(value))
     );
@@ -972,7 +1027,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
     const offset = focusedTankCapacity > 0 ? focusedTankCapacity * 0.03 : 4;
 
     return focusedFuelEvents
-      .filter((event: any) => event.eventType === "refill" || event.eventType === "theft" || event.eventType === "leak")
+      .filter((event: any) => event.eventType === "refill" || event.eventType === "theft" || event.eventType === "leak" || event.eventType === "drain")
       .map((event: any, index: number) => {
         const eventTime = new Date(event.eventTimestamp).getTime();
         if (!Number.isFinite(eventTime)) return null;
@@ -990,7 +1045,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
 
         if (!nearestPoint) return null;
         const baseFuel = Number(nearestPoint.fuel || 0);
-        const isTheft = event.eventType === "theft" || event.eventType === "leak";
+        const isTheft = event.eventType === "theft" || event.eventType === "leak" || event.eventType === "drain";
         const jitter = (index % 3) * 1.6;
         const markerY = isTheft
           ? Math.max(baseFuel - offset - jitter, 0)
@@ -1301,8 +1356,14 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
       const vehicleRefillCountToday = toFiniteNumber(
         vehicle.refillCount ?? vehicle.totalRefills ?? vehicle.totalRefillCounts ?? vehicle.numberOfRefills
       );
+      const vehicleRefillVolumeToday = toFiniteNumber(
+        vehicle.totalRefillVolume ?? vehicle.totalRefillsL ?? vehicle.refillVolume
+      );
       const vehicleTheftCountToday = toFiniteNumber(
-        vehicle.theftIncidents ?? vehicle.totalThefts ?? vehicle.totalFuelTheftCounts ?? vehicle.numberOfThefts
+        vehicle.drainCount ?? vehicle.theftIncidents ?? vehicle.totalThefts ?? vehicle.totalFuelTheftCounts ?? vehicle.numberOfThefts
+      );
+      const vehicleTheftVolumeToday = toFiniteNumber(
+        vehicle.totalDrainVolume ?? vehicle.totalTheftVolume ?? vehicle.theftVolume
       );
 
       const metricsDistance = metrics ? Number(metrics.distance) : null;
@@ -1337,8 +1398,12 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
           Math.max(0, Math.trunc(vehicleTheftCountToday ?? 0))
         )
         : Math.max(events?.thefts ?? 0, metricTheftCount);
-      const refillVolume = events?.refillVolume ?? 0;
-      const theftVolume = events?.theftVolume ?? 0;
+      const refillVolume = isTodaySelected
+        ? Math.max(events?.refillVolume ?? 0, Math.max(0, Number(vehicleRefillVolumeToday ?? 0)))
+        : (events?.refillVolume ?? 0);
+      const theftVolume = isTodaySelected
+        ? Math.max(events?.theftVolume ?? 0, Math.max(0, Number(vehicleTheftVolumeToday ?? 0)))
+        : (events?.theftVolume ?? 0);
       const liveRoadName = typeof vehicle.lastRoadName === "string" && vehicle.lastRoadName.trim().length > 0
         ? vehicle.lastRoadName.trim()
         : "Unknown";
@@ -1370,6 +1435,43 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
       };
     });
   }, [vehiclesData, dailyMetricsByVehicle, fuelEventsByVehicle, isTodaySelected, rangeIncludesToday]);
+
+  const fleetVehicleTodayTotals = useMemo(() => {
+    return ((vehiclesData as any[]) || []).reduce(
+      (
+        acc: {
+          refillCount: number;
+          refillVolume: number;
+          theftCount: number;
+          theftVolume: number;
+        },
+        vehicle: any
+      ) => {
+        acc.refillCount += Math.max(
+          0,
+          Math.trunc(
+            Number(vehicle?.refillCount ?? vehicle?.totalRefills ?? vehicle?.totalRefillCounts ?? vehicle?.numberOfRefills ?? 0)
+          )
+        );
+        acc.refillVolume += Math.max(
+          0,
+          Number(vehicle?.totalRefillVolume ?? vehicle?.totalRefillsL ?? vehicle?.refillVolume ?? 0)
+        );
+        acc.theftCount += Math.max(
+          0,
+          Math.trunc(
+            Number(vehicle?.drainCount ?? vehicle?.theftIncidents ?? vehicle?.totalThefts ?? vehicle?.totalFuelTheftCounts ?? vehicle?.numberOfThefts ?? 0)
+          )
+        );
+        acc.theftVolume += Math.max(
+          0,
+          Number(vehicle?.totalDrainVolume ?? vehicle?.totalTheftVolume ?? vehicle?.theftVolume ?? 0)
+        );
+        return acc;
+      },
+      { refillCount: 0, refillVolume: 0, theftCount: 0, theftVolume: 0 }
+    );
+  }, [vehiclesData]);
 
   const fleetEventTotals = useMemo(() => {
     return fleetFuelEventsData.reduce(
@@ -1406,24 +1508,31 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
     const movingAssets = fleetAssets.filter(asset => asset.status === "Moving").length;
     const parkedAssets = fleetAssets.filter(asset => asset.status === "Parked").length;
     const idlingAssets = fleetAssets.filter(asset => asset.status === "Idling").length;
+    const totalFuelUsedInRange = fleetAssets.reduce((sum, asset) => sum + Math.max(0, Number(asset.fuelUsed || 0)), 0);
 
-    const totalRefillsInRange =
-      fleetEventTotals.refillCount ||
-      fleetAssets.reduce((sum, asset) => sum + Math.max(0, Math.trunc(Number(asset.refillCount || 0))), 0);
-    const totalRefillVolumeInRange =
-      fleetEventTotals.refillVolume ||
-      fleetAssets.reduce((sum, asset) => sum + Math.max(0, Number(asset.refillVolume || 0)), 0);
-    const totalTheftsInRange =
-      fleetEventTotals.theftCount ||
-      fleetAssets.reduce((sum, asset) => sum + Math.max(0, Math.trunc(Number(asset.theftIncidents || 0))), 0);
-    const totalTheftVolumeInRange =
-      fleetEventTotals.theftVolume ||
-      fleetAssets.reduce((sum, asset) => sum + Math.max(0, Number(asset.theftVolume || 0)), 0);
+    const assetRefillCountTotal = fleetAssets.reduce((sum, asset) => sum + Math.max(0, Math.trunc(Number(asset.refillCount || 0))), 0);
+    const assetRefillVolumeTotal = fleetAssets.reduce((sum, asset) => sum + Math.max(0, Number(asset.refillVolume || 0)), 0);
+    const assetTheftCountTotal = fleetAssets.reduce((sum, asset) => sum + Math.max(0, Math.trunc(Number(asset.theftIncidents || 0))), 0);
+    const assetTheftVolumeTotal = fleetAssets.reduce((sum, asset) => sum + Math.max(0, Number(asset.theftVolume || 0)), 0);
+
+    const totalRefillsInRange = isTodaySelected
+      ? Math.max(fleetVehicleTodayTotals.refillCount, fleetEventTotals.refillCount, assetRefillCountTotal)
+      : (fleetEventTotals.refillCount || assetRefillCountTotal);
+    const totalRefillVolumeInRange = isTodaySelected
+      ? Math.max(fleetVehicleTodayTotals.refillVolume, fleetEventTotals.refillVolume, assetRefillVolumeTotal)
+      : (fleetEventTotals.refillVolume || assetRefillVolumeTotal);
+    const totalTheftsInRange = isTodaySelected
+      ? Math.max(fleetVehicleTodayTotals.theftCount, fleetEventTotals.theftCount, assetTheftCountTotal)
+      : (fleetEventTotals.theftCount || assetTheftCountTotal);
+    const totalTheftVolumeInRange = isTodaySelected
+      ? Math.max(fleetVehicleTodayTotals.theftVolume, fleetEventTotals.theftVolume, assetTheftVolumeTotal)
+      : (fleetEventTotals.theftVolume || assetTheftVolumeTotal);
 
     return {
       movingAssets,
       idlingAssets,
       parkedAssets,
+      totalFuelUsedInRange,
       totalRefillsInRange,
       totalRefillVolumeInRange,
       totalTheftsInRange,
@@ -1491,8 +1600,17 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
         <>
           {/* Teletrac Fuel - Operational Command Center Redesign */}
 
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="text-[11px] font-medium text-muted-foreground">
+              Fleet overview for <span className="font-semibold text-foreground">{selectedRangeLabel}</span>
+            </div>
+            <Badge variant="outline" className="h-6 px-2 text-[10px] font-medium">
+              Live DB-backed metrics
+            </Badge>
+          </div>
+
           {/* Proactive Scorecard (KPI Cards) */}
-          <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-5">
+          <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
             <GlassCard className="card-surface-premium motion-premium p-4" data-testid="kpi-total-assets">
               <div className="mb-3 flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -1543,8 +1661,6 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
               </div>
             </GlassCard>
 
-            {/* Solution Validation Metrics (Refill/Theft - Last 30 Days) */}
-
             <GlassCard className="card-surface-premium motion-premium p-4" data-testid="kpi-thefts-validation">
               <div className="mb-3 flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -1565,7 +1681,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
                 {fleetMetrics.totalTheftsInRange}
               </div>
               <div className="text-xs text-muted-foreground">
-                {selectedRangeLabel} Volume: {fleetMetrics.totalTheftVolumeInRange.toFixed(1)}L
+                {fleetMetrics.totalTheftVolumeInRange.toFixed(1)} L loss volume
               </div>
             </GlassCard>
 
@@ -1589,7 +1705,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
                 {fleetMetrics.totalRefillsInRange}
               </div>
               <div className="text-xs text-muted-foreground">
-                {selectedRangeLabel} Volume: {fleetMetrics.totalRefillVolumeInRange.toFixed(1)}L
+                {fleetMetrics.totalRefillVolumeInRange.toFixed(1)} L refill volume
               </div>
             </GlassCard>
           </div>
@@ -1678,57 +1794,66 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
                         </div>
                       </td>
                       {/* Alert Intelligence Column */}
-                      <td className="min-w-[300px] px-3 py-3 text-center">
+                      <td className="min-w-[300px] px-3 py-2 text-center">
                         {(() => {
                           const refillCount = Math.max(0, Math.trunc(asset.refillCount ?? 0));
                           const theftCount = Math.max(0, Math.trunc(asset.theftIncidents ?? 0));
                           const refillTotal = Math.max(0, Number(asset.refillVolume ?? 0));
                           const theftTotal = Math.max(0, Number(asset.theftVolume ?? 0));
-                          const totalEvents = refillCount + theftCount;
-                          const netImpact = refillTotal - theftTotal;
-                          const netImpactLabel = `${netImpact >= 0 ? "+" : "-"}${formatMetricNumber(Math.abs(netImpact), 1)} L`;
-                          const netImpactTone =
-                            netImpact > 0
-                              ? "text-emerald-700 dark:text-emerald-300"
-                              : netImpact < 0
-                                ? "text-destructive"
-                                : "text-muted-foreground";
+                          const pressureLabel =
+                            theftTotal > 0 && refillTotal > 0
+                              ? `${formatMetricNumber(refillTotal / Math.max(theftTotal, 1), 1)}x cover`
+                              : refillTotal > 0
+                                ? "Positive stock"
+                                : theftTotal > 0
+                                  ? "Loss only"
+                                  : "No events";
 
                           return (
-                            <div className="mx-auto w-full max-w-[320px] px-1 py-0.5">
-                              <div className="space-y-1.5 text-left">
-                                <div className="flex items-center justify-between rounded-md bg-muted/40 px-2.5 py-1.5">
-                                  <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-primary">
-                                    <Droplet className="h-2.5 w-2.5" />
-                                    Refills
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-sm font-bold text-primary">{refillCount}</span>
-                                    <span className="text-[10px] text-primary/90">
-                                      Total <span className="font-bold">{formatMetricNumber(refillTotal, 1)} L</span>
-                                    </span>
+                            <div className="mx-auto w-full max-w-[320px]">
+                              <div className="rounded-lg border border-border/30 bg-gradient-to-br from-card/90 via-card/75 to-muted/20 px-2.5 py-1 text-left shadow-[inset_0_1px_0_hsl(var(--background)/0.35)]">
+                                <div className="mb-1 flex items-center justify-end">
+                                  <div className="rounded-full border border-border/25 bg-background/70 px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.12em] text-foreground">
+                                    {pressureLabel}
                                   </div>
                                 </div>
+                                <div className="space-y-1">
+                                  <div className="grid grid-cols-[minmax(0,1fr)_34px_auto] items-center gap-2">
+                                    <div className="min-w-0 rounded-md border border-primary/15 bg-primary/5 px-2 py-0.5">
+                                      <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                                        <Droplet className="h-2.5 w-2.5" />
+                                        <span>Refills</span>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center justify-center">
+                                      <div className="text-center text-xs font-semibold leading-none text-foreground">
+                                        {refillCount}
+                                      </div>
+                                    </div>
+                                    <div className="text-right leading-none">
+                                      <div className="text-sm font-bold text-primary">
+                                        {formatMetricNumber(refillTotal, 1)} L
+                                      </div>
+                                    </div>
+                                  </div>
 
-                                <div className="flex items-center justify-between rounded-md border border-border/30 bg-card/60 px-2.5 py-1">
-                                  <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                    Events <span className="text-foreground">{totalEvents}</span>
-                                  </div>
-                                  <div className={`text-[10px] font-semibold ${netImpactTone}`}>
-                                    Net {netImpactLabel}
-                                  </div>
-                                </div>
-
-                                <div className="flex items-center justify-between rounded-md bg-muted/40 px-2.5 py-1.5">
-                                  <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-destructive">
-                                    <AlertTriangle className="h-2.5 w-2.5" />
-                                    Thefts
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-sm font-bold text-destructive">{theftCount}</span>
-                                    <span className="text-[10px] text-destructive/90">
-                                      Total <span className="font-bold">{formatMetricNumber(theftTotal, 1)} L</span>
-                                    </span>
+                                  <div className="grid grid-cols-[minmax(0,1fr)_34px_auto] items-center gap-2 border-t border-border/20 pt-1">
+                                    <div className="min-w-0 rounded-md border border-destructive/15 bg-destructive/5 px-2 py-0.5">
+                                      <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-destructive">
+                                        <AlertTriangle className="h-2.5 w-2.5" />
+                                        <span>Thefts</span>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center justify-center">
+                                      <div className="text-center text-xs font-semibold leading-none text-foreground">
+                                        {theftCount}
+                                      </div>
+                                    </div>
+                                    <div className="text-right leading-none">
+                                      <div className="text-sm font-bold text-destructive">
+                                        {formatMetricNumber(theftTotal, 1)} L
+                                      </div>
+                                    </div>
                                   </div>
                                 </div>
                               </div>
@@ -1870,144 +1995,148 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
         <>
           {/* Focused Asset Performance View */}
           <div className="space-y-6">
-            {/* Main KPI Section - Updated with new cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6 mb-8">
-              {/* Status Card with Tank Level Percentage Bar and Asset Name */}
-              <GlassCard className="p-6" data-testid="status-card">
-                <h3 className="text-lg font-bold text-foreground mb-2">{assetData.assetLabel}</h3>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Tank Size:</span>
-                    <span className="font-bold text-foreground">
-                      {focusedTankCapacityValue === null ? "N/A" : `${focusedTankCapacityValue}L`}
-                    </span>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="text-[11px] font-medium text-muted-foreground">
+                Focused asset overview for <span className="font-semibold text-foreground">{selectedRangeLabel}</span>
+              </div>
+              <Badge variant="outline" className="h-6 px-2 text-[10px] font-medium">
+                Live DB-backed metrics
+              </Badge>
+            </div>
+
+            <div className="mb-8 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
+              <GlassCard className="card-surface-premium motion-premium overflow-hidden p-4" data-testid="status-card">
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold text-foreground">{assetData.assetLabel}</div>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Current Fuel:</span>
-                    <span className="font-bold text-primary">{fuelKPIs.currentFuel.toFixed(1)}L</span>
+                  <Badge variant="outline" className="text-[10px] whitespace-nowrap">
+                    {focusedVehicle?.status || "Unknown"}
+                  </Badge>
+                </div>
+                <div className="rounded-xl border border-primary/10 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-3">
+                  <div className="flex items-end justify-between gap-3">
+                    <div>
+                      <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Current Fuel</div>
+                      <div className="mt-1 text-3xl font-bold text-primary">{fuelKPIs.currentFuel.toFixed(0)}<span className="ml-1 text-base font-semibold">L</span></div>
+                    </div>
+                    <div className="space-y-1 text-right">
+                      <div className="rounded-full border border-border/30 bg-background/70 px-2.5 py-1 text-xs font-semibold text-foreground">
+                        {focusedTankCapacity > 0 ? ((fuelKPIs.currentFuel / focusedTankCapacity) * 100).toFixed(1) : "0.0"}%
+                      </div>
+                      <div className="text-[11px] font-medium text-muted-foreground">
+                        Capacity{" "}
+                        <span className="font-semibold text-foreground">
+                          {focusedTankCapacityValue === null ? "N/A" : `${focusedTankCapacityValue} L`}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Fuel Level:</span>
-                    <span className="font-bold text-primary">
-                      {focusedTankCapacity > 0 ? ((fuelKPIs.currentFuel / focusedTankCapacity) * 100).toFixed(1) : "0.0"}%
-                    </span>
-                  </div>
-                  {/* Tank Level Percentage Bar */}
-                  <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-border/50">
                     <div
-                      className="bg-primary h-2 rounded-full transition-all duration-300"
+                      className="h-full rounded-full bg-gradient-to-r from-primary via-primary to-sky-400 transition-all duration-300"
                       style={{
-                        width: `${focusedTankCapacity > 0 ? (fuelKPIs.currentFuel / focusedTankCapacity) * 100 : 0}%`,
+                        width: `${Math.max(0, Math.min(100, focusedTankCapacity > 0 ? (fuelKPIs.currentFuel / focusedTankCapacity) * 100 : 0))}%`,
                       }}
-                    ></div>
+                    />
                   </div>
                 </div>
               </GlassCard>
 
-              {/* Consumption Card - Moved to first row with better space utilization */}
-              <GlassCard className="p-6" data-testid="consumption-card">
-                <h3 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
-                  <Gauge className="w-5 h-5 text-accent-foreground" />
-                  Consumption ({selectedRangeLabel})
-                </h3>
-                <div className="flex items-center justify-center h-24">
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-accent-foreground mb-1">{fuelKPIs.consumption.toFixed(2)}</div>
-                    <div className="text-sm text-muted-foreground">{consumptionUnitLabel}</div>
-                    <div className="text-xs text-muted-foreground mt-2">
-                      {filterState.consumptionUnit === "KM/L" ? "Distance covered per liter" : "Working hours per liter"}
+              <GlassCard className="card-surface-premium motion-premium overflow-hidden p-4" data-testid="consumption-card">
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="text-xs font-medium text-muted-foreground">Consumption</span>
+                  <Gauge className={`h-4 w-4 ${focusedConsumptionBand.iconClass}`} />
+                </div>
+                <div className={`rounded-xl border p-3 ${focusedConsumptionBand.panelClass}`}>
+                  <div className="flex items-end justify-between gap-3">
+                    <div>
+                      <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Efficiency</div>
+                      <div className={`mt-1 text-3xl font-bold ${focusedConsumptionBand.valueClass}`}>
+                        {fuelKPIs.consumption.toFixed(2)}
+                      </div>
                     </div>
-                    <div className="mt-3 pt-2 border-t border-border/20">
-                      <div className="text-sm font-bold text-primary">{fuelKPIs.fuelUsed.toFixed(1)}L</div>
-                      <div className="text-xs text-muted-foreground">Total fuel used ({selectedRangeLabel.toLowerCase()})</div>
+                    <div className="rounded-full border border-border/30 bg-background/70 px-2.5 py-1 text-[11px] font-semibold text-foreground">
+                      {consumptionUnitLabel}
                     </div>
+                  </div>
+                </div>
+                <div className="mt-3 flex items-center justify-between gap-2">
+                  <div className="text-xs text-muted-foreground">
+                    {filterState.consumptionUnit === "KM/L" ? "Distance per liter" : "Engine hours per liter"}
+                  </div>
+                  <div className={`rounded-full border px-2 py-1 text-[10px] font-medium ${focusedConsumptionBand.chipClass}`}>
+                    {focusedConsumptionBand.label}
                   </div>
                 </div>
               </GlassCard>
 
-              {/* Total Distance Card with better space utilization */}
-              <GlassCard className="p-6" data-testid="total-distance-card">
-                <h3 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
-                  <Route className="w-5 h-5 text-primary" />
-                  Total Distance ({selectedRangeLabel})
-                </h3>
-                <div className="flex items-center justify-center h-24">
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-primary mb-1">{assetData.totalDistance.toFixed(1)}</div>
-                    <div className="text-sm text-muted-foreground">km</div>
-                    <div className="text-xs text-muted-foreground mt-2">Distance traveled</div>
+              <GlassCard className="card-surface-premium motion-premium overflow-hidden p-4" data-testid="focused-fuel-used-card">
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="text-xs font-medium text-muted-foreground">Fuel Used</span>
+                  <Fuel className="h-4 w-4 text-primary" />
+                </div>
+                <div className="rounded-xl border border-primary/10 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-3">
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Drawdown</div>
+                  <div className="mt-1 text-3xl font-bold text-primary">{assetData.totalFuelUsed.toFixed(1)}<span className="ml-1 text-base font-semibold">L</span></div>
+                </div>
+                <div className="mt-3 text-xs text-muted-foreground">Aggregate consumption in scope</div>
+              </GlassCard>
+
+              <GlassCard className="card-surface-premium motion-premium overflow-hidden p-4" data-testid="total-distance-card">
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="text-xs font-medium text-muted-foreground">Distance</span>
+                  <Route className="h-4 w-4 text-primary" />
+                </div>
+                <div className="rounded-xl border border-primary/10 bg-gradient-to-br from-sky-500/10 via-sky-500/5 to-transparent p-3">
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Coverage</div>
+                  <div className="mt-1 text-3xl font-bold text-sky-700 dark:text-sky-300">{assetData.totalDistance.toFixed(1)}<span className="ml-1 text-base font-semibold">km</span></div>
+                </div>
+                <div className="mt-3 text-xs text-muted-foreground">Distance traveled in scope</div>
+              </GlassCard>
+
+              <GlassCard className="card-surface-premium motion-premium overflow-hidden p-4" data-testid="active-hours-card">
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="text-xs font-medium text-muted-foreground">Engine Hours</span>
+                  <Clock className="h-4 w-4 text-accent-foreground" />
+                </div>
+                <div className="rounded-xl border border-accent/10 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent p-3">
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Runtime</div>
+                  <div className="mt-1 text-3xl font-bold text-amber-700 dark:text-amber-300">{assetData.totalEngineHours.toFixed(1)}<span className="ml-1 text-base font-semibold">hrs</span></div>
+                </div>
+                <div className="mt-3 text-xs text-muted-foreground">Engine running time in scope</div>
+              </GlassCard>
+
+              <GlassCard className="card-surface-premium motion-premium overflow-hidden p-4" data-testid="fuel-events-card">
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="text-xs font-medium text-muted-foreground">Fuel Events</span>
+                  <AlertTriangle className="h-4 w-4 text-destructive" />
+                </div>
+                <div className="rounded-xl border border-border/25 bg-gradient-to-br from-slate-500/10 via-card/95 to-muted/25 p-2.5">
+                  <div className="mb-2 flex items-center justify-between">
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Event Balance</div>
+                    <div className="rounded-full border border-border/25 bg-background/60 px-2 py-0.5 text-[10px] font-medium text-foreground">
+                      {assetData.totalRefillCounts + fuelKPIs.drainsCount} tracked
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="rounded-xl border border-primary/12 bg-gradient-to-br from-primary/[0.10] via-primary/[0.06] to-transparent px-2.5 py-2">
+                      <div className="text-[10px] uppercase tracking-[0.16em] text-primary dark:text-primary-foreground">Refills</div>
+                      <div className="mt-0.5 flex items-baseline justify-between gap-2">
+                        <span className="text-sm font-semibold text-foreground">{assetData.totalRefillCounts}</span>
+                        <span className="text-base font-bold text-primary">{assetData.totalRefills.toFixed(1)} L</span>
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-destructive/12 bg-gradient-to-br from-destructive/[0.10] via-destructive/[0.06] to-transparent px-2.5 py-2">
+                      <div className="text-[10px] uppercase tracking-[0.16em] text-destructive dark:text-red-300">Drains</div>
+                      <div className="mt-0.5 flex items-baseline justify-between gap-2">
+                        <span className="text-sm font-semibold text-foreground">{fuelKPIs.drainsCount}</span>
+                        <span className="text-base font-bold text-destructive">{fuelKPIs.drainsVolume.toFixed(1)} L</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </GlassCard>
-
-              {/* Active Hours Card with better space utilization */}
-              <GlassCard className="p-6" data-testid="active-hours-card">
-                <h3 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-accent-foreground" />
-                  Engine Hours ({selectedRangeLabel})
-                </h3>
-                <div className="flex items-center justify-center h-24">
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-accent-foreground mb-1">{assetData.totalEngineHours.toFixed(1)}</div>
-                    <div className="text-sm text-muted-foreground">hrs</div>
-                    <div className="text-xs text-muted-foreground mt-2">Engine running time</div>
-                  </div>
-                </div>
-              </GlassCard>
-
-              {/* Combined Refills and Drains Card */}
-              <GlassCard className="p-6" data-testid="fuel-events-card">
-                <h3 className="text-lg font-bold text-foreground mb-4">Fuel Events</h3>
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                      <Droplet className="w-4 h-4 text-primary" />
-                      <span className="text-sm text-muted-foreground">Refills:</span>
-                    </div>
-                    <span className="font-bold text-primary">{assetData.totalRefillCounts} events</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                      <TrendingDown className="w-4 h-4 text-destructive" />
-                      <span className="text-sm text-muted-foreground">Drains:</span>
-                    </div>
-                    <span className="font-bold text-destructive">{fuelKPIs.drainsCount} events</span>
-                  </div>
-                  <div className="flex justify-between items-center pt-2 border-t">
-                    <span className="text-xs text-muted-foreground">Total Refills Volume:</span>
-                    <span className="text-xs font-bold text-primary">{assetData.totalRefills.toFixed(1)}L</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-muted-foreground">Total Drains Volume:</span>
-                    <span className="text-xs font-bold text-destructive">{fuelKPIs.drainsVolume.toFixed(1)}L</span>
-                  </div>
-                </div>
-              </GlassCard>
-
-              {/* Working Days Card */}
-              <GlassCard className="p-6" data-testid="working-days-card">
-                <h3 className="text-lg font-bold text-foreground mb-4">Working Days</h3>
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-primary" />
-                      <span className="text-sm text-muted-foreground">Working:</span>
-                    </div>
-                    <span className="font-bold text-primary">{assetData.workingDays}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                      <Timer className="w-4 h-4 text-accent-foreground" />
-                      <span className="text-sm text-muted-foreground">Parked:</span>
-                    </div>
-                    <span className="font-bold text-accent-foreground">{assetData.parkingDays || 0}</span>
-                  </div>
-                  <div className="text-xs text-muted-foreground pt-2 border-t">
-                    Total days: {assetData.workingDays + (assetData.parkingDays || 0)}
-                  </div>
-                </div>
-              </GlassCard>
-
             </div>
 
             {/* Interactive Fuel Level Chart */}
@@ -2015,6 +2144,20 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <h3 className="text-lg font-bold text-foreground">Actual Fuel Level Monitoring</h3>
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-primary/15 bg-primary/5 px-2 py-1">
+                      <span className="h-2 w-2 rounded-full bg-primary" />
+                      Actual fuel level
+                    </span>
+                    <span className="inline-flex items-center gap-1 rounded-full border border-sky-500/15 bg-sky-500/5 px-2 py-1">
+                      <span className="h-2 w-2 rounded-full bg-sky-400" />
+                      Trip window
+                    </span>
+                    <span className="inline-flex items-center gap-1 rounded-full border border-destructive/15 bg-destructive/5 px-2 py-1">
+                      <AlertTriangle className="h-3 w-3 text-destructive" />
+                      Drain marker
+                    </span>
+                  </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Button
@@ -2047,19 +2190,25 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
               <div className="h-80">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={fuelLevelChartData} margin={{ top: 8, right: 24, left: 8, bottom: 8 }}>
-                    <CartesianGrid strokeDasharray="3 6" stroke="hsl(var(--border))" strokeOpacity={0.35} />
+                    <CartesianGrid strokeDasharray="2 5" stroke="hsl(var(--border))" strokeOpacity={0.28} vertical={false} />
                     <XAxis
                       dataKey="time"
                       stroke="hsl(var(--muted-foreground))"
-                      fontSize={12}
-                      minTickGap={28}
+                      fontSize={11}
+                      minTickGap={32}
+                      tickLine={false}
+                      axisLine={false}
                       tickFormatter={focusedChartTickFormatter}
                     />
                     <YAxis
                       domain={[0, focusedTankCapacity || 1]}
                       stroke="hsl(var(--muted-foreground))"
-                      fontSize={12}
-                      label={{ value: 'Actual Fuel Level (L)', angle: -90, position: 'insideLeft' }}
+                      fontSize={11}
+                      tickLine={false}
+                      axisLine={false}
+                      width={52}
+                      tickFormatter={(value: number) => `${Math.round(Number(value) || 0)}L`}
+                      label={{ value: 'Fuel (L)', angle: -90, position: 'insideLeft' }}
                     />
                     {tripWindows.map((window, index) => (
                       <ReferenceArea
@@ -2125,81 +2274,96 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
                           ? tripWindowByTime.get(forcedTooltip?.time ?? "")
                           : tripWindowByTime.get(row.time ?? String(label ?? ""));
                         return (
-                          <div className="rounded-lg border border-border/60 bg-card px-3 py-2 text-xs shadow-lg">
-                            <div className="mb-2 font-medium text-foreground">Reading at {showLabel}</div>
-                            <div className="space-y-1">
+                          <div className="w-[260px] rounded-xl border border-border/60 bg-card/95 px-3 py-3 text-xs shadow-xl backdrop-blur-sm">
+                            <div className="mb-3 flex items-start justify-between gap-3">
+                              <div>
+                                <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                                  {forced ? "Event focus" : "Fuel reading"}
+                                </div>
+                                <div className="mt-1 font-semibold text-foreground">{showLabel}</div>
+                              </div>
+                              <div className="rounded-full border border-border/25 bg-background/70 px-2 py-1 text-[10px] font-medium text-foreground">
+                                {forced ? "Pinned" : "Live"}
+                              </div>
+                            </div>
+                            <div className="space-y-2">
                               {!forced &&
                                 payload
                                   ?.filter((item) => item.dataKey === "raw" || item.dataKey === "fuel")
                                   .map((item) => (
-                                    <div key={item.dataKey} className="flex items-center justify-between gap-2">
-                                      <span className="flex items-center gap-1 text-muted-foreground">
-                                        <Fuel className="h-3 w-3" />
-                                        {item.dataKey === "raw" ? "Raw sensor reading" : "Actual fuel level"}
+                                    <div key={item.dataKey} className="flex items-center justify-between gap-3 rounded-lg border border-border/25 bg-background/40 px-2.5 py-2">
+                                      <span className="flex items-center gap-1.5 text-muted-foreground">
+                                        <Fuel className={`h-3 w-3 ${item.dataKey === "raw" ? "text-muted-foreground" : "text-primary"}`} />
+                                        {item.dataKey === "raw" ? "Raw overlay" : "Actual fuel"}
                                       </span>
-                                      <span className="font-mono font-medium text-foreground">
+                                      <span className={`font-mono font-semibold ${item.dataKey === "raw" ? "text-muted-foreground" : "text-foreground"}`}>
                                         {Number(item.value).toFixed(1)} L
                                       </span>
                                     </div>
                                   ))}
                               {typeof distance === "number" && (
-                                <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center justify-between gap-2 rounded-lg border border-border/25 bg-background/40 px-2.5 py-2">
                                   <span className="flex items-center gap-1 text-muted-foreground">
                                     <Route className="h-3 w-3" />
                                     Distance
                                   </span>
-                                  <span className="font-mono font-medium text-foreground">{distance.toFixed(1)} km</span>
+                                  <span className="font-mono font-semibold text-foreground">{distance.toFixed(1)} km</span>
                                 </div>
                               )}
                               {activeTripWindow && (
                                 <>
-                                  <div className="my-2 border-t border-sky-200/60 pt-2 dark:border-sky-900/40" />
-                                  <div className="flex items-center justify-between gap-2">
-                                    <span className="text-muted-foreground">Trip window</span>
-                                    <span className="font-medium text-sky-700 dark:text-sky-300">
-                                      {activeTripWindow.startLabel} to {activeTripWindow.endLabel}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center justify-between gap-2">
-                                    <span className="text-muted-foreground">Trip distance</span>
-                                    <span className="font-mono font-medium text-foreground">
-                                      {activeTripWindow.distanceKm.toFixed(1)} km
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center justify-between gap-2">
-                                    <span className="text-muted-foreground">Duration</span>
-                                    <span className="font-mono font-medium text-foreground">
-                                      {activeTripWindow.durationMinutes} min
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center justify-between gap-2">
-                                    <span className="text-muted-foreground">Peak speed</span>
-                                    <span className="font-mono font-medium text-foreground">
-                                      {activeTripWindow.peakSpeedKph.toFixed(0)} km/h
-                                    </span>
+                                  <div className="rounded-lg border border-sky-500/15 bg-sky-500/[0.06] px-2.5 py-2">
+                                    <div className="mb-2 text-[10px] uppercase tracking-[0.16em] text-sky-700 dark:text-sky-300">Trip window</div>
+                                    <div className="space-y-1.5">
+                                      <div className="flex items-center justify-between gap-2">
+                                        <span className="text-muted-foreground">Window</span>
+                                        <span className="font-medium text-sky-700 dark:text-sky-300">
+                                          {activeTripWindow.startLabel} to {activeTripWindow.endLabel}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center justify-between gap-2">
+                                        <span className="text-muted-foreground">Distance</span>
+                                        <span className="font-mono font-semibold text-foreground">
+                                          {activeTripWindow.distanceKm.toFixed(1)} km
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center justify-between gap-2">
+                                        <span className="text-muted-foreground">Duration</span>
+                                        <span className="font-mono font-semibold text-foreground">
+                                          {activeTripWindow.durationMinutes} min
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center justify-between gap-2">
+                                        <span className="text-muted-foreground">Peak speed</span>
+                                        <span className="font-mono font-semibold text-foreground">
+                                          {activeTripWindow.peakSpeedKph.toFixed(0)} km/h
+                                        </span>
+                                      </div>
+                                    </div>
                                   </div>
                                 </>
                               )}
                               {refillVolume > 0 && (
-                                <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center justify-between gap-2 rounded-lg border border-primary/15 bg-primary/[0.06] px-2.5 py-2">
                                   <span className="flex items-center gap-1 text-muted-foreground">
                                     <Fuel className="h-3 w-3 text-primary" />
                                     Refills
                                   </span>
-                                  <span className="font-mono font-medium text-primary">+{refillVolume.toFixed(1)} L</span>
+                                  <span className="font-mono font-semibold text-primary">+{refillVolume.toFixed(1)} L</span>
                                 </div>
                               )}
                               {theftVolume > 0 && (
-                                <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center justify-between gap-2 rounded-lg border border-destructive/15 bg-destructive/[0.06] px-2.5 py-2">
                                   <span className="flex items-center gap-1 text-muted-foreground">
                                     <AlertTriangle className="h-3 w-3 text-destructive" />
-                                    Thefts
+                                    Drains
                                   </span>
-                                  <span className="font-mono font-medium text-destructive">-{theftVolume.toFixed(1)} L</span>
+                                  <span className="font-mono font-semibold text-destructive">-{theftVolume.toFixed(1)} L</span>
                                 </div>
                               )}
                               {forced && (
                                 <>
+                                  <div className="rounded-lg border border-border/25 bg-background/40 px-2.5 py-2 space-y-1.5">
                                   <div className="flex items-center justify-between gap-2">
                                     <span className="text-muted-foreground">Event</span>
                                     <span className="font-medium text-foreground capitalize">{forced.eventType}</span>
@@ -2220,6 +2384,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
                                     <span className="text-muted-foreground">Location</span>
                                     <span className="font-medium text-foreground">{forced.location}</span>
                                   </div>
+                                  </div>
                                   <div className="text-muted-foreground italic">
                                     {forced.eventType === "theft"
                                       ? "Unusual drain pattern detected."
@@ -2238,20 +2403,22 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
                         <stop offset="100%" stopColor="#38bdf8" stopOpacity={0.03} />
                       </linearGradient>
                       <linearGradient id="actualFuelAreaGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#38bdf8" stopOpacity={0.38} />
+                        <stop offset="0%" stopColor="#22d3ee" stopOpacity={0.42} />
+                        <stop offset="45%" stopColor="#38bdf8" stopOpacity={0.24} />
                         <stop offset="70%" stopColor="#2563eb" stopOpacity={0.14} />
                         <stop offset="100%" stopColor="#1d4ed8" stopOpacity={0.02} />
                       </linearGradient>
                       <linearGradient id="actualFuelStrokeGradient" x1="0" y1="0" x2="1" y2="0">
-                        <stop offset="0%" stopColor="#38bdf8" />
-                        <stop offset="100%" stopColor="#1d4ed8" />
+                        <stop offset="0%" stopColor="#22d3ee" />
+                        <stop offset="50%" stopColor="#38bdf8" />
+                        <stop offset="100%" stopColor="#2563eb" />
                       </linearGradient>
                     </defs>
                     <Area
                       type="monotone"
                       dataKey="actualFuel"
                       stroke="url(#actualFuelStrokeGradient)"
-                      strokeWidth={3}
+                      strokeWidth={3.25}
                       fill="url(#actualFuelAreaGradient)"
                       fillOpacity={1}
                       dot={false}
@@ -2265,7 +2432,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
                         type="monotone"
                         dataKey="raw"
                         stroke="hsl(var(--muted-foreground))"
-                        strokeWidth={1.25}
+                        strokeWidth={1.15}
                         strokeDasharray="5 5"
                         dot={false}
                         name="Raw sensor overlay"
@@ -2283,10 +2450,11 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
                         return (
                           <g transform={`translate(${cx}, ${cy})`} cursor="pointer">
                             {isHighlighted && (
-                              <circle r={10} fill="rgba(59,130,246,0.28)" className="animate-ping" />
+                              <circle r={11} fill="rgba(59,130,246,0.22)" className="animate-ping" />
                             )}
-                            <circle r={7} fill="rgba(59,130,246,0.15)" />
-                            <Fuel className="w-3 h-3 text-primary" x={-6} y={-6} />
+                            <circle r={9} fill="rgba(59,130,246,0.18)" stroke="rgba(59,130,246,0.45)" strokeWidth={1} />
+                            <circle r={5.5} fill="rgba(255,255,255,0.92)" />
+                            <Fuel className="w-3.5 h-3.5 text-primary" x={-7} y={-7} />
                           </g>
                         );
                       }}
@@ -2312,10 +2480,11 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
                         return (
                           <g transform={`translate(${cx}, ${cy})`} cursor="pointer">
                             {isHighlighted && (
-                              <circle r={10} fill="rgba(239,68,68,0.28)" className="animate-ping" />
+                              <circle r={11} fill="rgba(239,68,68,0.22)" className="animate-ping" />
                             )}
-                            <circle r={7} fill="rgba(239,68,68,0.15)" />
-                            <AlertTriangle className="w-3 h-3 text-destructive" x={-6} y={-6} />
+                            <circle r={9} fill="rgba(239,68,68,0.18)" stroke="rgba(239,68,68,0.45)" strokeWidth={1} />
+                            <circle r={5.5} fill="rgba(255,255,255,0.92)" />
+                            <AlertTriangle className="w-3.5 h-3.5 text-destructive" x={-7} y={-7} />
                           </g>
                         );
                       }}

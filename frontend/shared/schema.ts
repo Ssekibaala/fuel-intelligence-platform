@@ -57,7 +57,7 @@ export const efficiencyRatingEnum = z.enum(["Excellent", "Good", "Poor"]);
 export type EfficiencyRating = z.infer<typeof efficiencyRatingEnum>;
 
 // Fuel Event Type Enum
-export const fuelEventTypeEnum = z.enum(["refill", "theft", "consumption", "leak"]);
+export const fuelEventTypeEnum = z.enum(["refill", "theft", "consumption", "leak", "drain"]);
 export type FuelEventType = z.infer<typeof fuelEventTypeEnum>;
 
 // Currency Enum
@@ -117,7 +117,7 @@ export const vehicles = pgTable("vehicles", {
 export const fuelEvents = pgTable("fuel_events", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   vehicleId: varchar("vehicle_id").references(() => vehicles.id).notNull(),
-  eventType: text("event_type").notNull().$type<FuelEventType>(), // "refill", "theft", "consumption"
+  eventType: text("event_type").notNull().$type<FuelEventType>(), // "refill", "theft", "consumption", "leak", "drain"
   volumeLiters: real("volume_liters").notNull(), // Positive for refill, negative for theft/consumption
   costKES: real("cost_kes"), // Cost in Kenyan Shillings
   costUGX: real("cost_ugx"), // Cost in Ugandan Shillings  

@@ -698,7 +698,7 @@ export class SupabaseStorage implements IStorage {
       endDate: parsedEndDate,
     });
     const totalRefills = fuelEvents.filter((e) => e.eventType === "refill").length;
-    const totalThefts = fuelEvents.filter((e) => e.eventType === "theft").length;
+    const totalThefts = fuelEvents.filter((e) => e.eventType === "theft" || e.eventType === "leak" || e.eventType === "drain").length;
 
     return {
       ...totals,
@@ -762,7 +762,7 @@ export class SupabaseStorage implements IStorage {
     });
 
     const refillEvents = fuelEvents.filter((e) => e.eventType === "refill");
-    const theftEvents = fuelEvents.filter((e) => e.eventType === "theft");
+    const theftEvents = fuelEvents.filter((e) => e.eventType === "theft" || e.eventType === "leak" || e.eventType === "drain");
 
     return {
       refillEvents: refillEvents.length,
