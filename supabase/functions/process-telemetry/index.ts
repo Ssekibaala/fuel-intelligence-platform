@@ -991,33 +991,36 @@ function toIsoTimestamp(value: unknown): string | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
 }
 
+function hasExplicitTimezone(raw: string): boolean {
+  return /[zZ]$|[+-]\d{2}:\d{2}$/.test(raw);
+}
+
+function formatEatLocalTimestamp(date: Date): string {
+  const shifted = new Date(date.getTime() + 3 * 60 * 60 * 1000);
+  const year = shifted.getUTCFullYear();
+  const month = String(shifted.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(shifted.getUTCDate()).padStart(2, "0");
+  const hours = String(shifted.getUTCHours()).padStart(2, "0");
+  const minutes = String(shifted.getUTCMinutes()).padStart(2, "0");
+  const seconds = String(shifted.getUTCSeconds()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+}
+
 function toIsoTimestampEatLocal(value: unknown): string | null {
   const raw = toCleanString(value);
   if (!raw) return null;
-  if (/[zZ]$|[+-]\d{2}:\d{2}$/.test(raw)) {
-    return toIsoTimestamp(raw);
-  }
-
   const match = raw.match(
     /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2})(\.\d{1,6})?)?$/
   );
-  if (!match) return toIsoTimestamp(raw);
+  if (match) {
+    const fraction = match[7] ? match[7].slice(0, 4) : "";
+    return `${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}:${match[6] || "00"}${fraction}`;
+  }
 
-  const milliseconds = match[7]
-    ? Math.round(Number(`0${match[7]}`) * 1000)
-    : 0;
+  if (!hasExplicitTimezone(raw)) return raw.replace(" ", "T");
 
-  const utcMillis = Date.UTC(
-    Number(match[1]),
-    Number(match[2]) - 1,
-    Number(match[3]),
-    Number(match[4]) - 3,
-    Number(match[5]),
-    Number(match[6] || "0"),
-    milliseconds
-  );
-  const parsed = new Date(utcMillis);
-  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : formatEatLocalTimestamp(parsed);
 }
 
 function extractIsoDayText(value: unknown): string | null {
@@ -1044,9 +1047,10 @@ function combineEatDayAndClock(dayValue: unknown, timeValue: unknown): string | 
 
 function addHoursToIso(iso: string | null, hours: number | null): string | null {
   if (!iso || hours === null || !Number.isFinite(hours)) return null;
-  const parsed = new Date(iso);
+  const normalized = hasExplicitTimezone(iso) ? iso : `${iso}+03:00`;
+  const parsed = new Date(normalized);
   if (Number.isNaN(parsed.getTime())) return null;
-  return new Date(parsed.getTime() + hours * 3_600_000).toISOString();
+  return formatEatLocalTimestamp(new Date(parsed.getTime() + hours * 3_600_000));
 }
 
 function parseDurationHours(value: unknown): number | null {

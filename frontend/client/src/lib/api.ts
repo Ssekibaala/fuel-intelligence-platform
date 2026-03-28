@@ -235,6 +235,9 @@ export interface JourneyOccurrence {
   returnLegDurationHours: number | null;
   routeDistanceKm: number;
   routeFuelUsedLitres: number;
+  initialFuelLitres: number | null;
+  finalFuelLitres: number | null;
+  totalRefillsLitres: number;
   routeEfficiency: number | null;
   routeDrivingHours: number | null;
   maxSpeedKmh: number | null;

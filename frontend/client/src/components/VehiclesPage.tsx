@@ -42,7 +42,7 @@ import { FilterControls } from "./FilterControls";
 import { HeadingLogo } from "./HeadingLogo";
 import { api, globalFilterToApiParams } from "../lib/api";
 import { queryClient } from "../lib/queryClient";
-import { formatDateTimeEAT } from "../lib/dateTime";
+import { DB_TIMEZONE_LABELS, formatDateTimeEAT } from "../lib/dateTime";
 import {
   deriveConsumption,
   deriveHoursPerLiter,
@@ -1738,7 +1738,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
                     <th className="px-3 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Fuel</th>
                     <th className="px-3 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Cons. ({consumptionUnitLabel})</th>
                     <th className="px-3 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Location</th>
-                    <th className="px-3 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Updated (EAT)</th>
+                    <th className="px-3 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Updated (DB {DB_TIMEZONE_LABELS.report0Utc})</th>
                     <th className="px-3 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Act.</th>
                   </tr>
                 </thead>
@@ -2158,6 +2158,9 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
                       Drain marker
                     </span>
                   </div>
+                  <div className="mt-2 text-[11px] text-muted-foreground">
+                    Raw sensor stream: DB {DB_TIMEZONE_LABELS.report0Utc} • Trip and fuel-event markers: DB {DB_TIMEZONE_LABELS.webhookLocal}
+                  </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Button
@@ -2369,7 +2372,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
                                     <span className="font-medium text-foreground capitalize">{forced.eventType}</span>
                                   </div>
                                   <div className="flex items-center justify-between gap-2">
-                                    <span className="text-muted-foreground">Time</span>
+                                    <span className="text-muted-foreground">Time ({DB_TIMEZONE_LABELS.webhookLocal})</span>
                                     <span className="font-medium text-foreground">
                                       {formatDateTimeEAT(forced.timestamp)}
                                     </span>
@@ -2534,7 +2537,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
                       <th className="text-left py-3 px-4 font-semibold text-foreground">
                         <div className="flex items-center gap-2">
                           <Clock className="w-4 h-4" />
-                          Time (EAT)
+                          Time (DB {DB_TIMEZONE_LABELS.webhookLocal})
                         </div>
                       </th>
                       <th className="text-left py-3 px-4 font-semibold text-foreground">
@@ -2588,7 +2591,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({ selectedVehicle, onVehicleC
                       <th className="text-left py-3 px-4 font-semibold text-foreground">
                         <div className="flex items-center gap-2">
                           <Clock className="w-4 h-4" />
-                          Time (EAT)
+                          Time (DB {DB_TIMEZONE_LABELS.webhookLocal})
                         </div>
                       </th>
                       <th className="text-left py-3 px-4 font-semibold text-foreground">

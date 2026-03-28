@@ -1,4 +1,5 @@
 import React from 'react';
+import { DB_TIMEZONE_LABELS } from '@/lib/dateTime';
 
 // --- Interfaces (Updated to match template) ---
 interface DailyMovementData {
@@ -180,14 +181,14 @@ export function DailyMovementPreview({ date, data, companyName }: DailyMovementP
                 <tr className="data-column-header">
                   <th style={{ backgroundColor: '#f0f0f0', fontWeight: 'bold', textAlign: 'left', border: '1px solid #ccc', padding: '5px 8px' }}>Driver</th>
                   <th style={{ backgroundColor: '#f0f0f0', fontWeight: 'bold', textAlign: 'left', border: '1px solid #ccc', padding: '5px 8px' }}>Departure Date</th>
-                  <th style={{ backgroundColor: '#f0f0f0', fontWeight: 'bold', textAlign: 'left', border: '1px solid #ccc', padding: '5px 8px' }}>Departure Time</th>
+                  <th style={{ backgroundColor: '#f0f0f0', fontWeight: 'bold', textAlign: 'left', border: '1px solid #ccc', padding: '5px 8px' }}>Departure Time (DB {DB_TIMEZONE_LABELS.webhookLocal})</th>
                   <th style={{ backgroundColor: '#f0f0f0', fontWeight: 'bold', textAlign: 'left', border: '1px solid #ccc', padding: '5px 8px' }}>Departed From</th>
                   <th style={{ backgroundColor: '#f0f0f0', fontWeight: 'bold', textAlign: 'right', border: '1px solid #ccc', padding: '5px 8px' }}>Driving Time<br/>(hh:mm:ss)</th>
                   <th style={{ backgroundColor: '#f0f0f0', fontWeight: 'bold', textAlign: 'right', border: '1px solid #ccc', padding: '5px 8px' }}>Distance<br/>(km)</th>
                   <th style={{ backgroundColor: '#f0f0f0', fontWeight: 'bold', textAlign: 'right', border: '1px solid #ccc', padding: '5px 8px' }}>Max Speed<br/>(km/h)</th>
-                  <th style={{ backgroundColor: '#f0f0f0', fontWeight: 'bold', textAlign: 'left', border: '1px solid #ccc', padding: '5px 8px' }}>Arrival Time</th>
+                  <th style={{ backgroundColor: '#f0f0f0', fontWeight: 'bold', textAlign: 'left', border: '1px solid #ccc', padding: '5px 8px' }}>Arrival Time (DB {DB_TIMEZONE_LABELS.webhookLocal})</th>
                   <th style={{ backgroundColor: '#f0f0f0', fontWeight: 'bold', textAlign: 'left', border: '1px solid #ccc', padding: '5px 8px' }}>Arrived At</th>
-                  <th style={{ backgroundColor: '#f0f0f0', fontWeight: 'bold', textAlign: 'left', border: '1px solid #ccc', padding: '5px 8px' }}>Next Departure</th>
+                  <th style={{ backgroundColor: '#f0f0f0', fontWeight: 'bold', textAlign: 'left', border: '1px solid #ccc', padding: '5px 8px' }}>Next Departure (DB {DB_TIMEZONE_LABELS.webhookLocal})</th>
                   <th style={{ backgroundColor: '#f0f0f0', fontWeight: 'bold', textAlign: 'center', border: '1px solid #ccc', padding: '5px 8px' }}>Standing Time at Location<br/>(hh:mm:ss)</th>
                   <th style={{ backgroundColor: '#f0f0f0', fontWeight: 'bold', textAlign: 'right', border: '1px solid #ccc', padding: '5px 8px' }}>Fuel Used (Litres)</th>
                 </tr>
@@ -262,6 +263,5 @@ export function DailyMovementPreview({ date, data, companyName }: DailyMovementP
     </div>
   );
 }
-
 
 

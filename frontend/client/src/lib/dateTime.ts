@@ -1,5 +1,10 @@
 const EAT_TIMEZONE = "Africa/Nairobi";
 
+export const DB_TIMEZONE_LABELS = {
+  webhookLocal: "EAT+3",
+  report0Utc: "GMT+0",
+} as const;
+
 const buildFormatter = (timeZone: string, withSeconds = true) =>
   new Intl.DateTimeFormat("en-GB", {
     timeZone,

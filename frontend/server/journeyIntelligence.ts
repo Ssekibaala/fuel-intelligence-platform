@@ -41,6 +41,12 @@ type MovementRow = {
   report_date: string | null;
 };
 
+type JourneyRawSensorPoint = {
+  timestamp: string;
+  fuel: number | null;
+  odometer: number | null;
+};
+
 type LocationSuggestion = {
   location: string;
   normalizedLocation: string;
@@ -69,6 +75,9 @@ type RouteOccurrence = {
   returnLegDurationHours: number | null;
   routeDistanceKm: number;
   routeFuelUsedLitres: number;
+  initialFuelLitres: number | null;
+  finalFuelLitres: number | null;
+  totalRefillsLitres: number;
   routeEfficiency: number | null;
   routeDrivingHours: number | null;
   maxSpeedKmh: number | null;
@@ -249,8 +258,41 @@ function normalizeLocation(value: string): string {
   return value.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
+function splitLocationSegments(value: string | null | undefined): string[] {
+  return normalizeLocation(value || "")
+    .split(",")
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+}
+
+function isSuffixSegmentMatch(actualSegments: string[], expectedSegments: string[]): boolean {
+  if (actualSegments.length === 0 || expectedSegments.length === 0) return false;
+  if (actualSegments.length < expectedSegments.length) return false;
+
+  const offset = actualSegments.length - expectedSegments.length;
+  for (let index = 0; index < expectedSegments.length; index += 1) {
+    if (actualSegments[offset + index] !== expectedSegments[index]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 function locationMatches(actual: string | null | undefined, expected: string): boolean {
-  return normalizeLocation(actual || "") === normalizeLocation(expected);
+  const actualNormalized = normalizeLocation(actual || "");
+  const expectedNormalized = normalizeLocation(expected);
+
+  if (!actualNormalized || !expectedNormalized) return false;
+  if (actualNormalized === expectedNormalized) return true;
+
+  const actualSegments = splitLocationSegments(actual);
+  const expectedSegments = splitLocationSegments(expected);
+
+  return (
+    isSuffixSegmentMatch(actualSegments, expectedSegments) ||
+    isSuffixSegmentMatch(expectedSegments, actualSegments)
+  );
 }
 
 function isMeaningfulDepartureFrom(row: MovementRow, originLocation: string): boolean {
@@ -265,14 +307,170 @@ function toNumber(value: unknown): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+const EAT_OFFSET_MINUTES = 3 * 60;
+
+function hasExplicitTimezone(value: string): boolean {
+  return /(?:z|[+-]\d{2}:\d{2})$/i.test(value);
+}
+
+function formatEatLocalTimestamp(date: Date): string {
+  const shifted = new Date(date.getTime() + EAT_OFFSET_MINUTES * 60_000);
+  const year = shifted.getUTCFullYear();
+  const month = String(shifted.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(shifted.getUTCDate()).padStart(2, "0");
+  const hours = String(shifted.getUTCHours()).padStart(2, "0");
+  const minutes = String(shifted.getUTCMinutes()).padStart(2, "0");
+  const seconds = String(shifted.getUTCSeconds()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+}
+
 function parseIso(value: string | null | undefined): Date | null {
   if (!value) return null;
-  const parsed = new Date(value);
+  const normalized = hasExplicitTimezone(value) ? value : `${value}+03:00`;
+  const parsed = new Date(normalized);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+function isDateWithinInclusive(date: Date, start: Date, end: Date): boolean {
+  const time = date.getTime();
+  return time >= start.getTime() && time <= end.getTime();
+}
+
+async function fetchJourneyRawSensorPoints(params: {
+  vehicleId?: string | null;
+  registrationNumber?: string | null;
+  start: Date;
+  end: Date;
+}): Promise<JourneyRawSensorPoint[]> {
+  const paddedStart = new Date(params.start.getTime() - 6 * 60 * 60 * 1000);
+  const paddedEnd = new Date(params.end.getTime() + 6 * 60 * 60 * 1000);
+  const paddedStartEat = formatEatLocalTimestamp(paddedStart);
+  const paddedEndEat = formatEatLocalTimestamp(paddedEnd);
+  const filters = [
+    params.registrationNumber ? { column: "registration_number", value: params.registrationNumber } : null,
+  ].filter(Boolean) as Array<{ column: string; value: string }>;
+
+  const dateColumns = ["date", "created_at"];
+  let rows: any[] = [];
+
+  for (const filter of filters) {
+    for (const dateColumn of dateColumns) {
+      let offset = 0;
+      const pagedRows: any[] = [];
+
+      while (true) {
+        let query = supabaseAdmin
+          .from("raw_sensor_data")
+          .select("date, created_at, af, odo")
+          .eq(filter.column, filter.value)
+          .order(dateColumn, { ascending: true })
+          .range(offset, offset + PAGE_SIZE - 1);
+
+        query =
+          dateColumn === "date"
+            ? query.gte(dateColumn, paddedStartEat).lte(dateColumn, paddedEndEat)
+            : query.gte(dateColumn, paddedStart.toISOString()).lte(dateColumn, paddedEnd.toISOString());
+
+        const { data, error } = await query;
+        if (error) break;
+
+        const page = data || [];
+        pagedRows.push(...page);
+        if (page.length < PAGE_SIZE) break;
+        offset += PAGE_SIZE;
+      }
+
+      rows = pagedRows;
+      if (rows.length > 0) {
+        const mapped = rows
+          .map((row) => ({
+            timestamp: String(row.date || row.created_at || "").trim(),
+            fuel: Number.isFinite(Number(row.af)) ? Number(row.af) : null,
+            odometer: Number.isFinite(Number(row.odo)) ? Number(row.odo) : null,
+          }))
+          .filter((row) => row.timestamp.length > 0)
+          .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+
+        if (mapped.length > 0) return mapped;
+      }
+    }
+  }
+
+  return [];
+}
+
+async function fetchJourneyRefillTotal(params: {
+  vehicleId?: string | null;
+  registrationNumber?: string | null;
+  start: Date;
+  end: Date;
+}): Promise<number> {
+  const startEat = formatEatLocalTimestamp(params.start);
+  const endEat = formatEatLocalTimestamp(params.end);
+  const filters = [
+    params.registrationNumber ? { column: "registration_number", value: params.registrationNumber } : null,
+  ].filter(Boolean) as Array<{ column: string; value: string }>;
+
+  for (const filter of filters) {
+    for (const timeColumn of ["event_time", "created_at"]) {
+      let query = supabaseAdmin
+        .from("fuel_events")
+        .select("event_type, refilled, event_time, created_at")
+        .eq(filter.column, filter.value)
+        .order(timeColumn, { ascending: true });
+
+      query =
+        timeColumn === "event_time"
+          ? query.gte(timeColumn, startEat).lte(timeColumn, endEat)
+          : query.gte(timeColumn, params.start.toISOString()).lte(timeColumn, params.end.toISOString());
+
+      const { data, error } = await query;
+      if (error) continue;
+
+      const total = (data || [])
+        .filter((row: any) => String(row.event_type || "").toLowerCase() === "refill")
+        .reduce((sum: number, row: any) => sum + Math.max(0, Number(row.refilled || 0)), 0);
+
+      if (total > 0 || (data || []).length > 0) {
+        return total;
+      }
+    }
+  }
+
+  return 0;
+}
+
+function pickJourneyBoundaryPoints(points: JourneyRawSensorPoint[], start: Date, end: Date) {
+  const parsed = points
+    .map((point) => ({
+      ...point,
+      date: parseIso(point.timestamp),
+    }))
+    .filter((point): point is JourneyRawSensorPoint & { date: Date } => Boolean(point.date));
+
+  const inside = parsed.filter((point) => isDateWithinInclusive(point.date, start, end));
+  const firstInside = inside.find((point) => point.fuel !== null || point.odometer !== null) || null;
+  const lastInside = [...inside].reverse().find((point) => point.fuel !== null || point.odometer !== null) || null;
+
+  const nearestBeforeStart = [...parsed]
+    .reverse()
+    .find((point) => point.date.getTime() <= start.getTime() && (point.fuel !== null || point.odometer !== null)) || null;
+  const nearestAfterEnd = parsed.find((point) => point.date.getTime() >= end.getTime() && (point.fuel !== null || point.odometer !== null)) || null;
+
+  return {
+    startPoint: firstInside || nearestBeforeStart || null,
+    endPoint: lastInside || nearestAfterEnd || null,
+  };
+}
+
 function toDayKey(date: Date): string {
-  return date.toISOString().slice(0, 10);
+  return formatEatLocalTimestamp(date).slice(0, 10);
+}
+
+function localTimestamp(value: string | null | undefined, fallbackDate?: Date | null): string {
+  const raw = String(value || "").trim();
+  if (raw) return raw;
+  return fallbackDate ? formatEatLocalTimestamp(fallbackDate) : "";
 }
 
 function parseDurationHours(value: string | null | undefined): number | null {
@@ -346,49 +544,56 @@ async function fetchMovementRowsByDirection(params: {
   vehicleIds?: string[];
 }): Promise<MovementRow[]> {
   let lastMissingTableError: any = null;
+  const dateColumns = ["departure_time", "report_date", "departure_date", "arrival_time"];
 
   for (const tableName of MOVEMENT_REPORT_TABLES) {
-    let offset = 0;
-    const rows: MovementRow[] = [];
+    for (const dateColumn of dateColumns) {
+      let offset = 0;
+      const rows: MovementRow[] = [];
 
-    while (true) {
-      let query = supabaseAdmin
-        .from(tableName)
-        .select(
-          "id, client_id, vehicle_id, asset_description, registration_number, departure_time, departure_date, departed_from, driving_time, distance_km, max_speed_kmh, arrival_time, arrived_at, fuel_used_litres, report_date"
-        )
-        .gte("report_date", params.startIso)
-        .lt("report_date", params.endIso)
-        .eq("departed_from", params.departureLocation)
-        .eq("arrived_at", params.destinationLocation)
-        .order("vehicle_id", { ascending: true })
-        .order("departure_time", { ascending: true })
-        .range(offset, offset + PAGE_SIZE - 1);
+      while (true) {
+        let query = supabaseAdmin
+          .from(tableName)
+          .select(
+            "id, client_id, vehicle_id, asset_description, registration_number, departure_time, departure_date, departed_from, driving_time, distance_km, max_speed_kmh, arrival_time, arrived_at, fuel_used_litres, report_date"
+          )
+          .gte(dateColumn, params.startIso)
+          .lt(dateColumn, params.endIso)
+          .eq("departed_from", params.departureLocation)
+          .eq("arrived_at", params.destinationLocation)
+          .order("vehicle_id", { ascending: true })
+          .order("departure_time", { ascending: true })
+          .range(offset, offset + PAGE_SIZE - 1);
 
-      if (params.clientIds?.length) {
-        query = query.in("client_id", params.clientIds);
-      }
-
-      if (params.vehicleIds?.length) {
-        query = query.in("vehicle_id", params.vehicleIds);
-      }
-
-      const { data, error } = await query;
-      if (error) {
-        if (isMissingRelationError(error, tableName)) {
-          lastMissingTableError = error;
-          break;
+        if (params.clientIds?.length) {
+          query = query.in("client_id", params.clientIds);
         }
-        throw error;
-      }
 
-      const page = (data || []) as MovementRow[];
-      rows.push(...page);
-      if (page.length < PAGE_SIZE) {
-        return rows;
-      }
+        if (params.vehicleIds?.length) {
+          query = query.in("vehicle_id", params.vehicleIds);
+        }
 
-      offset += PAGE_SIZE;
+        const { data, error } = await query;
+        if (error) {
+          if (isMissingRelationError(error, tableName)) {
+            lastMissingTableError = error;
+            break;
+          }
+          if (String(error?.message || "").toLowerCase().includes("column") && String(error?.message || "").toLowerCase().includes("does not exist")) {
+            rows.length = 0;
+            break;
+          }
+          throw error;
+        }
+
+        const page = (data || []) as MovementRow[];
+        rows.push(...page);
+        if (page.length < PAGE_SIZE) {
+          return rows;
+        }
+
+        offset += PAGE_SIZE;
+      }
     }
   }
 
@@ -403,49 +608,56 @@ async function fetchMovementRowsForScope(params: {
   vehicleIds?: string[];
 }): Promise<MovementRow[]> {
   let lastMissingTableError: any = null;
+  const dateColumns = ["departure_time", "report_date", "departure_date", "arrival_time"];
 
   for (const tableName of MOVEMENT_REPORT_TABLES) {
-    let offset = 0;
-    const rows: MovementRow[] = [];
+    for (const dateColumn of dateColumns) {
+      let offset = 0;
+      const rows: MovementRow[] = [];
 
-    while (true) {
-      let query = supabaseAdmin
-        .from(tableName)
-        .select(
-          "id, client_id, vehicle_id, asset_description, registration_number, departure_time, departure_date, departed_from, driving_time, distance_km, max_speed_kmh, arrival_time, arrived_at, fuel_used_litres, report_date"
-        )
-        .gte("report_date", params.startIso)
-        .lt("report_date", params.endIso)
-        .not("departure_time", "is", null)
-        .not("arrival_time", "is", null)
-        .order("vehicle_id", { ascending: true })
-        .order("departure_time", { ascending: true })
-        .range(offset, offset + PAGE_SIZE - 1);
+      while (true) {
+        let query = supabaseAdmin
+          .from(tableName)
+          .select(
+            "id, client_id, vehicle_id, asset_description, registration_number, departure_time, departure_date, departed_from, driving_time, distance_km, max_speed_kmh, arrival_time, arrived_at, fuel_used_litres, report_date"
+          )
+          .gte(dateColumn, params.startIso)
+          .lt(dateColumn, params.endIso)
+          .not("departure_time", "is", null)
+          .not("arrival_time", "is", null)
+          .order("vehicle_id", { ascending: true })
+          .order("departure_time", { ascending: true })
+          .range(offset, offset + PAGE_SIZE - 1);
 
-      if (params.clientIds?.length) {
-        query = query.in("client_id", params.clientIds);
-      }
-
-      if (params.vehicleIds?.length) {
-        query = query.in("vehicle_id", params.vehicleIds);
-      }
-
-      const { data, error } = await query;
-      if (error) {
-        if (isMissingRelationError(error, tableName)) {
-          lastMissingTableError = error;
-          break;
+        if (params.clientIds?.length) {
+          query = query.in("client_id", params.clientIds);
         }
-        throw error;
-      }
 
-      const page = (data || []) as MovementRow[];
-      rows.push(...page);
-      if (page.length < PAGE_SIZE) {
-        return rows;
-      }
+        if (params.vehicleIds?.length) {
+          query = query.in("vehicle_id", params.vehicleIds);
+        }
 
-      offset += PAGE_SIZE;
+        const { data, error } = await query;
+        if (error) {
+          if (isMissingRelationError(error, tableName)) {
+            lastMissingTableError = error;
+            break;
+          }
+          if (String(error?.message || "").toLowerCase().includes("column") && String(error?.message || "").toLowerCase().includes("does not exist")) {
+            rows.length = 0;
+            break;
+          }
+          throw error;
+        }
+
+        const page = (data || []) as MovementRow[];
+        rows.push(...page);
+        if (page.length < PAGE_SIZE) {
+          return rows;
+        }
+
+        offset += PAGE_SIZE;
+      }
     }
   }
 
@@ -495,57 +707,6 @@ async function queryLocationColumn(params: {
 
   if (lastMissingTableError) throw lastMissingTableError;
   return [];
-}
-
-function sumDailyContext(params: {
-  vehicleId: string | null;
-  startDay: string;
-  endDay: string;
-  metrics: Array<{
-    vehicleId: string | null;
-    metricDate: Date;
-    totalFuelConsumed: number;
-    totalDistanceTraveled: number;
-    totalEngineHours: number;
-    idleTimeHours: number;
-    numberOfRefills: number;
-    numberOfThefts: number;
-  }>;
-}) {
-  if (!params.vehicleId) {
-    return {
-      contextualFuelUsedLitres: 0,
-      contextualDistanceKm: 0,
-      contextualEngineHours: 0,
-      contextualIdleHours: 0,
-      contextualRefills: 0,
-      contextualDrains: 0,
-    };
-  }
-
-  return params.metrics.reduce(
-    (acc, metric) => {
-      if (metric.vehicleId !== params.vehicleId) return acc;
-      const dateKey = toDayKey(metric.metricDate);
-      if (dateKey < params.startDay || dateKey > params.endDay) return acc;
-
-      acc.contextualFuelUsedLitres += Number(metric.totalFuelConsumed || 0);
-      acc.contextualDistanceKm += Number(metric.totalDistanceTraveled || 0);
-      acc.contextualEngineHours += Number(metric.totalEngineHours || 0);
-      acc.contextualIdleHours += Number(metric.idleTimeHours || 0);
-      acc.contextualRefills += Number(metric.numberOfRefills || 0);
-      acc.contextualDrains += Number(metric.numberOfThefts || 0);
-      return acc;
-    },
-    {
-      contextualFuelUsedLitres: 0,
-      contextualDistanceKm: 0,
-      contextualEngineHours: 0,
-      contextualIdleHours: 0,
-      contextualRefills: 0,
-      contextualDrains: 0,
-    }
-  );
 }
 
 function mapSavedRouteRow(row: any): JourneySavedRoute {
@@ -615,6 +776,16 @@ export async function analyzeJourneyRoute(filters: JourneyAnalysisFilters): Prom
   }
 
   const { startIso, endIso, startDate, endExclusive } = buildDateWindow(filters);
+  const requestedStartDay = parseDayKey(filters.startDay);
+  const requestedEndDay = parseDayKey(filters.endDay);
+  const routeWindowStart =
+    requestedStartDay || requestedEndDay
+      ? `${requestedStartDay || requestedEndDay}T00:00:00`
+      : formatEatLocalTimestamp(startDate);
+  const routeWindowEnd =
+    requestedStartDay || requestedEndDay
+      ? `${requestedEndDay || requestedStartDay}T23:59:59`
+      : formatEatLocalTimestamp(new Date(endExclusive.getTime() - 1));
   const movementRows = await fetchMovementRowsForScope({
     startIso,
     endIso,
@@ -630,18 +801,7 @@ export async function analyzeJourneyRoute(filters: JourneyAnalysisFilters): Prom
     )
   );
 
-  const [vehicles, dailyMetrics] = await Promise.all([
-    vehicleIds.length ? storage.getVehicles({ vehicleIds }) : Promise.resolve([]),
-    vehicleIds.length
-      ? storage.getDailyMetrics({
-          vehicleIds,
-          startDate,
-          endDate: new Date(endExclusive.getTime() - 1),
-          startDay: toDayKey(startDate),
-          endDay: toDayKey(new Date(endExclusive.getTime() - 1)),
-        })
-      : Promise.resolve([]),
-  ]);
+  const vehicles = vehicleIds.length ? await storage.getVehicles({ vehicleIds }) : [];
 
   const vehicleLabelLookup = new Map<string, { label: string; registrationNumber: string | null }>();
   vehicles.forEach((vehicle) => {
@@ -671,7 +831,7 @@ export async function analyzeJourneyRoute(filters: JourneyAnalysisFilters): Prom
   const occurrences: RouteOccurrence[] = [];
   const incomplete: IncompleteOccurrence[] = [];
 
-  legsByVehicle.forEach((vehicleRows, vehicleKey) => {
+  for (const [vehicleKey, vehicleRows] of legsByVehicle.entries()) {
     for (let startIndex = 0; startIndex < vehicleRows.length; startIndex += 1) {
       const initialRow = vehicleRows[startIndex];
       if (!locationMatches(initialRow.departed_from, departureLocation)) continue;
@@ -738,8 +898,8 @@ export async function analyzeJourneyRoute(filters: JourneyAnalysisFilters): Prom
             registrationNumber: startRow.registration_number || null,
             departureLocation,
             destinationLocation,
-            departureTime: outboundDeparture.toISOString(),
-            destinationArrivalTime: destinationArrival.toISOString(),
+            departureTime: localTimestamp(startRow.departure_time, outboundDeparture),
+            destinationArrivalTime: localTimestamp(destinationArrivalRow.arrival_time, destinationArrival),
             routeDistanceKm: vehicleRows
               .slice(actualStartIndex, destinationArrivalIndex + 1)
               .reduce((sum, row) => sum + toNumber(row.distance_km), 0),
@@ -755,6 +915,7 @@ export async function analyzeJourneyRoute(filters: JourneyAnalysisFilters): Prom
       const finalArrivalRow = vehicleRows[finalArrivalIndex];
       const finalArrival = parseIso(finalArrivalRow.arrival_time)!;
       let lastDepartureFromB: Date | null = null;
+      let lastDepartureFromBTime: string | null = null;
 
       if (routePattern !== "one_way") {
         for (let i = destinationArrivalIndex + 1; i <= finalArrivalIndex; i += 1) {
@@ -762,6 +923,7 @@ export async function analyzeJourneyRoute(filters: JourneyAnalysisFilters): Prom
           if (!departure || departure.getTime() < destinationArrival.getTime()) continue;
           if (isMeaningfulDepartureFrom(vehicleRows[i], destinationLocation)) {
             lastDepartureFromB = departure;
+            lastDepartureFromBTime = localTimestamp(vehicleRows[i].departure_time, departure);
           }
         }
       }
@@ -779,15 +941,40 @@ export async function analyzeJourneyRoute(filters: JourneyAnalysisFilters): Prom
         finalArrivalRow.asset_description ||
         vehicleKey;
 
-      const contextMetrics = sumDailyContext({
+      const sensorPoints = await fetchJourneyRawSensorPoints({
         vehicleId,
-        startDay: contextStartDay,
-        endDay: contextEndDay,
-        metrics: dailyMetrics,
+        registrationNumber: startRow.registration_number || finalArrivalRow.registration_number || null,
+        start: outboundDeparture,
+        end: finalArrival,
+      });
+      const { startPoint, endPoint } = pickJourneyBoundaryPoints(sensorPoints, outboundDeparture, finalArrival);
+      const totalRefillsInWindow = await fetchJourneyRefillTotal({
+        vehicleId,
+        registrationNumber: startRow.registration_number || finalArrivalRow.registration_number || null,
+        start: outboundDeparture,
+        end: finalArrival,
       });
 
-      const routeDistanceKm = segmentRows.reduce((sum, row) => sum + toNumber(row.distance_km), 0);
-      const routeFuelUsedLitres = segmentRows.reduce((sum, row) => sum + toNumber(row.fuel_used_litres), 0);
+      const initialFuel = startPoint?.fuel ?? null;
+      const finalFuel = endPoint?.fuel ?? null;
+      const initialOdometer = startPoint?.odometer ?? null;
+      const finalOdometer = endPoint?.odometer ?? null;
+
+      const tripDistanceFallback = segmentRows.reduce((sum, row) => sum + toNumber(row.distance_km), 0);
+      const computedDistanceFromSensors =
+        initialOdometer !== null && finalOdometer !== null ? finalOdometer - initialOdometer : null;
+      const routeDistanceKm =
+        computedDistanceFromSensors !== null && computedDistanceFromSensors > 0.01
+          ? computedDistanceFromSensors
+          : tripDistanceFallback;
+      const computedFuelFromSensors =
+        initialFuel !== null && finalFuel !== null
+          ? initialFuel + totalRefillsInWindow - finalFuel
+          : null;
+      const routeFuelUsedLitres =
+        computedFuelFromSensors !== null && computedFuelFromSensors >= 0
+          ? Math.max(0, computedFuelFromSensors)
+          : 0;
       const routeDrivingHours = segmentRows.reduce((sum, row) => sum + (parseDurationHours(row.driving_time) || 0), 0);
       const maxSpeedKmh = segmentRows.reduce((max, row) => Math.max(max, toNumber(row.max_speed_kmh)), 0) || null;
       const outboundLegDurationHours = (destinationArrival.getTime() - outboundDeparture.getTime()) / 3_600_000;
@@ -816,27 +1003,35 @@ export async function analyzeJourneyRoute(filters: JourneyAnalysisFilters): Prom
         returnTripId: routePattern === "one_way" ? null : String(finalArrivalRow.id),
         departureLocation,
         destinationLocation,
-        departureTime: outboundDeparture.toISOString(),
-        destinationArrivalTime: destinationArrival.toISOString(),
-        returnDepartureTime: lastDepartureFromB ? lastDepartureFromB.toISOString() : null,
-        returnArrivalTime: finalArrival.toISOString(),
+        departureTime: localTimestamp(startRow.departure_time, outboundDeparture),
+        destinationArrivalTime: localTimestamp(destinationArrivalRow.arrival_time, destinationArrival),
+        returnDepartureTime: lastDepartureFromBTime,
+        returnArrivalTime: localTimestamp(finalArrivalRow.arrival_time, finalArrival),
         outboundLegDurationHours,
         roundTripDurationHours,
         destinationDwellHours,
         returnLegDurationHours,
         routeDistanceKm,
         routeFuelUsedLitres,
+        initialFuelLitres: initialFuel,
+        finalFuelLitres: finalFuel,
+        totalRefillsLitres: totalRefillsInWindow,
         routeEfficiency: routeFuelUsedLitres > 0 ? routeDistanceKm / routeFuelUsedLitres : null,
         routeDrivingHours: routeDrivingHours > 0 ? routeDrivingHours : null,
         maxSpeedKmh,
         contextStartDay,
         contextEndDay,
-        ...contextMetrics,
+        contextualFuelUsedLitres: routeFuelUsedLitres,
+        contextualDistanceKm: routeDistanceKm,
+        contextualEngineHours: routeDrivingHours > 0 ? routeDrivingHours : 0,
+        contextualIdleHours: 0,
+        contextualRefills: totalRefillsInWindow > 0 ? 1 : 0,
+        contextualDrains: 0,
       });
 
       startIndex = finalArrivalIndex;
     }
-  });
+  }
 
   const occurrenceCount = occurrences.length;
   const average = <T extends keyof RouteOccurrence>(key: T) =>
@@ -988,8 +1183,8 @@ export async function analyzeJourneyRoute(filters: JourneyAnalysisFilters): Prom
 
     const broaderAnalysis = await analyzeJourneyRoute({
       ...filters,
-      startDate: broaderStartDate.toISOString(),
-      endDate: new Date(endExclusive.getTime() - 1).toISOString(),
+      startDate: formatEatLocalTimestamp(broaderStartDate),
+      endDate: formatEatLocalTimestamp(new Date(endExclusive.getTime() - 1)),
       startDay: undefined,
       endDay: undefined,
       skipAvailabilityLookup: true,
@@ -1018,8 +1213,8 @@ export async function analyzeJourneyRoute(filters: JourneyAnalysisFilters): Prom
       routePattern,
       departureLocation,
       destinationLocation,
-      startDate: startDate.toISOString(),
-      endDate: new Date(endExclusive.getTime() - 1).toISOString(),
+      startDate: routeWindowStart,
+      endDate: routeWindowEnd,
     },
     routeAvailability,
     summary: {

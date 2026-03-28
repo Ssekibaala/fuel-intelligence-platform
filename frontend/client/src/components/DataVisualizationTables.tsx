@@ -11,7 +11,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Search, Filter, Download, AlertTriangle, Fuel, MapPin, Route, SortAsc, SortDesc } from "lucide-react";
 import { useGlobalFilter } from "./GlobalFilterContext";
 import { api, globalFilterToApiParams } from "../lib/api";
-import { formatDateTimeEAT } from "../lib/dateTime";
+import { DB_TIMEZONE_LABELS, formatDateTimeEAT } from "../lib/dateTime";
 
 type TabKey = "drains" | "thefts" | "trips";
 
@@ -508,7 +508,7 @@ export function DataVisualizationTables({ initialTab = "drains" }: DataVisualiza
                     </th>
                     <th className="text-left p-3 font-medium">
                       <Button variant="ghost" size="sm" onClick={() => handleSort("date")} className="h-auto p-0 font-medium">
-                        Date / Time (EAT)
+                        Date / Time (DB {DB_TIMEZONE_LABELS.webhookLocal})
                         {sortField === "date" && (sortDirection === "asc" ? <SortAsc className="w-3 h-3 ml-1" /> : <SortDesc className="w-3 h-3 ml-1" />)}
                       </Button>
                     </th>
@@ -521,7 +521,7 @@ export function DataVisualizationTables({ initialTab = "drains" }: DataVisualiza
                       </>
                     ) : (
                       <>
-                        <th className="text-left p-3 font-medium">Event Time (EAT)</th>
+                        <th className="text-left p-3 font-medium">Event Time (DB {DB_TIMEZONE_LABELS.webhookLocal})</th>
                         <th className="text-left p-3 font-medium">Volume (L)</th>
                         <th className="text-left p-3 font-medium">Type</th>
                       </>

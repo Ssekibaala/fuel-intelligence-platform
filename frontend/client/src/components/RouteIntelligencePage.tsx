@@ -48,7 +48,7 @@ import { PageHeader } from "./PageHeader";
 import { GlassCard } from "./GlassCard";
 import { FilterControls } from "./FilterControls";
 import { VehicleMultiSelect } from "./VehicleMultiSelect";
-import { formatDateTimeEAT } from "@/lib/dateTime";
+import { DB_TIMEZONE_LABELS, formatDateTimeEAT } from "@/lib/dateTime";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -101,6 +101,11 @@ function normalizeLocation(value: string) {
 function formatDecimal(value: number | null | undefined, digits = 1) {
   const numeric = Number(value ?? 0);
   return Number.isFinite(numeric) ? numeric.toFixed(digits) : "0.0";
+}
+
+function formatOptionalDecimal(value: number | null | undefined, digits = 1) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric.toFixed(digits) : "--";
 }
 
 function formatPercent(value: number | null | undefined, digits = 0) {
@@ -179,6 +184,23 @@ function KpiCard({
         </div>
       </div>
     </GlassCard>
+  );
+}
+
+function TimezoneTableHead({
+  label,
+  timezone,
+}: {
+  label: string;
+  timezone: string;
+}) {
+  return (
+    <div className="leading-tight">
+      <div>{label}</div>
+      <div className="mt-0.5 text-[10px] font-medium normal-case tracking-normal text-muted-foreground">
+        {timezone}
+      </div>
+    </div>
   );
 }
 
@@ -454,6 +476,9 @@ export function RouteIntelligencePage({ pageId = "journeys" }: RouteIntelligence
                 Select an origin and destination from existing database locations. The module can detect one-way
                 journeys or full A → B → A cycles, surface every occurrence, and compare route behaviour over time.
               </p>
+              <div className="mt-2 text-xs text-muted-foreground">
+                Trip and fuel-event timestamps in this module are stored as <span className="font-medium text-foreground">{DB_TIMEZONE_LABELS.webhookLocal}</span>.
+              </div>
             </div>
             <div className="rounded-2xl border border-border/50 bg-background/75 px-4 py-3 text-sm text-muted-foreground shadow-sm">
               {currentScopeSummary}
@@ -726,6 +751,9 @@ export function RouteIntelligencePage({ pageId = "journeys" }: RouteIntelligence
                     {analysis.route.startDate ? formatDateTimeEAT(analysis.route.startDate) : "Unknown"} to{" "}
                     {analysis.route.endDate ? formatDateTimeEAT(analysis.route.endDate) : "Unknown"}
                   </div>
+                  <div className="mt-1 text-[11px] text-muted-foreground">
+                    Stored trip timezone: {DB_TIMEZONE_LABELS.webhookLocal}
+                  </div>
                   {analysis.summary.totalRoundTrips === 0 && analysis.routeAvailability?.hasMatchesOutsideSelectedRange ? (
                     <div className="mt-2 text-xs text-amber-700 dark:text-amber-300">
                       Current filters exclude historical matches for this route. Expand the date range to see them.
@@ -803,6 +831,9 @@ export function RouteIntelligencePage({ pageId = "journeys" }: RouteIntelligence
                     <h3 className="mt-2 text-lg font-semibold text-foreground">
                       {routePattern === "round_trip" ? "Most recent completed round trips" : "Most recent completed one-way journeys"}
                     </h3>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    Timestamp source: {DB_TIMEZONE_LABELS.webhookLocal}
+                  </div>
                   <div className="mt-5 space-y-3">
                     {analysis.occurrences.slice(0, 5).map((occurrence) => {
                       const fuelDelta = occurrence.routeFuelUsedLitres - routeAverageFuel;
@@ -839,6 +870,34 @@ export function RouteIntelligencePage({ pageId = "journeys" }: RouteIntelligence
                               </div>
                             </div>
                           </div>
+                          <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4 text-sm">
+                            <div className="rounded-xl border border-border/40 bg-background/60 px-3 py-2">
+                              <div className="text-muted-foreground">Initial fuel</div>
+                              <div className="mt-1 font-medium text-foreground">
+                                {formatOptionalDecimal(occurrence.initialFuelLitres)} L
+                              </div>
+                            </div>
+                            <div className="rounded-xl border border-border/40 bg-background/60 px-3 py-2">
+                              <div className="text-muted-foreground">Final fuel</div>
+                              <div className="mt-1 font-medium text-foreground">
+                                {formatOptionalDecimal(occurrence.finalFuelLitres)} L
+                              </div>
+                            </div>
+                            <div className="rounded-xl border border-border/40 bg-background/60 px-3 py-2">
+                              <div className="text-muted-foreground">Total refills</div>
+                              <div className="mt-1 font-medium text-foreground">
+                                {formatDecimal(occurrence.totalRefillsLitres)} L
+                              </div>
+                            </div>
+                            <div className="rounded-xl border border-border/40 bg-background/60 px-3 py-2">
+                              <div className="text-muted-foreground">Consumption</div>
+                              <div className="mt-1 font-medium text-foreground">
+                                {occurrence.routeEfficiency !== null
+                                  ? `${formatDecimal(occurrence.routeEfficiency, 2)} km/L`
+                                  : "--"}
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       );
                     })}
@@ -869,12 +928,21 @@ export function RouteIntelligencePage({ pageId = "journeys" }: RouteIntelligence
                     <TableHeader>
                       <TableRow>
                         <TableHead>Vehicle</TableHead>
-                        <TableHead>Departed</TableHead>
-                        <TableHead>Reached destination</TableHead>
+                        <TableHead>
+                          <TimezoneTableHead label="Departed" timezone={DB_TIMEZONE_LABELS.webhookLocal} />
+                        </TableHead>
+                        <TableHead>
+                          <TimezoneTableHead label="Reached destination" timezone={DB_TIMEZONE_LABELS.webhookLocal} />
+                        </TableHead>
                         <TableHead>A→B</TableHead>
                         {routePattern === "round_trip" ? <TableHead>Dwell at B</TableHead> : null}
                         {routePattern === "round_trip" ? <TableHead>B→A</TableHead> : null}
-                        <TableHead>{routePattern === "round_trip" ? "Returned" : "Journey end"}</TableHead>
+                        <TableHead>
+                          <TimezoneTableHead
+                            label={routePattern === "round_trip" ? "Returned" : "Journey end"}
+                            timezone={DB_TIMEZONE_LABELS.webhookLocal}
+                          />
+                        </TableHead>
                         <TableHead>Duration</TableHead>
                         <TableHead>Distance</TableHead>
                         <TableHead>Fuel</TableHead>
@@ -957,7 +1025,9 @@ export function RouteIntelligencePage({ pageId = "journeys" }: RouteIntelligence
                         {routePattern === "round_trip" ? <TableHead>Avg B→A</TableHead> : null}
                         <TableHead>Avg km/L</TableHead>
                         <TableHead>Idle context</TableHead>
-                        <TableHead>Last departure</TableHead>
+                        <TableHead>
+                          <TimezoneTableHead label="Last departure" timezone={DB_TIMEZONE_LABELS.webhookLocal} />
+                        </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>

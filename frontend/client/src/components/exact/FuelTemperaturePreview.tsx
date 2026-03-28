@@ -1,5 +1,5 @@
 import React from 'react';
-import { formatDateTimeEAT } from '@/lib/dateTime';
+import { DB_TIMEZONE_LABELS, formatDateTimeEAT } from '@/lib/dateTime';
 
 // --- Interfaces (Kept as provided) ---
 interface RefuelEvent {
@@ -190,7 +190,7 @@ export function FuelTemperaturePreview({ date, data }: FuelTemperaturePreviewPro
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9pt', border: '1px solid #ccc' }}>
         <thead>
           <tr style={{ backgroundColor: '#f0f0f0' }}>
-            <th style={{ textAlign: 'left', padding: '2mm 2mm 2mm 5px', borderBottom: '1px solid #000' }}>Time (EAT)</th>
+            <th style={{ textAlign: 'left', padding: '2mm 2mm 2mm 5px', borderBottom: '1px solid #000' }}>Time (DB {DB_TIMEZONE_LABELS.webhookLocal})</th>
             <th style={{ textAlign: 'right', padding: '2mm', borderBottom: '1px solid #000' }}>Initial fuel</th>
             <th style={{ textAlign: 'right', padding: '2mm', borderBottom: '1px solid #000' }}>Final fuel</th>
             <th style={{ textAlign: 'right', padding: '2mm', borderBottom: '1px solid #000' }}>Refilled</th>
