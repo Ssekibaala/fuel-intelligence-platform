@@ -16,9 +16,10 @@ interface DateRangePickerProps {
   className?: string;
 }
 
-type DatePresetOption = {
-  value: "today" | "yesterday" | "week_to_date" | "month_to_date" | "last_7_days" | "last_30_days";
+export type DatePresetOption = {
+  value: string;
   label: string;
+  getRange?: () => { startDate: Date; endDate: Date };
 };
 
 const DEFAULT_PRESETS: ReadonlyArray<DatePresetOption> = [
@@ -85,10 +86,12 @@ export function DateRangePicker({
   const handlePresetSelect = (preset: string) => {
     const presetConfig = availablePresets.find(p => p.value === preset);
     if (presetConfig) {
-      const { startDate, endDate } = getDateRangeFromPreset(preset);
+      const { startDate, endDate } = presetConfig.getRange
+        ? presetConfig.getRange()
+        : getDateRangeFromPreset(preset);
       
       onChange({
-        preset: preset as any,
+        preset: presetConfig.getRange ? "custom" : preset as any,
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString(),
         label: presetConfig.label
@@ -169,7 +172,10 @@ export function DateRangePicker({
   };
 
   const getPresetSummary = (preset: string) => {
-    const { startDate, endDate } = getDateRangeFromPreset(preset);
+    const presetConfig = availablePresets.find((option) => option.value === preset);
+    const { startDate, endDate } = presetConfig?.getRange
+      ? presetConfig.getRange()
+      : getDateRangeFromPreset(preset);
     const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
     return `${days} ${days === 1 ? "day" : "days"}`;
   };
@@ -222,7 +228,9 @@ export function DateRangePicker({
               <div className="p-2.5">
                 <div className="grid grid-cols-2 gap-1.5">
                   {availablePresets.map((preset) => {
-                    const isSelected = value.preset === preset.value;
+                    const isSelected = preset.getRange
+                      ? value.preset === "custom" && value.label === preset.label
+                      : value.preset === preset.value;
                     
                     return (
                       <button

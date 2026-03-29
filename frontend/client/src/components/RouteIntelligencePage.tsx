@@ -18,8 +18,6 @@ import {
   MapPinned,
   Route,
   Search,
-  Sparkles,
-  TimerReset,
   Trash2,
   Truck,
 } from "lucide-react";
@@ -47,12 +45,14 @@ import { useGlobalFilter } from "./GlobalFilterContext";
 import { PageHeader } from "./PageHeader";
 import { GlassCard } from "./GlassCard";
 import { FilterControls } from "./FilterControls";
+import type { DatePresetOption } from "./DateRangePicker";
 import { VehicleMultiSelect } from "./VehicleMultiSelect";
 import { DB_TIMEZONE_LABELS, formatDateTimeEAT } from "@/lib/dateTime";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import type { DateRange } from "@shared/schema";
 import {
   Command,
   CommandEmpty,
@@ -86,6 +86,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 
 interface RouteIntelligencePageProps {
   pageId?: string;
@@ -156,31 +157,212 @@ function routePathLabel(routePattern: JourneyRoutePattern, departureLocation: st
   return `${departureLocation} → ${destinationLocation} → ${departureLocation}`;
 }
 
+function buildJourneyMonthsRange(months: number, label: string) {
+  const now = new Date();
+  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0);
+  const start = new Date(yesterday.getFullYear(), yesterday.getMonth() - months, yesterday.getDate(), 0, 0, 0, 0);
+  const end = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 23, 59, 59, 999);
+
+  return {
+    preset: "custom" as const,
+    startDate: start.toISOString(),
+    endDate: end.toISOString(),
+    label,
+  };
+}
+
+const JOURNEY_DEFAULT_DATE_RANGE = buildJourneyMonthsRange(3, "Last 3 Months");
+const JOURNEY_DATE_PRESETS: ReadonlyArray<DatePresetOption> = [
+  {
+    value: "journey_last_3_months",
+    label: "Last 3 Months",
+    getRange: () => {
+      const range = buildJourneyMonthsRange(3, "Last 3 Months");
+      return { startDate: new Date(range.startDate), endDate: new Date(range.endDate) };
+    },
+  },
+  {
+    value: "journey_last_6_months",
+    label: "Last 6 Months",
+    getRange: () => {
+      const range = buildJourneyMonthsRange(6, "Last 6 Months");
+      return { startDate: new Date(range.startDate), endDate: new Date(range.endDate) };
+    },
+  },
+  {
+    value: "journey_last_12_months",
+    label: "Last 12 Months",
+    getRange: () => {
+      const range = buildJourneyMonthsRange(12, "Last 12 Months");
+      return { startDate: new Date(range.startDate), endDate: new Date(range.endDate) };
+    },
+  },
+];
+
 function KpiCard({
   label,
   value,
   helper,
   icon: Icon,
+  tone = "primary",
 }: {
   label: string;
   value: string;
   helper: string;
   icon: typeof Route;
+  tone?: "primary" | "emerald" | "amber" | "sky";
 }) {
+  const toneStyles: Record<"primary" | "emerald" | "amber" | "sky", {
+    shell: string;
+    icon: string;
+    badge: string;
+    helper: string;
+    value: string;
+  }> = {
+    primary: {
+      shell: "border-primary/15",
+      icon: "text-primary",
+      badge: "border-primary/15 bg-gradient-to-br from-primary/15 via-primary/5 to-transparent",
+      helper: "border-primary/10 bg-primary/[0.06]",
+      value: "text-primary",
+    },
+    emerald: {
+      shell: "border-emerald-500/15",
+      icon: "text-emerald-700 dark:text-emerald-300",
+      badge: "border-emerald-500/15 bg-gradient-to-br from-emerald-500/15 via-emerald-500/5 to-transparent",
+      helper: "border-emerald-500/10 bg-emerald-500/[0.06]",
+      value: "text-emerald-700 dark:text-emerald-300",
+    },
+    amber: {
+      shell: "border-amber-500/15",
+      icon: "text-amber-700 dark:text-amber-300",
+      badge: "border-amber-500/15 bg-gradient-to-br from-amber-500/15 via-amber-500/5 to-transparent",
+      helper: "border-amber-500/10 bg-amber-500/[0.06]",
+      value: "text-amber-700 dark:text-amber-300",
+    },
+    sky: {
+      shell: "border-sky-500/15",
+      icon: "text-sky-700 dark:text-sky-300",
+      badge: "border-sky-500/15 bg-gradient-to-br from-sky-500/15 via-sky-500/5 to-transparent",
+      helper: "border-sky-500/10 bg-sky-500/[0.06]",
+      value: "text-sky-700 dark:text-sky-300",
+    },
+  };
+  const styles = toneStyles[tone];
+
   return (
-    <GlassCard className="p-4" hover={false}>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            {label}
+    <GlassCard className={cn("card-surface-premium motion-premium overflow-hidden p-0", styles.shell)} hover={false}>
+      <div className="relative overflow-hidden p-4">
+        <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-br from-white/15 via-transparent to-transparent dark:from-white/5" />
+        <div className="relative flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+              {label}
+            </div>
+            <div className={cn("mt-2 text-3xl font-semibold tracking-tight", styles.value)}>
+              {value}
+            </div>
           </div>
-          <div className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
-            {value}
+          <div className={cn("rounded-2xl border p-3 shadow-sm", styles.badge)}>
+            <Icon className={cn("h-4 w-4", styles.icon)} />
           </div>
-          <div className="mt-1 text-xs text-muted-foreground">{helper}</div>
         </div>
-        <div className="rounded-xl border border-border/50 bg-background/70 p-2.5 text-primary shadow-sm">
-          <Icon className="h-4 w-4" />
+        <div className={cn("relative mt-4 rounded-2xl border px-3.5 py-3 text-xs text-muted-foreground", styles.helper)}>
+          {helper}
+        </div>
+      </div>
+    </GlassCard>
+  );
+}
+
+function getDeltaBadgeTone(delta: number) {
+  if (delta > 0) return "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300";
+  if (delta < 0) return "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
+  return "border-border/50 bg-background/70 text-muted-foreground";
+}
+
+function OccurrencePreviewCard({
+  occurrence,
+  routeAverageFuel,
+}: {
+  occurrence: JourneyOccurrence;
+  routeAverageFuel: number;
+}) {
+  const fuelDelta = occurrence.routeFuelUsedLitres - routeAverageFuel;
+  const showRegistrationBadge =
+    occurrence.registrationNumber &&
+    normalizeLocation(occurrence.registrationNumber) !== normalizeLocation(occurrence.vehicleLabel);
+
+  return (
+    <GlassCard className="card-surface-premium motion-premium h-full overflow-hidden border-border/50 p-4" hover={false}>
+      <div className="flex h-full flex-col">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="truncate text-sm font-bold text-foreground">{occurrence.vehicleLabel}</div>
+              {showRegistrationBadge ? (
+                <Badge variant="secondary" className="h-5 border border-border/50 bg-background px-1.5 text-[10px] font-medium">
+                  {occurrence.registrationNumber}
+                </Badge>
+              ) : null}
+            </div>
+            <div className="mt-1 text-[11px] leading-5 text-muted-foreground">
+              {formatDateTimeEAT(occurrence.departureTime)} to {formatDateTimeEAT(occurrence.returnArrivalTime)}
+            </div>
+          </div>
+          <Badge variant="secondary" className={cn("h-6 border px-2 text-[10px] font-semibold", getDeltaBadgeTone(fuelDelta))}>
+            {formatSignedDelta(fuelDelta, 1, " L")}
+          </Badge>
+        </div>
+
+        <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-xl border border-border/45 bg-background px-3 py-2.5">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Distance</div>
+            <div className="mt-1 text-base font-bold text-foreground">
+              {formatDecimal(occurrence.routeDistanceKm)} km
+            </div>
+          </div>
+          <div className="rounded-xl border border-border/45 bg-background px-3 py-2.5">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Fuel Used</div>
+            <div className="mt-1 text-base font-bold text-foreground">
+              {formatDecimal(occurrence.routeFuelUsedLitres)} L
+            </div>
+          </div>
+          <div className="rounded-xl border border-border/45 bg-background px-3 py-2.5">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Duration</div>
+            <div className="mt-1 text-base font-bold text-foreground">
+              {formatDuration(occurrence.roundTripDurationHours)}
+            </div>
+          </div>
+          <div className="rounded-xl border border-border/45 bg-background px-3 py-2.5">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Consumption</div>
+            <div className="mt-1 text-base font-bold text-foreground">
+              {occurrence.routeEfficiency !== null
+                ? `${formatDecimal(occurrence.routeEfficiency, 2)} km/L`
+                : "--"}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-2 grid gap-2 md:grid-cols-3">
+          <div className="rounded-xl border border-border/45 bg-background px-3 py-2.5">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Initial fuel</div>
+            <div className="mt-1 text-sm font-bold text-foreground">
+              {formatOptionalDecimal(occurrence.initialFuelLitres)} L
+            </div>
+          </div>
+          <div className="rounded-xl border border-border/45 bg-background px-3 py-2.5">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Total refills</div>
+            <div className="mt-1 text-sm font-bold text-foreground">
+              {formatDecimal(occurrence.totalRefillsLitres)} L
+            </div>
+          </div>
+          <div className="rounded-xl border border-border/45 bg-background px-3 py-2.5">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Final fuel</div>
+            <div className="mt-1 text-sm font-bold text-foreground">
+              {formatOptionalDecimal(occurrence.finalFuelLitres)} L
+            </div>
+          </div>
         </div>
       </div>
     </GlassCard>
@@ -211,6 +393,7 @@ function LocationAutocomplete({
   onSelect,
   clientId,
   disabledLocation,
+  compact = false,
 }: {
   label: string;
   placeholder: string;
@@ -218,6 +401,7 @@ function LocationAutocomplete({
   onSelect: (location: LocationSelection) => void;
   clientId?: string;
   disabledLocation?: string;
+  compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState(selected?.location ?? "");
@@ -246,13 +430,22 @@ function LocationAutocomplete({
   });
 
   return (
-    <div className="space-y-2">
+    <div className={compact ? "space-y-1.5" : "space-y-2"}>
       <div className="flex items-center justify-between">
-        <label className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+        <label className={cn(
+          "font-semibold uppercase tracking-[0.12em] text-muted-foreground",
+          compact ? "text-[10px]" : "text-xs",
+        )}>
           {label}
         </label>
         {validSelection ? (
-          <Badge variant="secondary" className="border border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+          <Badge
+            variant="secondary"
+            className={cn(
+              "border border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+              compact ? "h-5 px-1.5 text-[10px]" : "",
+            )}
+          >
             DB matched
           </Badge>
         ) : null}
@@ -262,15 +455,18 @@ function LocationAutocomplete({
           <Button
             type="button"
             variant="outline"
-            className="h-12 w-full justify-between border-border/50 bg-background/70 px-3 text-left shadow-sm"
+            className={cn(
+              "w-full justify-between border-border/50 bg-background px-3 text-left shadow-sm",
+              compact ? "h-10 rounded-xl" : "h-12",
+            )}
           >
             <div className="flex min-w-0 items-center gap-2">
-              <MapPinned className="h-4 w-4 text-muted-foreground" />
+              <MapPinned className={cn("text-muted-foreground", compact ? "h-3.5 w-3.5" : "h-4 w-4")} />
               <span className={`truncate text-sm ${search ? "text-foreground" : "text-muted-foreground"}`}>
                 {search || placeholder}
               </span>
             </div>
-            <Search className="h-4 w-4 text-muted-foreground" />
+            <Search className={cn("text-muted-foreground", compact ? "h-3.5 w-3.5" : "h-4 w-4")} />
           </Button>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-[420px] p-0">
@@ -329,7 +525,7 @@ function LocationAutocomplete({
         <p className="text-xs text-amber-700 dark:text-amber-300">
           Select an existing database location before running route analysis.
         </p>
-      ) : (
+      ) : compact ? null : (
         <p className="text-xs text-muted-foreground">
           Autocomplete is sourced from live `trip_reports` locations only.
         </p>
@@ -346,13 +542,18 @@ export function RouteIntelligencePage({ pageId = "journeys" }: RouteIntelligence
   const [departureLocation, setDepartureLocation] = useState<LocationSelection>(null);
   const [destinationLocation, setDestinationLocation] = useState<LocationSelection>(null);
   const [localVehicleIds, setLocalVehicleIds] = useState<string[]>([]);
+  const [journeyDateRange, setJourneyDateRange] = useState<DateRange>(() => JOURNEY_DEFAULT_DATE_RANGE);
   const [activeTab, setActiveTab] = useState("overview");
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [saveName, setSaveName] = useState("");
 
-  const filterParams = globalFilterToApiParams(filterState);
+  const filterParams = globalFilterToApiParams({
+    ...filterState,
+    selectedVehicles: [],
+    dateRange: journeyDateRange,
+  });
   const clientId = filterState.selectedClientId !== "all" ? filterState.selectedClientId : undefined;
-  const selectedVehicleIds = localVehicleIds.length > 0 ? localVehicleIds : filterState.selectedVehicles;
+  const selectedVehicleIds = localVehicleIds;
 
   const analysisEnabled = Boolean(departureLocation && destinationLocation);
   const analysisFilters = analysisEnabled
@@ -442,12 +643,6 @@ export function RouteIntelligencePage({ pageId = "journeys" }: RouteIntelligence
       label: compactDate(`${trend.dateKey}T00:00:00.000Z`),
     })) ?? [];
 
-  const currentScopeSummary = [
-    filterState.dateRange.label,
-    clientId ? "Client scoped" : "All visible clients",
-    selectedVehicleIds.length > 0 ? `${selectedVehicleIds.length} selected vehicle${selectedVehicleIds.length === 1 ? "" : "s"}` : "All visible vehicles",
-  ].join(" • ");
-
   useEffect(() => {
     if (saveDialogOpen && departureLocation && destinationLocation && !saveName.trim()) {
       setSaveName(routePathLabel(routePattern, departureLocation.location, destinationLocation.location));
@@ -458,150 +653,125 @@ export function RouteIntelligencePage({ pageId = "journeys" }: RouteIntelligence
     <div className="space-y-6 animate-fade-in">
       <div className="mb-6 flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
         <PageHeader pageId={pageId} className="mb-0 md:hidden" />
-        <FilterControls compact />
+        <FilterControls
+          compact
+          dateRangeOverride={journeyDateRange}
+          onDateRangeOverrideChange={setJourneyDateRange}
+          defaultDateRange={JOURNEY_DEFAULT_DATE_RANGE}
+          datePresets={JOURNEY_DATE_PRESETS}
+          showVehicleSelection={false}
+        />
       </div>
 
-      <GlassCard className="overflow-hidden border-primary/15">
-        <div className="border-b border-border/30 bg-gradient-to-r from-primary/10 via-background/95 to-sky-500/10 px-5 py-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                <Sparkles className="h-3.5 w-3.5 text-primary" />
-                Journey Intelligence
+      <GlassCard className="card-surface-premium motion-premium p-4" hover={false}>
+        <div className="grid gap-3 xl:grid-cols-[200px_minmax(0,1fr)_44px_minmax(0,1fr)_210px_190px] xl:items-end">
+              <div className="min-w-0 space-y-1.5">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                    Journey Mode
+                </div>
+                <div className="grid h-10 grid-cols-2 gap-1 rounded-xl border border-border/50 bg-background p-1 shadow-sm">
+                    <Button
+                      type="button"
+                      variant={routePattern === "round_trip" ? "default" : "ghost"}
+                      className="h-8 min-w-0 rounded-lg px-2 text-xs font-medium transition-all duration-200 xl:text-sm"
+                      onClick={() => setRoutePattern("round_trip")}
+                    >
+                      Round Trip
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={routePattern === "one_way" ? "default" : "ghost"}
+                      className="h-8 min-w-0 rounded-lg px-2 text-xs font-medium transition-all duration-200 xl:text-sm"
+                      onClick={() => setRoutePattern("one_way")}
+                    >
+                      One Way
+                    </Button>
+                  </div>
               </div>
-              <h2 className="mt-2 text-xl font-semibold tracking-tight text-foreground">
-                Route behaviour analysis from real trip history
-              </h2>
-              <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-                Select an origin and destination from existing database locations. The module can detect one-way
-                journeys or full A → B → A cycles, surface every occurrence, and compare route behaviour over time.
-              </p>
-              <div className="mt-2 text-xs text-muted-foreground">
-                Trip and fuel-event timestamps in this module are stored as <span className="font-medium text-foreground">{DB_TIMEZONE_LABELS.webhookLocal}</span>.
-              </div>
-            </div>
-            <div className="rounded-2xl border border-border/50 bg-background/75 px-4 py-3 text-sm text-muted-foreground shadow-sm">
-              {currentScopeSummary}
-            </div>
-          </div>
-        </div>
 
-        <div className="space-y-5 px-5 py-5">
-          <div className="grid gap-4 xl:grid-cols-[1fr_1fr_1fr_auto]">
-            <div className="space-y-2">
-              <div className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                Journey Mode
+              <div className="min-w-0">
+                <LocationAutocomplete
+                  label="Departure"
+                  placeholder="Search departure location"
+                  selected={departureLocation}
+                  onSelect={setDepartureLocation}
+                  clientId={clientId}
+                  disabledLocation={destinationLocation?.location}
+                  compact
+                />
               </div>
-              <div className="flex h-12 items-center gap-1 rounded-xl border border-border/50 bg-background/70 p-1 shadow-sm">
+
+              <div className="flex items-end justify-center">
                 <Button
                   type="button"
-                  variant={routePattern === "round_trip" ? "default" : "ghost"}
-                  className="h-10 flex-1"
-                  onClick={() => setRoutePattern("round_trip")}
+                  variant="outline"
+                  className="h-10 w-10 rounded-xl border-border/50 bg-background p-0 shadow-sm"
+                  onClick={() => {
+                    setDepartureLocation(destinationLocation);
+                    setDestinationLocation(departureLocation);
+                  }}
+                  disabled={!departureLocation || !destinationLocation}
                 >
-                  Round Trip
-                </Button>
-                <Button
-                  type="button"
-                  variant={routePattern === "one_way" ? "default" : "ghost"}
-                  className="h-10 flex-1"
-                  onClick={() => setRoutePattern("one_way")}
-                >
-                  One Way
+                  <ArrowRightLeft className="h-4 w-4" />
+                  <span className="sr-only">Swap route locations</span>
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">
-                {routePattern === "round_trip"
-                  ? "Measures A → B → A, including dwell at B before the return reaches A."
-                  : "Measures a one-way journey from the selected departure to the selected destination."}
-              </p>
-            </div>
-            <LocationAutocomplete
-              label="Departure Location"
-              placeholder="Search departure location"
-              selected={departureLocation}
-              onSelect={setDepartureLocation}
-              clientId={clientId}
-              disabledLocation={destinationLocation?.location}
-            />
-            <LocationAutocomplete
-              label={routePattern === "round_trip" ? "Location B" : "Destination Location"}
-              placeholder="Search destination location"
-              selected={destinationLocation}
-              onSelect={setDestinationLocation}
-              clientId={clientId}
-              disabledLocation={departureLocation?.location}
-            />
-            <div className="space-y-2">
-              <div className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                Vehicle Focus
-              </div>
-              <VehicleMultiSelect
-                selectedVehicleIds={localVehicleIds}
-                onSelectionChange={setLocalVehicleIds}
-                clientId={clientId}
-                className="h-12"
-              />
-              <p className="text-xs text-muted-foreground">
-                Leave empty to inherit the global vehicle scope.
-              </p>
-            </div>
-            <div className="flex items-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                className="h-12 shrink-0 border-border/50 bg-background/70 px-4"
-                onClick={() => {
-                  setDepartureLocation(destinationLocation);
-                  setDestinationLocation(departureLocation);
-                }}
-                disabled={!departureLocation || !destinationLocation}
-              >
-                <ArrowRightLeft className="mr-2 h-4 w-4" />
-                Swap
-              </Button>
-              <Button
-                type="button"
-                className="h-12 shrink-0 px-5"
-                onClick={() => {
-                  if (!analysisEnabled) {
-                    toast({
-                      title: "Route selection incomplete",
-                      description: "Choose both locations from the live suggestion lists before analysis.",
-                      variant: "destructive",
-                    });
-                    return;
-                  }
-                  queryClient.invalidateQueries({ queryKey: ["/api/journey-intelligence/analysis"] });
-                }}
-                disabled={!analysisEnabled || analysisQuery.isFetching}
-              >
-                {analysisQuery.isFetching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-                Analyze Route
-              </Button>
-            </div>
-          </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <Button
-              type="button"
-              variant="secondary"
-              className="border border-border/50 bg-background/70"
-              onClick={() => setSaveDialogOpen(true)}
-              disabled={!analysisEnabled}
-            >
-              <Bookmark className="mr-2 h-4 w-4" />
-              Save Current Route
-            </Button>
-            {analysisEnabled ? (
-              <div className="text-sm text-muted-foreground">
-                Matching sequence required:{" "}
-                <span className="font-medium text-foreground">
-                  {routePathLabel(routePattern, departureLocation?.location || "", destinationLocation?.location || "")}
-                </span>
+              <div className="min-w-0">
+                <LocationAutocomplete
+                  label={routePattern === "round_trip" ? "Location B" : "Destination"}
+                  placeholder="Search destination location"
+                  selected={destinationLocation}
+                  onSelect={setDestinationLocation}
+                  clientId={clientId}
+                  disabledLocation={departureLocation?.location}
+                  compact
+                />
               </div>
-            ) : null}
-          </div>
+
+              <div className="min-w-0 space-y-1.5">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                  Vehicle Focus
+                </div>
+                <VehicleMultiSelect
+                  selectedVehicleIds={localVehicleIds}
+                  onSelectionChange={setLocalVehicleIds}
+                  clientId={clientId}
+                  className="h-10"
+                />
+              </div>
+
+              <div className="grid gap-2 xl:grid-cols-2">
+                  <Button
+                    type="button"
+                    className="h-10 w-full rounded-xl text-sm font-medium transition-all duration-200"
+                    onClick={() => {
+                      if (!analysisEnabled) {
+                        toast({
+                          title: "Route selection incomplete",
+                          description: "Choose both locations from the live suggestion lists before analysis.",
+                          variant: "destructive",
+                        });
+                        return;
+                      }
+                      queryClient.invalidateQueries({ queryKey: ["/api/journey-intelligence/analysis"] });
+                    }}
+                    disabled={!analysisEnabled || analysisQuery.isFetching}
+                  >
+                      {analysisQuery.isFetching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                      Analyze
+                    </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="h-10 w-full rounded-xl border border-border/50 bg-background text-sm font-medium"
+                    onClick={() => setSaveDialogOpen(true)}
+                    disabled={!analysisEnabled}
+                  >
+                    <Bookmark className="mr-2 h-4 w-4" />
+                    Save
+                  </Button>
+              </div>
         </div>
       </GlassCard>
 
@@ -643,18 +813,21 @@ export function RouteIntelligencePage({ pageId = "journeys" }: RouteIntelligence
               value={analysis.summary.totalRoundTrips.toString()}
               helper={`${analysis.summary.uniqueVehicles} vehicles detected on this route pair`}
               icon={Route}
+              tone="primary"
             />
             <KpiCard
               label="Completion Rate"
               value={formatPercent(analysis.summary.completionRate)}
               helper={`${analysis.summary.incompleteTrips} outbound journey${analysis.summary.incompleteTrips === 1 ? "" : "s"} without a matched return`}
               icon={Activity}
+              tone="emerald"
             />
             <KpiCard
               label="Average Fuel Used"
               value={`${formatDecimal(analysis.summary.averageFuelUsedLitres)} L`}
               helper={`${formatDecimal(analysis.summary.averageDistanceKm)} km per completed ${routePattern === "round_trip" ? "journey cycle" : "journey"}`}
               icon={Fuel}
+              tone="amber"
             />
             <KpiCard
               label={routePattern === "round_trip" ? "Average Turnaround" : "Average Journey Time"}
@@ -665,249 +838,322 @@ export function RouteIntelligencePage({ pageId = "journeys" }: RouteIntelligence
                   : `A→B ${formatDuration(analysis.summary.averageOutboundLegHours)} from first departure to arrival`
               }
               icon={Clock3}
+              tone="sky"
             />
           </div>
 
-          <div className="grid gap-4 xl:grid-cols-[1.6fr_1fr]">
-            <GlassCard className="p-5" hover={false}>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                    Route Signals
-                  </div>
-                  <h3 className="mt-2 text-lg font-semibold text-foreground">
-                    What stands out on this route pair
-                  </h3>
-                </div>
-                <Badge variant="secondary" className="border border-border/50 bg-background/80">
-                  Real trip data only
-                </Badge>
-              </div>
-
-              <div className="mt-5 grid gap-4 md:grid-cols-3">
-                <div className="rounded-2xl border border-border/50 bg-background/70 p-4">
-                  <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                    <Truck className="h-4 w-4 text-primary" />
-                    Most active vehicle
-                  </div>
-                  <div className="mt-3 text-lg font-semibold text-foreground">
-                    {mostActiveVehicle?.vehicleLabel || "No matched vehicle yet"}
-                  </div>
-                  <div className="mt-1 text-sm text-muted-foreground">
-                    {mostActiveVehicle ? `${mostActiveVehicle.tripCount} completed round trips` : "Run a route analysis to populate this insight."}
-                  </div>
-                </div>
-                <div className="rounded-2xl border border-border/50 bg-background/70 p-4">
-                  <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                    <Droplets className="h-4 w-4 text-primary" />
-                    Highest route fuel draw
-                  </div>
-                  <div className="mt-3 text-lg font-semibold text-foreground">
-                    {mostFuelIntensiveTrip ? `${formatDecimal(mostFuelIntensiveTrip.routeFuelUsedLitres)} L` : "No route occurrence yet"}
-                  </div>
-                  <div className="mt-1 text-sm text-muted-foreground">
-                    {mostFuelIntensiveTrip
-                      ? `${mostFuelIntensiveTrip.vehicleLabel} • ${formatSignedDelta(mostFuelIntensiveTrip.routeFuelUsedLitres - routeAverageFuel, 1, " L")} vs route average`
-                      : "A matched occurrence will appear here once found."}
-                  </div>
-                </div>
-                <div className="rounded-2xl border border-border/50 bg-background/70 p-4">
-                  <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                    <TimerReset className="h-4 w-4 text-primary" />
-                    Longest turnaround
-                  </div>
-                  <div className="mt-3 text-lg font-semibold text-foreground">
-                    {mostFuelIntensiveTrip ? formatDuration(mostFuelIntensiveTrip.roundTripDurationHours) : "No route occurrence yet"}
-                  </div>
-                  <div className="mt-1 text-sm text-muted-foreground">
-                    {mostFuelIntensiveTrip
-                      ? `${mostFuelIntensiveTrip.vehicleLabel} • ${formatSignedDelta(mostFuelIntensiveTrip.roundTripDurationHours - routeAverageDuration, 1, " h")} vs route average`
-                      : "Duration variance appears here after analysis."}
-                  </div>
-                </div>
-              </div>
-            </GlassCard>
-
-            <GlassCard className="p-5" hover={false}>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                Route Scope
-              </div>
-              <div className="mt-3 space-y-3 text-sm">
-                <div className="rounded-2xl border border-border/50 bg-background/70 p-4">
-                  <div className="text-muted-foreground">Selected path</div>
-                  <div className="mt-2 font-medium text-foreground">
-                    {analysis.route.departureLocation}
-                  </div>
-                  <div className="my-2 text-muted-foreground">to</div>
-                  <div className="font-medium text-foreground">{analysis.route.destinationLocation}</div>
-                  {analysis.route.routePattern === "round_trip" ? <div className="mt-2 text-xs text-muted-foreground">Return path is measured back to the departure location.</div> : null}
-                </div>
-                <div className="rounded-2xl border border-border/50 bg-background/70 p-4">
-                  <div className="text-muted-foreground">Date window in use</div>
-                  <div className="mt-2 font-medium text-foreground">
-                    {filterState.dateRange.label}
-                  </div>
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    {analysis.route.startDate ? formatDateTimeEAT(analysis.route.startDate) : "Unknown"} to{" "}
-                    {analysis.route.endDate ? formatDateTimeEAT(analysis.route.endDate) : "Unknown"}
-                  </div>
-                  <div className="mt-1 text-[11px] text-muted-foreground">
-                    Stored trip timezone: {DB_TIMEZONE_LABELS.webhookLocal}
-                  </div>
-                  {analysis.summary.totalRoundTrips === 0 && analysis.routeAvailability?.hasMatchesOutsideSelectedRange ? (
-                    <div className="mt-2 text-xs text-amber-700 dark:text-amber-300">
-                      Current filters exclude historical matches for this route. Expand the date range to see them.
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            </GlassCard>
-          </div>
-
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 rounded-2xl bg-card/60 p-1">
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="occurrences">Occurrences</TabsTrigger>
-              <TabsTrigger value="vehicles">Vehicles</TabsTrigger>
-              <TabsTrigger value="trends">Trends</TabsTrigger>
-              <TabsTrigger value="saved">Saved Routes</TabsTrigger>
-              <TabsTrigger value="exceptions">Exceptions</TabsTrigger>
+            <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1.5 rounded-[24px] border border-border/40 bg-card/60 p-1.5">
+              <TabsTrigger value="overview" className="rounded-2xl border border-transparent px-4 data-[state=active]:border-primary/15 data-[state=active]:bg-background/90 data-[state=active]:text-primary">
+                Overview
+              </TabsTrigger>
+              <TabsTrigger value="occurrences" className="rounded-2xl border border-transparent px-4 data-[state=active]:border-primary/15 data-[state=active]:bg-background/90 data-[state=active]:text-primary">
+                Occurrences
+              </TabsTrigger>
+              <TabsTrigger value="vehicles" className="rounded-2xl border border-transparent px-4 data-[state=active]:border-primary/15 data-[state=active]:bg-background/90 data-[state=active]:text-primary">
+                Vehicles
+              </TabsTrigger>
+              <TabsTrigger value="trends" className="rounded-2xl border border-transparent px-4 data-[state=active]:border-primary/15 data-[state=active]:bg-background/90 data-[state=active]:text-primary">
+                Trends
+              </TabsTrigger>
+              <TabsTrigger value="saved" className="rounded-2xl border border-transparent px-4 data-[state=active]:border-primary/15 data-[state=active]:bg-background/90 data-[state=active]:text-primary">
+                Saved Routes
+              </TabsTrigger>
+              <TabsTrigger value="exceptions" className="rounded-2xl border border-transparent px-4 data-[state=active]:border-primary/15 data-[state=active]:bg-background/90 data-[state=active]:text-primary">
+                Exceptions
+              </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="overview" className="space-y-4">
-              <div className="grid gap-4 xl:grid-cols-[1.45fr_1fr]">
-                <GlassCard className="p-5" hover={false}>
+            <TabsContent value="overview" className="space-y-4 data-[state=active]:animate-in data-[state=active]:fade-in-50 data-[state=active]:slide-in-from-bottom-2">
+              <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+                <GlassCard className="card-surface-premium motion-premium p-5" hover={false}>
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                        Route cadence
+                        Latest Occurrences
                       </div>
-                    <h3 className="mt-2 text-lg font-semibold text-foreground">
-                      {routePattern === "round_trip" ? "Completed round trips over time" : "Completed one-way journeys over time"}
-                    </h3>
+                      <h3 className="mt-2 text-lg font-semibold text-foreground">
+                        Most recent completed {routePattern === "round_trip" ? "round trips" : "one-way journeys"}
+                      </h3>
                     </div>
                     <Badge variant="secondary" className="border border-border/50 bg-background/80">
-                      {analysis.trends.length} active day{analysis.trends.length === 1 ? "" : "s"}
+                      {Math.min(analysis.occurrences.length, 4)} shown
                     </Badge>
                   </div>
-                  <div className="mt-5 h-[320px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={trendChartData} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
-                        <defs>
-                          <linearGradient id="journeyTripsGradient" x1="0" x2="0" y1="0" y2="1">
-                            <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.5} />
-                            <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.05} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border) / 0.45)" />
-                        <XAxis dataKey="label" tickLine={false} axisLine={false} />
-                        <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
-                        <RechartsTooltip
-                          formatter={(value: number, name) => [
-                            name === "tripCount" ? `${value} trips` : value,
-                            name === "tripCount" ? "Completed round trips" : name,
-                          ]}
-                          labelFormatter={(_, payload) => {
-                            const point = payload?.[0]?.payload;
-                            return point?.dateKey ? compactDate(`${point.dateKey}T00:00:00.000Z`) : "";
-                          }}
-                        />
-                        <Area
-                          type="monotone"
-                          dataKey="tripCount"
-                          stroke="hsl(var(--primary))"
-                          strokeWidth={2.5}
-                          fill="url(#journeyTripsGradient)"
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
+                  <div className="mt-5 overflow-x-auto">
+                    <table className="w-full min-w-[980px] border-separate [border-spacing:0_6px]">
+                      <thead>
+                        <tr className="border-b border-border/20 bg-muted/20">
+                          <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            Journey
+                          </th>
+                          <th className="min-w-[240px] px-3 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            Fuel Window
+                          </th>
+                          <th className="px-3 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            Dist
+                          </th>
+                          <th className="px-3 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            Fuel
+                          </th>
+                          <th className="px-3 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            Duration
+                          </th>
+                          <th className="px-3 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            Cons. (Km/L)
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="[&_tr>td]:align-top [&_tr>td]:bg-card/85 [&_tr>td]:border-y [&_tr>td]:border-border/30 [&_tr>td:first-child]:rounded-l-2xl [&_tr>td:first-child]:border-l [&_tr>td:last-child]:rounded-r-2xl [&_tr>td:last-child]:border-r [&_tr:hover>td]:bg-card">
+                        {analysis.occurrences.slice(0, 4).map((occurrence) => {
+                          const fuelDelta = occurrence.routeFuelUsedLitres - routeAverageFuel;
+                          const showRegistrationBadge =
+                            occurrence.registrationNumber &&
+                            normalizeLocation(occurrence.registrationNumber) !== normalizeLocation(occurrence.vehicleLabel);
+
+                          return (
+                            <tr key={occurrence.id} className="transition-all duration-200 hover:-translate-y-0.5">
+                              <td className="min-w-[280px] px-4 py-3">
+                                <div className="space-y-2.5">
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="flex items-center gap-3">
+                                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/15">
+                                        <Route className="h-4 w-4 text-primary" />
+                                      </div>
+                                      <div className="min-w-0">
+                                        <div className="truncate text-sm font-semibold text-foreground">
+                                          {occurrence.vehicleLabel}
+                                        </div>
+                                        {showRegistrationBadge ? (
+                                          <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                                            {occurrence.registrationNumber}
+                                          </div>
+                                        ) : null}
+                                      </div>
+                                    </div>
+                                    <Badge
+                                      variant="outline"
+                                      className={cn("h-6 px-2 text-[10px] font-semibold whitespace-nowrap", getDeltaBadgeTone(fuelDelta))}
+                                    >
+                                      {formatSignedDelta(fuelDelta, 1, " L")}
+                                    </Badge>
+                                  </div>
+
+                                  <div className="rounded-lg border border-border/30 bg-background/70 px-2.5 py-2">
+                                    <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                      Journey Window
+                                    </div>
+                                    <div className="mt-1 text-[11px] font-medium leading-5 text-foreground">
+                                      {formatDateTimeEAT(occurrence.departureTime)} to {formatDateTimeEAT(occurrence.returnArrivalTime)}
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+
+                              <td className="min-w-[250px] px-3 py-2 text-center">
+                                <div className="mx-auto w-full max-w-[280px]">
+                                  <div className="rounded-lg border border-border/30 bg-gradient-to-br from-card/90 via-card/75 to-muted/20 px-2.5 py-1 text-left shadow-[inset_0_1px_0_hsl(var(--background)/0.35)]">
+                                    <div className="mb-1 flex items-center justify-end">
+                                      <div className="rounded-full border border-border/25 bg-background/70 px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.12em] text-foreground">
+                                        Fuel window
+                                      </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+                                        <div className="min-w-0 rounded-md border border-primary/15 bg-primary/5 px-2 py-0.5">
+                                          <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                                            <Fuel className="h-2.5 w-2.5" />
+                                            <span>Initial</span>
+                                          </div>
+                                        </div>
+                                        <div className="text-right leading-none">
+                                          <div className="text-sm font-bold text-primary">
+                                            {formatOptionalDecimal(occurrence.initialFuelLitres)} L
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-t border-border/20 pt-1">
+                                        <div className="min-w-0 rounded-md border border-emerald-500/15 bg-emerald-500/5 px-2 py-0.5">
+                                          <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+                                            <Droplets className="h-2.5 w-2.5" />
+                                            <span>Refills</span>
+                                          </div>
+                                        </div>
+                                        <div className="text-right leading-none">
+                                          <div className="text-sm font-bold text-emerald-700 dark:text-emerald-300">
+                                            {formatDecimal(occurrence.totalRefillsLitres)} L
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-t border-border/20 pt-1">
+                                        <div className="min-w-0 rounded-md border border-sky-500/15 bg-sky-500/5 px-2 py-0.5">
+                                          <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300">
+                                            <Fuel className="h-2.5 w-2.5" />
+                                            <span>Final</span>
+                                          </div>
+                                        </div>
+                                        <div className="text-right leading-none">
+                                          <div className="text-sm font-bold text-sky-700 dark:text-sky-300">
+                                            {formatOptionalDecimal(occurrence.finalFuelLitres)} L
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+
+                              <td className="px-3 py-3 text-center">
+                                <div className="space-y-1">
+                                  <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                    Distance
+                                  </div>
+                                  <div className="text-sm font-bold text-foreground">
+                                    {formatDecimal(occurrence.routeDistanceKm)} km
+                                  </div>
+                                </div>
+                              </td>
+
+                              <td className="px-3 py-3 text-center">
+                                <div className="space-y-1">
+                                  <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                    Fuel Used
+                                  </div>
+                                  <div className="text-sm font-bold text-foreground">
+                                    {formatDecimal(occurrence.routeFuelUsedLitres)} L
+                                  </div>
+                                </div>
+                              </td>
+
+                              <td className="px-3 py-3 text-center">
+                                <div className="space-y-1">
+                                  <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                    Duration
+                                  </div>
+                                  <div className="text-sm font-bold text-foreground">
+                                    {formatDuration(occurrence.roundTripDurationHours)}
+                                  </div>
+                                </div>
+                              </td>
+
+                              <td className="px-3 py-3 text-center">
+                                <div className="mx-auto flex max-w-[160px] flex-col items-center gap-1 text-center">
+                                  <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                    Consumption
+                                  </div>
+                                  <div className="text-lg font-extrabold leading-none text-foreground">
+                                    {occurrence.routeEfficiency !== null
+                                      ? formatDecimal(occurrence.routeEfficiency, 2)
+                                      : "--"}
+                                  </div>
+                                  <div className="text-[10px] font-medium text-muted-foreground">
+                                    {occurrence.routeEfficiency !== null ? "Computed | Km/L" : "No data | Km/L"}
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 </GlassCard>
 
-                <GlassCard className="p-5" hover={false}>
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                    Latest occurrences
+                <GlassCard className="card-surface-premium motion-premium p-5" hover={false}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                        Route Signals
+                      </div>
+                      <h3 className="mt-2 text-lg font-semibold text-foreground">
+                        What matters most on this route
+                      </h3>
+                    </div>
+                    <Badge variant="secondary" className="border border-border/50 bg-background/80">
+                      {analysis.summary.totalRoundTrips} matched
+                    </Badge>
                   </div>
-                    <h3 className="mt-2 text-lg font-semibold text-foreground">
-                      {routePattern === "round_trip" ? "Most recent completed round trips" : "Most recent completed one-way journeys"}
-                    </h3>
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    Timestamp source: {DB_TIMEZONE_LABELS.webhookLocal}
-                  </div>
-                  <div className="mt-5 space-y-3">
-                    {analysis.occurrences.slice(0, 5).map((occurrence) => {
-                      const fuelDelta = occurrence.routeFuelUsedLitres - routeAverageFuel;
-                      return (
-                        <div key={occurrence.id} className="rounded-2xl border border-border/50 bg-background/70 p-4">
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <div className="font-medium text-foreground">{occurrence.vehicleLabel}</div>
-                              <div className="mt-1 text-xs text-muted-foreground">
-                                {formatDateTimeEAT(occurrence.departureTime)} to {formatDateTimeEAT(occurrence.returnArrivalTime)}
-                              </div>
-                            </div>
-                            <Badge variant="secondary" className={getDeltaTone(fuelDelta)}>
-                              {formatSignedDelta(fuelDelta, 1, " L")}
-                            </Badge>
+
+                  <div className="mt-5 grid gap-3">
+                    <div className="rounded-[22px] border border-primary/12 bg-gradient-to-br from-primary/[0.12] via-primary/[0.05] to-transparent p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="rounded-2xl border border-primary/15 bg-background/70 p-2.5">
+                          <Truck className="h-4 w-4 text-primary" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                            Most active vehicle
                           </div>
-                          <div className="mt-3 grid grid-cols-3 gap-3 text-sm">
-                            <div>
-                              <div className="text-muted-foreground">Distance</div>
-                              <div className="mt-1 font-medium text-foreground">
-                                {formatDecimal(occurrence.routeDistanceKm)} km
-                              </div>
-                            </div>
-                            <div>
-                              <div className="text-muted-foreground">Fuel</div>
-                              <div className="mt-1 font-medium text-foreground">
-                                {formatDecimal(occurrence.routeFuelUsedLitres)} L
-                              </div>
-                            </div>
-                            <div>
-                              <div className="text-muted-foreground">Duration</div>
-                              <div className="mt-1 font-medium text-foreground">
-                                {formatDuration(occurrence.roundTripDurationHours)}
-                              </div>
-                            </div>
+                          <div className="mt-1 text-lg font-semibold text-foreground">
+                            {mostActiveVehicle?.vehicleLabel || "No matched vehicle yet"}
                           </div>
-                          <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4 text-sm">
-                            <div className="rounded-xl border border-border/40 bg-background/60 px-3 py-2">
-                              <div className="text-muted-foreground">Initial fuel</div>
-                              <div className="mt-1 font-medium text-foreground">
-                                {formatOptionalDecimal(occurrence.initialFuelLitres)} L
-                              </div>
-                            </div>
-                            <div className="rounded-xl border border-border/40 bg-background/60 px-3 py-2">
-                              <div className="text-muted-foreground">Final fuel</div>
-                              <div className="mt-1 font-medium text-foreground">
-                                {formatOptionalDecimal(occurrence.finalFuelLitres)} L
-                              </div>
-                            </div>
-                            <div className="rounded-xl border border-border/40 bg-background/60 px-3 py-2">
-                              <div className="text-muted-foreground">Total refills</div>
-                              <div className="mt-1 font-medium text-foreground">
-                                {formatDecimal(occurrence.totalRefillsLitres)} L
-                              </div>
-                            </div>
-                            <div className="rounded-xl border border-border/40 bg-background/60 px-3 py-2">
-                              <div className="text-muted-foreground">Consumption</div>
-                              <div className="mt-1 font-medium text-foreground">
-                                {occurrence.routeEfficiency !== null
-                                  ? `${formatDecimal(occurrence.routeEfficiency, 2)} km/L`
-                                  : "--"}
-                              </div>
-                            </div>
+                          <div className="mt-1 text-sm text-muted-foreground">
+                            {mostActiveVehicle
+                              ? `${mostActiveVehicle.tripCount} completed ${routePattern === "round_trip" ? "cycles" : "journeys"}`
+                              : "Run a route analysis to populate this signal."}
                           </div>
                         </div>
-                      );
-                    })}
+                      </div>
+                    </div>
+
+                    <div className="rounded-[22px] border border-amber-500/12 bg-gradient-to-br from-amber-500/[0.12] via-amber-500/[0.05] to-transparent p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="rounded-2xl border border-amber-500/15 bg-background/70 p-2.5">
+                          <Droplets className="h-4 w-4 text-amber-700 dark:text-amber-300" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                            Highest route fuel draw
+                          </div>
+                          <div className="mt-1 text-lg font-semibold text-foreground">
+                            {mostFuelIntensiveTrip ? `${formatDecimal(mostFuelIntensiveTrip.routeFuelUsedLitres)} L` : "No route occurrence yet"}
+                          </div>
+                          <div className="mt-1 text-sm text-muted-foreground">
+                            {mostFuelIntensiveTrip
+                              ? `${mostFuelIntensiveTrip.vehicleLabel} • ${formatSignedDelta(mostFuelIntensiveTrip.routeFuelUsedLitres - routeAverageFuel, 1, " L")} vs route average`
+                              : "A matched occurrence will appear here once found."}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-[22px] border border-sky-500/12 bg-gradient-to-br from-sky-500/[0.12] via-sky-500/[0.05] to-transparent p-4">
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                          Longest journey time
+                        </div>
+                        <div className="mt-1 text-lg font-semibold text-foreground">
+                          {mostFuelIntensiveTrip ? formatDuration(mostFuelIntensiveTrip.roundTripDurationHours) : "--"}
+                        </div>
+                        <div className="mt-1 text-sm text-muted-foreground">
+                          {mostFuelIntensiveTrip
+                            ? `${mostFuelIntensiveTrip.vehicleLabel} • ${formatSignedDelta(mostFuelIntensiveTrip.roundTripDurationHours - routeAverageDuration, 1, " h")} vs route average`
+                            : "Duration variance appears here after analysis."}
+                        </div>
+                      </div>
+                      <div className="rounded-[22px] border border-emerald-500/12 bg-gradient-to-br from-emerald-500/[0.12] via-emerald-500/[0.05] to-transparent p-4">
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                          Average efficiency
+                        </div>
+                        <div className="mt-1 text-lg font-semibold text-foreground">
+                          {analysis.summary.averageRouteEfficiency
+                            ? `${formatDecimal(analysis.summary.averageRouteEfficiency, 2)} km/L`
+                            : "--"}
+                        </div>
+                        <div className="mt-1 text-sm text-muted-foreground">
+                          Across completed {routePattern === "round_trip" ? "cycles" : "journeys"} in scope
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </GlassCard>
               </div>
             </TabsContent>
 
-            <TabsContent value="occurrences">
-              <GlassCard className="overflow-hidden" hover={false}>
+            <TabsContent value="occurrences" className="data-[state=active]:animate-in data-[state=active]:fade-in-50 data-[state=active]:slide-in-from-bottom-2">
+              <GlassCard className="card-surface-premium motion-premium overflow-hidden" hover={false}>
                 <div className="flex flex-col gap-2 border-b border-border/30 px-5 py-4 md:flex-row md:items-end md:justify-between">
                   <div>
                     <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
@@ -1001,8 +1247,8 @@ export function RouteIntelligencePage({ pageId = "journeys" }: RouteIntelligence
               </GlassCard>
             </TabsContent>
 
-            <TabsContent value="vehicles">
-              <GlassCard className="overflow-hidden" hover={false}>
+            <TabsContent value="vehicles" className="data-[state=active]:animate-in data-[state=active]:fade-in-50 data-[state=active]:slide-in-from-bottom-2">
+              <GlassCard className="card-surface-premium motion-premium overflow-hidden" hover={false}>
                 <div className="border-b border-border/30 px-5 py-4">
                   <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                     Vehicle performance
@@ -1057,9 +1303,50 @@ export function RouteIntelligencePage({ pageId = "journeys" }: RouteIntelligence
               </GlassCard>
             </TabsContent>
 
-            <TabsContent value="trends" className="space-y-4">
-              <div className="grid gap-4 xl:grid-cols-2">
-                <GlassCard className="p-5" hover={false}>
+            <TabsContent value="trends" className="space-y-4 data-[state=active]:animate-in data-[state=active]:fade-in-50 data-[state=active]:slide-in-from-bottom-2">
+              <div className="grid gap-4 xl:grid-cols-3">
+                <GlassCard className="card-surface-premium motion-premium p-5" hover={false}>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                    Route cadence
+                  </div>
+                  <h3 className="mt-2 text-lg font-semibold text-foreground">
+                    {routePattern === "round_trip" ? "Completed round trips over time" : "Completed one-way journeys over time"}
+                  </h3>
+                  <div className="mt-5 h-[320px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={trendChartData} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="journeyTripsGradient" x1="0" x2="0" y1="0" y2="1">
+                            <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.5} />
+                            <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.05} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border) / 0.45)" />
+                        <XAxis dataKey="label" tickLine={false} axisLine={false} />
+                        <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
+                        <RechartsTooltip
+                          formatter={(value: number, name) => [
+                            name === "tripCount" ? `${value} trips` : value,
+                            name === "tripCount" ? "Completed journeys" : name,
+                          ]}
+                          labelFormatter={(_, payload) => {
+                            const point = payload?.[0]?.payload;
+                            return point?.dateKey ? compactDate(`${point.dateKey}T00:00:00.000Z`) : "";
+                          }}
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="tripCount"
+                          stroke="hsl(var(--primary))"
+                          strokeWidth={2.5}
+                          fill="url(#journeyTripsGradient)"
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </GlassCard>
+
+                <GlassCard className="card-surface-premium motion-premium p-5" hover={false}>
                   <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                     Fuel trend
                   </div>
@@ -1085,7 +1372,7 @@ export function RouteIntelligencePage({ pageId = "journeys" }: RouteIntelligence
                   </div>
                 </GlassCard>
 
-                <GlassCard className="p-5" hover={false}>
+                <GlassCard className="card-surface-premium motion-premium p-5" hover={false}>
                   <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                     Efficiency trend
                   </div>
@@ -1125,8 +1412,8 @@ export function RouteIntelligencePage({ pageId = "journeys" }: RouteIntelligence
               </div>
             </TabsContent>
 
-            <TabsContent value="saved" className="space-y-4">
-              <GlassCard className="p-5" hover={false}>
+            <TabsContent value="saved" className="space-y-4 data-[state=active]:animate-in data-[state=active]:fade-in-50 data-[state=active]:slide-in-from-bottom-2">
+              <GlassCard className="card-surface-premium motion-premium p-5" hover={false}>
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div>
                     <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
@@ -1149,23 +1436,31 @@ export function RouteIntelligencePage({ pageId = "journeys" }: RouteIntelligence
 
               <div className="grid gap-4 xl:grid-cols-2">
                 {(savedRoutesQuery.data || []).map((route) => {
+                  const routePath = routePathLabel(
+                    ((route.filters?.routePattern as JourneyRoutePattern) || "round_trip"),
+                    route.departureLocation,
+                    route.destinationLocation
+                  );
+                  const showDistinctName =
+                    route.name.trim().length > 0 &&
+                    normalizeLocation(route.name) !== normalizeLocation(routePath);
                   const isCurrent =
                     departureLocation &&
                     destinationLocation &&
                     normalizeLocation(route.departureLocation) === normalizeLocation(departureLocation.location) &&
                     normalizeLocation(route.destinationLocation) === normalizeLocation(destinationLocation.location);
                   return (
-                    <GlassCard key={route.id} className="p-5" hover={false}>
+                    <GlassCard key={route.id} className="card-surface-premium motion-premium p-5" hover={false}>
                       <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="text-lg font-semibold text-foreground">{route.name}</div>
-                          <div className="mt-2 text-sm text-muted-foreground">
-                            {routePathLabel(
-                              ((route.filters?.routePattern as JourneyRoutePattern) || "round_trip"),
-                              route.departureLocation,
-                              route.destinationLocation
-                            )}
+                        <div className="min-w-0">
+                          <div className="truncate text-base font-semibold leading-5 text-foreground">
+                            {showDistinctName ? route.name : routePath}
                           </div>
+                          {showDistinctName ? (
+                            <div className="mt-1 text-sm leading-5 text-muted-foreground">
+                              {routePath}
+                            </div>
+                          ) : null}
                           <div className="mt-2 text-xs text-muted-foreground">
                             Saved {formatDateTimeEAT(route.updatedAt)}
                           </div>
@@ -1215,7 +1510,7 @@ export function RouteIntelligencePage({ pageId = "journeys" }: RouteIntelligence
                 })}
 
                 {(savedRoutesQuery.data || []).length === 0 ? (
-                  <GlassCard className="p-8 text-center" hover={false}>
+                  <GlassCard className="card-surface-premium motion-premium p-8 text-center" hover={false}>
                     <Bookmark className="mx-auto h-8 w-8 text-muted-foreground" />
                     <div className="mt-4 text-lg font-semibold text-foreground">No saved routes yet</div>
                     <div className="mt-2 text-sm text-muted-foreground">
@@ -1226,9 +1521,9 @@ export function RouteIntelligencePage({ pageId = "journeys" }: RouteIntelligence
               </div>
             </TabsContent>
 
-            <TabsContent value="exceptions" className="space-y-4">
+            <TabsContent value="exceptions" className="space-y-4 data-[state=active]:animate-in data-[state=active]:fade-in-50 data-[state=active]:slide-in-from-bottom-2">
               <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-                <GlassCard className="p-5" hover={false}>
+                <GlassCard className="card-surface-premium motion-premium p-5" hover={false}>
                   <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                     Exception feed
                   </div>
@@ -1259,7 +1554,7 @@ export function RouteIntelligencePage({ pageId = "journeys" }: RouteIntelligence
                   </div>
                 </GlassCard>
 
-                <GlassCard className="p-5" hover={false}>
+                <GlassCard className="card-surface-premium motion-premium p-5" hover={false}>
                   <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                     Incomplete returns
                   </div>
@@ -1306,16 +1601,19 @@ export function RouteIntelligencePage({ pageId = "journeys" }: RouteIntelligence
       ) : null}
 
       {analysisQuery.isLoading ? (
-        <GlassCard className="p-8" hover={false}>
-          <div className="flex items-center justify-center gap-3 text-sm text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin" />
-            Building route intelligence from live trip data...
+        <GlassCard className="card-surface-premium motion-premium overflow-hidden p-0" hover={false}>
+          <div className="bg-gradient-to-r from-primary/[0.08] via-background to-sky-500/[0.08] px-8 py-8">
+            <div className="flex items-center justify-center gap-3 text-sm text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+              Building route intelligence from live trip data...
+            </div>
           </div>
         </GlassCard>
       ) : null}
 
       {analysisQuery.isError ? (
-        <GlassCard className="p-6" hover={false}>
+        <GlassCard className="card-surface-premium motion-premium overflow-hidden p-0" hover={false}>
+          <div className="bg-gradient-to-r from-red-500/[0.08] via-background to-transparent px-6 py-6">
           <div className="flex items-start gap-3">
             <AlertTriangle className="mt-0.5 h-5 w-5 text-red-600 dark:text-red-300" />
             <div>
@@ -1325,23 +1623,43 @@ export function RouteIntelligencePage({ pageId = "journeys" }: RouteIntelligence
               </div>
             </div>
           </div>
+          </div>
         </GlassCard>
       ) : null}
 
       {!analysisEnabled && !analysisQuery.isLoading ? (
         <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-          <GlassCard className="p-10 text-center" hover={false}>
-            <Route className="mx-auto h-10 w-10 text-primary" />
-            <div className="mt-4 text-xl font-semibold text-foreground">
-              Choose a live route pair to begin
-            </div>
-            <div className="mx-auto mt-2 max-w-2xl text-sm text-muted-foreground">
-              Journey Intelligence only works with locations that already exist in the database. Select both ends from
-              the autocomplete suggestions and the platform will assemble completed journeys, vehicle performance, route
-              trends, and exception signals automatically.
+          <GlassCard className="card-surface-premium motion-premium overflow-hidden p-0" hover={false}>
+            <div className="relative overflow-hidden px-10 py-10 text-center">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.10),transparent_35%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.08),transparent_30%)]" />
+              <div className="relative">
+                <Route className="mx-auto h-10 w-10 text-primary" />
+                <div className="mt-4 text-xl font-semibold text-foreground">
+                  Choose a live route pair to begin
+                </div>
+                <div className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                  Journey Intelligence only works with locations that already exist in the database. Select both ends from
+                  the autocomplete suggestions and the platform will assemble completed journeys, vehicle performance, route
+                  trends, and exception signals automatically.
+                </div>
+                <div className="mt-6 grid gap-3 md:grid-cols-3">
+                  <div className="rounded-2xl border border-primary/12 bg-gradient-to-br from-primary/[0.12] via-primary/[0.05] to-transparent p-4 text-left">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Step 1</div>
+                    <div className="mt-2 text-sm font-medium text-foreground">Select a real departure point</div>
+                  </div>
+                  <div className="rounded-2xl border border-sky-500/12 bg-gradient-to-br from-sky-500/[0.12] via-sky-500/[0.05] to-transparent p-4 text-left">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Step 2</div>
+                    <div className="mt-2 text-sm font-medium text-foreground">Choose the destination from the database list</div>
+                  </div>
+                  <div className="rounded-2xl border border-emerald-500/12 bg-gradient-to-br from-emerald-500/[0.12] via-emerald-500/[0.05] to-transparent p-4 text-left">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Step 3</div>
+                    <div className="mt-2 text-sm font-medium text-foreground">Run analysis and explore the tabs below</div>
+                  </div>
+                </div>
+              </div>
             </div>
           </GlassCard>
-          <GlassCard className="p-5" hover={false}>
+          <GlassCard className="card-surface-premium motion-premium p-5" hover={false}>
             <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
               Saved routes
             </div>
@@ -1350,35 +1668,48 @@ export function RouteIntelligencePage({ pageId = "journeys" }: RouteIntelligence
             </h3>
             <div className="mt-5 space-y-3">
               {(savedRoutesQuery.data || []).slice(0, 4).map((route) => (
-                <button
-                  key={route.id}
-                  type="button"
-                  onClick={() => {
-                    setDepartureLocation({
-                      location: route.departureLocation,
-                      normalizedLocation: normalizeLocation(route.departureLocation),
-                      usageCount: 0,
-                      lastSeenAt: null,
-                    });
-                    setDestinationLocation({
-                      location: route.destinationLocation,
-                      normalizedLocation: normalizeLocation(route.destinationLocation),
-                      usageCount: 0,
-                      lastSeenAt: null,
-                    });
-                    setRoutePattern(((route.filters?.routePattern as JourneyRoutePattern) || "round_trip"));
-                  }}
-                  className="w-full rounded-2xl border border-border/50 bg-background/70 px-4 py-3 text-left transition hover:border-primary/30 hover:bg-primary/5"
-                >
-                  <div className="font-medium text-foreground">{route.name}</div>
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    {routePathLabel(
-                      ((route.filters?.routePattern as JourneyRoutePattern) || "round_trip"),
-                      route.departureLocation,
-                      route.destinationLocation
-                    )}
-                  </div>
-                </button>
+                (() => {
+                  const routePath = routePathLabel(
+                    ((route.filters?.routePattern as JourneyRoutePattern) || "round_trip"),
+                    route.departureLocation,
+                    route.destinationLocation
+                  );
+                  const showDistinctName =
+                    route.name.trim().length > 0 &&
+                    normalizeLocation(route.name) !== normalizeLocation(routePath);
+
+                  return (
+                    <button
+                      key={route.id}
+                      type="button"
+                      onClick={() => {
+                        setDepartureLocation({
+                          location: route.departureLocation,
+                          normalizedLocation: normalizeLocation(route.departureLocation),
+                          usageCount: 0,
+                          lastSeenAt: null,
+                        });
+                        setDestinationLocation({
+                          location: route.destinationLocation,
+                          normalizedLocation: normalizeLocation(route.destinationLocation),
+                          usageCount: 0,
+                          lastSeenAt: null,
+                        });
+                        setRoutePattern(((route.filters?.routePattern as JourneyRoutePattern) || "round_trip"));
+                      }}
+                      className="w-full rounded-xl border border-border/50 bg-background/70 px-4 py-3 text-left transition hover:border-primary/30 hover:bg-primary/5"
+                    >
+                      <div className="text-sm font-semibold leading-5 text-foreground">
+                        {showDistinctName ? route.name : routePath}
+                      </div>
+                      {showDistinctName ? (
+                        <div className="mt-1 text-xs leading-5 text-muted-foreground">
+                          {routePath}
+                        </div>
+                      ) : null}
+                    </button>
+                  );
+                })()
               ))}
               {(savedRoutesQuery.data || []).length === 0 ? (
                 <div className="rounded-2xl border border-border/50 bg-background/70 p-4 text-sm text-muted-foreground">

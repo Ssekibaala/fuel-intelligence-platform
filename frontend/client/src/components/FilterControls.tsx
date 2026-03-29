@@ -7,7 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { VehicleMultiSelect } from "./VehicleMultiSelect";
-import { DateRangePicker } from "./DateRangePicker";
+import { DateRangePicker, type DatePresetOption } from "./DateRangePicker";
 import { useGlobalFilter, getDateRangeFromPreset } from "./GlobalFilterContext";
 import { useAuth } from "./AuthProvider";
 import { type DateRange, type Vehicle } from "@shared/schema";
@@ -18,8 +18,11 @@ interface FilterControlsProps {
   dateRangeOverride?: DateRange;
   onDateRangeOverrideChange?: (dateRange: DateRange) => void;
   defaultDatePreset?: Exclude<NonNullable<DateRange["preset"]>, "custom">;
+  defaultDateRange?: DateRange;
+  datePresets?: ReadonlyArray<DatePresetOption>;
   compact?: boolean;
   vehicleSelectionMode?: "single" | "multiple";
+  showVehicleSelection?: boolean;
 }
 
 const DATE_PRESET_LABELS: Record<Exclude<NonNullable<DateRange["preset"]>, "custom">, string> = {
@@ -86,8 +89,11 @@ export function FilterControls({
   dateRangeOverride,
   onDateRangeOverrideChange,
   defaultDatePreset = "last_7_days",
+  defaultDateRange,
+  datePresets,
   compact = false,
   vehicleSelectionMode = "multiple",
+  showVehicleSelection = true,
 }: FilterControlsProps) {
   const { state, actions } = useGlobalFilter();
   const { isAdmin, clients: assignedClients } = useAuth();
@@ -138,16 +144,22 @@ export function FilterControls({
   });
   const activeDateRange = dateRangeOverride ?? state.dateRange;
   const setDateRange = onDateRangeOverrideChange ?? actions.setDateRange;
+  const resolvedDefaultDateRange = defaultDateRange ?? buildDateRangeFromPreset(defaultDatePreset);
   const hasClientFilter = state.selectedClientId !== "all";
   const hasDateRangeFilter =
-    activeDateRange.preset !== defaultDatePreset &&
     Boolean(activeDateRange.startDate) &&
-    Boolean(activeDateRange.endDate);
-  const hasActiveFilters = hasClientFilter || state.selectedVehicles.length > 0 || hasDateRangeFilter;
+    Boolean(activeDateRange.endDate) &&
+    (
+      activeDateRange.startDate !== resolvedDefaultDateRange.startDate ||
+      activeDateRange.endDate !== resolvedDefaultDateRange.endDate ||
+      activeDateRange.label !== resolvedDefaultDateRange.label
+    );
+  const hasVehicleFilter = showVehicleSelection && state.selectedVehicles.length > 0;
+  const hasActiveFilters = hasClientFilter || hasVehicleFilter || hasDateRangeFilter;
   const dateRangeLabel = activeDateRange.label || "Custom range";
   const dateRangeWindow = formatDateRangeWindow(activeDateRange);
   const selectedVehicleLabels = useMemo(() => {
-    if (state.selectedVehicles.length === 0) return [];
+    if (state.selectedVehicles.length === 0 || !showVehicleSelection) return [];
     const vehicleById = new Map(vehicles.map((vehicle) => [vehicle.id, vehicle]));
     return state.selectedVehicles.map((id) => {
       const vehicle = vehicleById.get(id);
@@ -171,8 +183,10 @@ export function FilterControls({
       return;
     }
     actions.setSelectedClientId("all");
-    actions.setSelectedVehicles([]);
-    setDateRange(buildDateRangeFromPreset(defaultDatePreset));
+    if (showVehicleSelection) {
+      actions.setSelectedVehicles([]);
+    }
+    setDateRange(resolvedDefaultDateRange);
   };
 
   return (
@@ -237,17 +251,18 @@ export function FilterControls({
                 </Select>
               </div>
 
-              {/* Vehicle Selection */}
-              <div>
-                <label className="text-xs font-medium text-muted-foreground block mb-2">
-                  Vehicle Selection
-                </label>
-                <VehicleMultiSelect
-                  selectedVehicleIds={state.selectedVehicles}
-                  onSelectionChange={actions.setSelectedVehicles}
-                  selectionMode={vehicleSelectionMode}
-                />
-              </div>
+              {showVehicleSelection ? (
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-2">
+                    Vehicle Selection
+                  </label>
+                  <VehicleMultiSelect
+                    selectedVehicleIds={state.selectedVehicles}
+                    onSelectionChange={actions.setSelectedVehicles}
+                    selectionMode={vehicleSelectionMode}
+                  />
+                </div>
+              ) : null}
 
               {/* Date Range */}
               <div>
@@ -257,6 +272,7 @@ export function FilterControls({
                 <DateRangePicker
                   value={activeDateRange}
                   onChange={setDateRange}
+                  presets={datePresets}
                 />
               </div>
 
@@ -278,27 +294,29 @@ export function FilterControls({
                   <div className="text-muted-foreground">{dateRangeWindow}</div>
                 </div>
               </div>
-              <div className="flex items-start gap-2 text-xs">
-                <Truck className="mt-0.5 h-3.5 w-3.5 text-primary" />
-                <div className="space-y-1">
-                  {selectedVehicleLabels.length === 0 ? (
-                    <div className="font-medium text-foreground">All vehicles</div>
-                  ) : (
-                    <div className="flex flex-wrap gap-1">
-                      {selectedVehicleLabels.slice(0, 6).map((label, index) => (
-                        <Badge key={`${label}-${index}`} variant="secondary" className="text-[10px]">
-                          {label}
-                        </Badge>
-                      ))}
-                      {selectedVehicleLabels.length > 6 && (
-                        <Badge variant="secondary" className="text-[10px]">
-                          +{selectedVehicleLabels.length - 6} more
-                        </Badge>
-                      )}
-                    </div>
-                  )}
+              {showVehicleSelection ? (
+                <div className="flex items-start gap-2 text-xs">
+                  <Truck className="mt-0.5 h-3.5 w-3.5 text-primary" />
+                  <div className="space-y-1">
+                    {selectedVehicleLabels.length === 0 ? (
+                      <div className="font-medium text-foreground">All vehicles</div>
+                    ) : (
+                      <div className="flex flex-wrap gap-1">
+                        {selectedVehicleLabels.slice(0, 6).map((label, index) => (
+                          <Badge key={`${label}-${index}`} variant="secondary" className="text-[10px]">
+                            {label}
+                          </Badge>
+                        ))}
+                        {selectedVehicleLabels.length > 6 && (
+                          <Badge variant="secondary" className="text-[10px]">
+                            +{selectedVehicleLabels.length - 6} more
+                          </Badge>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
+              ) : null}
             </div>
           </div>
         </PopoverContent>
@@ -322,14 +340,16 @@ export function FilterControls({
             <CalendarDays className="mr-1 h-3 w-3" />
             {compactLabel(`${dateRangeLabel} | ${dateRangeWindowChipLabel}`, 28)}
           </Badge>
-          <Badge
-            variant="secondary"
-            className="max-w-[130px] truncate text-[10px]"
-            data-testid="badge-selected-vehicles-compact"
-          >
-            <Truck className="mr-1 h-3 w-3" />
-            {compactVehicleLabel}
-          </Badge>
+          {showVehicleSelection ? (
+            <Badge
+              variant="secondary"
+              className="max-w-[130px] truncate text-[10px]"
+              data-testid="badge-selected-vehicles-compact"
+            >
+              <Truck className="mr-1 h-3 w-3" />
+              {compactVehicleLabel}
+            </Badge>
+          ) : null}
         </div>
       ) : (
         <>
@@ -351,12 +371,12 @@ export function FilterControls({
                 {dateRangeWindowChipLabel}
               </Badge>
 
-          {visibleVehicleLabels.length === 0 ? (
+          {showVehicleSelection && visibleVehicleLabels.length === 0 ? (
             <Badge variant="secondary" className="flex-shrink-0 text-[10px]">
               <Truck className="h-3 w-3 mr-1" />
               All vehicles
             </Badge>
-          ) : (
+          ) : showVehicleSelection ? (
             <>
               {visibleVehicleLabels.map((label, index) => (
                 <Badge
@@ -371,11 +391,11 @@ export function FilterControls({
                 <Badge variant="outline" className="flex-shrink-0 text-[10px] border-border/40 bg-background/40">
                   +{hiddenVehicleCount} more
                 </Badge>
-              )}
-            </>
-          )}
+                )}
+              </>
+          ) : null}
 
-          {state.selectedVehicles.length > 0 && (
+          {showVehicleSelection && state.selectedVehicles.length > 0 && (
             <Button
               variant="ghost"
               size="sm"
@@ -403,7 +423,7 @@ export function FilterControls({
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setDateRange(buildDateRangeFromPreset(defaultDatePreset))}
+              onClick={() => setDateRange(resolvedDefaultDateRange)}
               className="h-6 flex-shrink-0 px-2 text-[10px] text-muted-foreground hover:text-destructive"
             >
               <X className="h-3 w-3 mr-1" />
@@ -437,12 +457,12 @@ export function FilterControls({
               {dateRangeWindowChipLabel}
             </Badge>
 
-            {visibleVehicleLabels.length === 0 ? (
+            {showVehicleSelection && visibleVehicleLabels.length === 0 ? (
               <Badge variant="secondary" className="flex items-center gap-1 text-xs" data-testid="badge-selected-vehicles">
                 <Truck className="h-3 w-3" />
                 All vehicles
               </Badge>
-            ) : (
+            ) : showVehicleSelection ? (
               <>
                 {visibleVehicleLabels.map((label, index) => (
                   <Badge
@@ -460,9 +480,9 @@ export function FilterControls({
                   </Badge>
                 )}
               </>
-            )}
+            ) : null}
 
-            {state.selectedVehicles.length > 0 && (
+            {showVehicleSelection && state.selectedVehicles.length > 0 && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -492,7 +512,7 @@ export function FilterControls({
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setDateRange(buildDateRangeFromPreset(defaultDatePreset))}
+                onClick={() => setDateRange(resolvedDefaultDateRange)}
                 className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
                 data-testid="button-reset-date-range"
               >
