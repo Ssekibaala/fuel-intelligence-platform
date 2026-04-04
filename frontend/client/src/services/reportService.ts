@@ -12,7 +12,7 @@ export const reportService = {
   async generateDailyMovement(params: {
     date: string;
     endDate?: string;
-    format: "excel" | "preview" | "csv";
+    format: "pdf" | "excel" | "preview" | "csv";
     vehicleId?: string;
     vehicleIds?: string[];
   }) {
@@ -49,7 +49,9 @@ export const reportService = {
     link.href = downloadUrl;
     const safeEndDate = params.endDate || params.date;
     const rangeLabel = safeEndDate === params.date ? params.date : `${params.date}_${safeEndDate}`;
-    link.download = `daily_movement_${rangeLabel}.${params.format === "excel" ? "xlsx" : "csv"}`;
+    const extension =
+      params.format === "excel" ? "xlsx" : params.format === "pdf" ? "pdf" : "csv";
+    link.download = `daily_movement_${rangeLabel}.${extension}`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

@@ -1,5 +1,6 @@
 import { createContext, useContext, useReducer, useEffect, ReactNode } from "react";
 import { type GlobalFilter, type DateRange, type ConsumptionUnit, globalFilterSchema } from "@shared/schema";
+import { DEFAULT_REFRESH_INTERVAL_MS, normalizeRefreshInterval } from "../lib/refreshInterval";
 
 // =============================================================================
 // GLOBAL FILTER STATE MANAGEMENT
@@ -47,7 +48,7 @@ const initialState: GlobalFilterState = {
   consumptionExcellentThreshold: 3.0,
   consumptionAcceptableThreshold: 1.5,
   consumptionAlertThreshold: 1.0,
-  refreshInterval: 10000, // 10 seconds
+  refreshInterval: DEFAULT_REFRESH_INTERVAL_MS,
   isLoading: false,
   lastUpdated: new Date()
 };
@@ -109,7 +110,7 @@ function globalFilterReducer(state: GlobalFilterState, action: GlobalFilterActio
     case "SET_REFRESH_INTERVAL":
       return {
         ...state,
-        refreshInterval: action.payload,
+        refreshInterval: normalizeRefreshInterval(action.payload),
         lastUpdated: new Date()
       };
 
@@ -135,6 +136,7 @@ function globalFilterReducer(state: GlobalFilterState, action: GlobalFilterActio
         consumptionExcellentThreshold: 3.0,
         consumptionAcceptableThreshold: 1.5,
         consumptionAlertThreshold: 1.0,
+        refreshInterval: DEFAULT_REFRESH_INTERVAL_MS,
         lastUpdated: new Date()
       };
 
@@ -207,7 +209,7 @@ export function GlobalFilterProvider({ children }: GlobalFilterProviderProps) {
               alert: validated.data.consumptionAlertThreshold
             }
           });
-          dispatch({ type: "SET_REFRESH_INTERVAL", payload: validated.data.refreshInterval });
+          dispatch({ type: "SET_REFRESH_INTERVAL", payload: normalizeRefreshInterval(validated.data.refreshInterval) });
         }
       }
     } catch (error) {
@@ -278,7 +280,7 @@ export function GlobalFilterProvider({ children }: GlobalFilterProviderProps) {
     },
 
     setRefreshInterval: (interval: number) => {
-      dispatch({ type: "SET_REFRESH_INTERVAL", payload: interval });
+      dispatch({ type: "SET_REFRESH_INTERVAL", payload: normalizeRefreshInterval(interval) });
     },
 
     toggleLoading: (loading: boolean) => {

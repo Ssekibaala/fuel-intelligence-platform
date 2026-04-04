@@ -47,6 +47,8 @@ import { useAuth } from "@/components/AuthProvider";
 import { useQuery } from "@tanstack/react-query";
 import { type DateRange, type Vehicle } from "@shared/schema";
 import { formatDateTimeEAT } from "@/lib/dateTime";
+import { saveBlobToFile } from "@/lib/fileSave";
+import { exportPreviewSnapshot } from "@/lib/reportPreviewExport";
 
 /* ---------------------------------- Types --------------------------------- */
 
@@ -95,7 +97,7 @@ const REPORT_TEMPLATES: Record<TemplateKey, ReportTemplate> = {
   "daily-movement": {
     title: "Daily Movement Report",
     description:
-      "EXACT daily movement report showing asset movements, distances, times - identical to Excel sample",
+      "Operational movement story with asset-by-asset travel, dwell time, speed, and fuel coverage",
     category: "Operations",
     icon: "FileText",
     color: "blue",
@@ -168,7 +170,9 @@ function resolveDownloadFormat(
 ): DownloadFormat {
   if (csvOnlyExport) return "csv";
   if (templateType === "daily-movement") {
-    return selectedFormat === "csv" ? "csv" : "excel";
+    if (selectedFormat === "csv") return "csv";
+    if (selectedFormat === "excel") return "excel";
+    return "pdf";
   }
   if (selectedFormat === "csv") return "csv";
   if (selectedFormat === "excel") return "excel";
@@ -188,7 +192,7 @@ function isCsvOnlyExportHost(baseUrl: string) {
 function getAllowedFormats(templateType: TemplateKey, csvOnlyExport: boolean): FormatValue[] {
   if (csvOnlyExport) return ["csv", "preview"];
   return templateType === "daily-movement"
-    ? ["excel", "csv", "preview"]
+    ? ["pdf", "excel", "csv", "preview"]
     : ["pdf", "excel", "csv", "preview"];
 }
 
@@ -197,12 +201,12 @@ function getDownloadFormatOptions(
   csvOnlyExport: boolean
 ): DownloadFormat[] {
   if (csvOnlyExport) return ["csv"];
-  return templateType === "daily-movement" ? ["excel", "csv"] : ["pdf", "excel", "csv"];
+  return templateType === "daily-movement" ? ["pdf", "excel", "csv"] : ["pdf", "excel", "csv"];
 }
 
 function getDefaultFormat(templateType: TemplateKey, csvOnlyExport: boolean): FormatValue {
   if (csvOnlyExport) return "csv";
-  return templateType === "daily-movement" ? "excel" : "pdf";
+  return templateType === "daily-movement" ? "pdf" : "pdf";
 }
 
 async function readErrorMessage(response: Response) {
@@ -259,18 +263,6 @@ function reportDatePresetLabel(preset: DatePreset) {
   if (preset === "last7") return "Last 7 Days";
   if (preset === "last30") return "Last 30 Days";
   return undefined;
-}
-
-async function downloadBlobAsFile(blob: Blob, filename: string) {
-  if (!blob || blob.size === 0) throw new Error("Empty file received from server");
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  window.URL.revokeObjectURL(url);
 }
 
 /* ----------------------------- Debounce Hook ------------------------------ */
@@ -434,6 +426,7 @@ export function ReportsPage({ pageId }: ReportsPageProps) {
 
   const previewContainerRef = useRef<HTMLDivElement | null>(null);
   const previewContentRef = useRef<HTMLDivElement | null>(null);
+  const previewExportRef = useRef<HTMLDivElement | null>(null);
 
   const debouncedVehicleSearch = useDebouncedValue(state.vehicleSearch, 200);
 
@@ -553,11 +546,6 @@ export function ReportsPage({ pageId }: ReportsPageProps) {
     if (!state.previewType) return [];
     return getDownloadFormatOptions(state.previewType, csvOnlyExport);
   }, [state.previewType, csvOnlyExport]);
-
-  const previewDownloadFormat = useMemo<DownloadFormat | null>(() => {
-    if (!state.previewType) return null;
-    return resolveDownloadFormat(state.previewType, state.selectedFormat, csvOnlyExport);
-  }, [state.previewType, state.selectedFormat, csvOnlyExport]);
 
   const isClientScopeComplete = useMemo(
     () => !isAdmin || state.selectedClientId === "all" || Boolean(state.selectedClientId),
@@ -811,73 +799,6 @@ export function ReportsPage({ pageId }: ReportsPageProps) {
     [isAdmin, state.selectedClientId, state.vehicleScope, state.selectedVehicleIds, selectedVehicle]
   );
 
-  /* ------------------------------ Download logic --------------------------- */
-
-  const downloadReport = useCallback(
-    async (templateType: TemplateKey, startDate: string, endDate: string) => {
-      const requestedFormat = resolveDownloadFormat(
-        templateType,
-        state.selectedFormat,
-        csvOnlyExport
-      );
-      const safeEndDate = endDate || startDate;
-      const rangeLabel = safeEndDate === startDate ? startDate : `${startDate}_${safeEndDate}`;
-
-      const assetFilters = getAssetFilters(templateType);
-      const requestReport = (format: DownloadFormat) => {
-        const params = new URLSearchParams({
-          format,
-          start_date: startDate,
-          end_date: safeEndDate,
-          report_type: templateType,
-        });
-
-        Object.entries(assetFilters).forEach(([key, value]) => {
-          if (value) params.set(key, String(value));
-        });
-
-        return fetch(`${baseUrl}/api/reports/generate?${params.toString()}`, {
-          method: "GET",
-          headers: getAuthHeaders(),
-        });
-      };
-
-      let deliveredFormat: DownloadFormat = requestedFormat;
-      let response = await requestReport(deliveredFormat);
-
-      if (!response.ok) {
-        const message = await readErrorMessage(response);
-        const shouldRetryAsCsv =
-          deliveredFormat !== "csv" &&
-          (response.status === 501 || isUnsupportedFormatMessage(message));
-
-        if (!shouldRetryAsCsv) {
-          throw new Error(message);
-        }
-
-        deliveredFormat = "csv";
-        response = await requestReport(deliveredFormat);
-        if (!response.ok) {
-          const retryMessage = await readErrorMessage(response);
-          throw new Error(retryMessage);
-        }
-      }
-
-      const blob = await response.blob();
-
-      const extension =
-        deliveredFormat === "excel" ? "xlsx" : deliveredFormat === "csv" ? "csv" : "pdf";
-      const filename =
-        templateType === "daily-movement"
-          ? `daily_movement_${rangeLabel}.${extension}`
-          : `fuel_temperature_${rangeLabel}.${extension}`;
-
-      await downloadBlobAsFile(blob, filename);
-      return { requestedFormat, deliveredFormat };
-    },
-    [baseUrl, csvOnlyExport, getAssetFilters, state.selectedFormat]
-  );
-
   /* ------------------------------ Preview fetch ---------------------------- */
 
   const previewAbortRef = useRef<AbortController | null>(null);
@@ -1012,6 +933,8 @@ export function ReportsPage({ pageId }: ReportsPageProps) {
           asset_id: assetId,
           site_name: siteName,
           departure_date: trip.departureDate ?? trip.departure_date ?? "",
+          departure_date_time:
+            trip.departureDateTime ?? trip.departure_date_time ?? "",
           driver: trip.driver ?? "",
           departure_time: trip.departureTime ?? trip.departure_time ?? "",
           departed_from: trip.departedFrom ?? trip.departed_from ?? "",
@@ -1019,6 +942,8 @@ export function ReportsPage({ pageId }: ReportsPageProps) {
           standing_time: trip.standingTime ?? trip.standing_time ?? "",
           distance_km: Number(trip.distanceKm ?? trip.distance_km ?? 0),
           max_speed_kmh: Number(trip.maxSpeedKmh ?? trip.max_speed_kmh ?? 0),
+          arrival_date_time:
+            trip.arrivalDateTime ?? trip.arrival_date_time ?? "",
           arrival_time: trip.arrivalTime ?? trip.arrival_time ?? "",
           arrived_at: trip.arrivedAt ?? trip.arrived_at ?? "",
           next_departure: trip.nextDeparture ?? trip.next_departure ?? "",
@@ -1030,18 +955,24 @@ export function ReportsPage({ pageId }: ReportsPageProps) {
           drivingTime: report.totals?.totalDrivingTime ?? report.totals?.drivingTime ?? "",
           distance: Number(report.totals?.totalDistance ?? report.totals?.distance ?? 0),
           standingTime:
-            report.totals?.totalStandingAtLocation ??
             report.totals?.totalStandingTime ??
             report.totals?.standingTime ??
+            "",
+          standingTimeAtLocation:
+            report.totals?.totalStandingAtLocation ??
+            report.totals?.standingTimeAtLocation ??
             "",
         },
         averages: {
           drivingTime: report.averages?.avgDrivingTime ?? report.averages?.drivingTime ?? "",
           distance: Number(report.averages?.avgDistance ?? report.averages?.distance ?? 0),
           standingTime:
-            report.averages?.avgStandingAtLocation ??
             report.averages?.avgStandingTime ??
             report.averages?.standingTime ??
+            "",
+          standingTimeAtLocation:
+            report.averages?.avgStandingAtLocation ??
+            report.averages?.standingTimeAtLocation ??
             "",
         },
       };
@@ -1062,6 +993,123 @@ export function ReportsPage({ pageId }: ReportsPageProps) {
         : [],
     };
   }, [state.previewData]);
+
+  /* ------------------------------ Download logic --------------------------- */
+
+  const downloadReport = useCallback(
+    async (
+      templateType: TemplateKey,
+      startDate: string,
+      endDate: string,
+      formatOverride?: DownloadFormat,
+      fileHandle?: any
+    ) => {
+      const requestedFormat = formatOverride
+        ? formatOverride
+        : resolveDownloadFormat(templateType, state.selectedFormat, csvOnlyExport);
+      const safeEndDate = endDate || startDate;
+      const rangeLabel = safeEndDate === startDate ? startDate : `${startDate}_${safeEndDate}`;
+      const extension =
+        requestedFormat === "excel" ? "xlsx" : requestedFormat === "csv" ? "csv" : "pdf";
+      const filename =
+        templateType === "daily-movement"
+          ? `daily_movement_${rangeLabel}.${extension}`
+          : `fuel_temperature_${rangeLabel}.${extension}`;
+
+      if (requestedFormat !== "csv") {
+        if (!state.previewData) {
+          throw new Error("Preview data is still loading. Try again in a moment.");
+        }
+
+        if (!previewExportRef.current) {
+          throw new Error("Preview layout is not ready for export yet. Try again in a moment.");
+        }
+
+        await exportPreviewSnapshot({
+          element: previewExportRef.current,
+          filename,
+          format: requestedFormat,
+          fileHandle,
+          excelData:
+            requestedFormat === "excel"
+              ? templateType === "daily-movement"
+                ? {
+                    type: "daily-movement",
+                    report: {
+                      dateLabel: safeEndDate === startDate ? startDate : `${startDate} to ${safeEndDate}`,
+                      companyName: state.previewData?.companyName,
+                      groups: dailyMovementPreviewGroups,
+                    },
+                  }
+                : {
+                    type: "fuel-temperature",
+                    report: fuelTemperaturePreviewData,
+                  }
+              : undefined,
+          worksheetName:
+            templateType === "daily-movement"
+              ? "Daily Movement Report"
+              : "Fuel & Temperature Report",
+        });
+
+        return { requestedFormat, deliveredFormat: requestedFormat };
+      }
+
+      const assetFilters = getAssetFilters(templateType);
+      const requestReport = (format: DownloadFormat) => {
+        const params = new URLSearchParams({
+          format,
+          start_date: startDate,
+          end_date: safeEndDate,
+          report_type: templateType,
+        });
+
+        Object.entries(assetFilters).forEach(([key, value]) => {
+          if (value) params.set(key, String(value));
+        });
+
+        return fetch(`${baseUrl}/api/reports/generate?${params.toString()}`, {
+          method: "GET",
+          headers: getAuthHeaders(),
+        });
+      };
+
+      let deliveredFormat: DownloadFormat = requestedFormat;
+      let response = await requestReport(deliveredFormat);
+
+      if (!response.ok) {
+        const message = await readErrorMessage(response);
+        const shouldRetryAsCsv =
+          deliveredFormat !== "csv" &&
+          (response.status === 501 || isUnsupportedFormatMessage(message));
+
+        if (!shouldRetryAsCsv) {
+          throw new Error(message);
+        }
+
+        deliveredFormat = "csv";
+        response = await requestReport(deliveredFormat);
+        if (!response.ok) {
+          const retryMessage = await readErrorMessage(response);
+          throw new Error(retryMessage);
+        }
+      }
+
+      const blob = await response.blob();
+
+      await saveBlobToFile(blob, filename, fileHandle);
+      return { requestedFormat, deliveredFormat };
+    },
+    [
+      baseUrl,
+      csvOnlyExport,
+      dailyMovementPreviewGroups,
+      fuelTemperaturePreviewData,
+      getAssetFilters,
+      state.previewData,
+      state.selectedFormat,
+    ]
+  );
 
   const previewGeneratedLabel = useMemo(() => {
     const raw = state.previewData?.generatedOn;
@@ -1224,8 +1272,8 @@ export function ReportsPage({ pageId }: ReportsPageProps) {
               Daily Movement Report
             </h3>
             <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
-              EXACT daily movement report showing asset movements, distances, times - identical
-              to Excel sample
+              Operational movement story with asset-by-asset travel, dwell time, speed, and fuel
+              coverage
             </p>
 
             <Button className="w-full" onClick={() => handleTemplateSelect("daily-movement")}>
@@ -1857,64 +1905,103 @@ export function ReportsPage({ pageId }: ReportsPageProps) {
               )}
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button variant="outline" onClick={() => dispatch({ type: "CLOSE_PREVIEW" })}>
                 <X className="w-4 h-4 mr-2" />
                 Close Preview
               </Button>
-
-              <Button
-                onClick={async () => {
-                  if (!state.previewType) return;
-                  try {
-                    const result = await downloadReport(
-                      state.previewType,
-                      state.previewDate,
-                      state.previewEndDate || state.previewDate
-                    );
-                    const fallbackNote =
-                      result.deliveredFormat !== result.requestedFormat
-                        ? " Downloaded as CSV because current backend export supports CSV/preview."
-                        : "";
-                    toast({
-                      title: "Report Downloaded Successfully",
-                      description: `${
+              {previewFormatOptions.map((format) => (
+                <Button
+                  key={format}
+                  variant={format === "excel" ? "default" : "outline"}
+                  onClick={async () => {
+                    if (!state.previewType) return;
+                    try {
+                      const resolvedEndDate = state.previewEndDate || state.previewDate;
+                      const rangeLabel =
+                        resolvedEndDate === state.previewDate
+                          ? state.previewDate
+                          : `${state.previewDate}_${resolvedEndDate}`;
+                      const extension =
+                        format === "excel" ? "xlsx" : format === "csv" ? "csv" : "pdf";
+                      const filename =
                         state.previewType === "daily-movement"
-                          ? "Daily Movement Report"
-                          : "Fuel & Temperature Report"
-                      } for ${previewDateLabel}.${fallbackNote}`,
-                    });
-                    dispatch({ type: "CLOSE_PREVIEW" });
-                  } catch (e: any) {
-                    toast({
-                      title: "Error Downloading Report",
-                      description: e?.message || "Failed to download the report.",
-                      variant: "destructive",
-                    });
+                          ? `daily_movement_${rangeLabel}.${extension}`
+                          : `fuel_temperature_${rangeLabel}.${extension}`;
+                      const result = await downloadReport(
+                        state.previewType,
+                        state.previewDate,
+                        resolvedEndDate,
+                        format
+                      );
+                      const fallbackNote =
+                        result.deliveredFormat !== result.requestedFormat
+                          ? " Downloaded as CSV because current backend export supports CSV/preview."
+                          : "";
+                      toast({
+                        title: "Report Download Started",
+                        description: `${
+                          state.previewType === "daily-movement"
+                            ? "Daily Movement Report"
+                            : "Fuel & Temperature Report"
+                        } for ${previewDateLabel}.${fallbackNote}`,
+                      });
+                      dispatch({ type: "CLOSE_PREVIEW" });
+                    } catch (e: any) {
+                      if (e?.name === "AbortError") return;
+                      toast({
+                        title: "Error Downloading Report",
+                        description: e?.message || "Failed to download the report.",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                  disabled={
+                    state.previewLoading ||
+                    Boolean(state.previewError) ||
+                    !state.previewType ||
+                    !state.previewData
                   }
-                }}
-                disabled={
-                  state.previewLoading ||
-                  Boolean(state.previewError) ||
-                  !state.previewType ||
-                  !state.previewData
-                }
-              >
-                <Download className="w-4 h-4 mr-2" />
-                {previewDownloadFormat
-                  ? `Download ${
-                      previewDownloadFormat === "excel"
-                        ? "Excel"
-                        : previewDownloadFormat === "csv"
-                          ? "CSV"
-                          : "PDF"
-                    }`
-                  : "Download"}
-              </Button>
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  {format === "excel"
+                    ? "Download Excel"
+                    : format === "csv"
+                      ? "Download CSV"
+                      : "Download PDF"}
+                </Button>
+              ))}
             </div>
           </div>
         </DialogContent>
       </Dialog>
+
+      {state.showPreview &&
+        !state.previewLoading &&
+        !state.previewError &&
+        ((state.previewType === "daily-movement" && dailyMovementPreviewGroups.length > 0) ||
+          (state.previewType === "fuel-temperature" && fuelTemperaturePreviewData)) && (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none fixed top-0"
+            style={{ left: -10000 }}
+          >
+            <div ref={previewExportRef} className="bg-white">
+              {state.previewType === "daily-movement" ? (
+                <DailyMovementPreview
+                  date={previewDateLabel}
+                  data={dailyMovementPreviewGroups}
+                  companyName={state.previewData?.companyName}
+                />
+              ) : (
+                <FuelTemperaturePreview
+                  date={fuelPreviewDate}
+                  data={fuelTemperaturePreviewData}
+                />
+              )}
+            </div>
+          </div>
+        )}
     </div>
   );
 }

@@ -300,6 +300,33 @@ export interface JourneyException {
   departureTime: string;
 }
 
+export interface MovementTripReport {
+  id: string;
+  vehicleId: string | null;
+  clientId: string | null;
+  reportDate: string | null;
+  assetDescription: string;
+  registrationNumber: string;
+  assetId: number | null;
+  siteName: string;
+  driver: string;
+  departureDate: string | null;
+  departureDateTime?: string | null;
+  departureTime: string | null;
+  arrivalDateTime?: string | null;
+  arrivalTime: string | null;
+  departedFrom: string;
+  arrivedAt: string;
+  drivingTime: string;
+  standingTime: string;
+  nextDeparture: string | null;
+  standingTimeAtLocation: string;
+  distanceKm: number;
+  maxSpeedKmh: number;
+  fuelUsedLitres: number | null;
+  consumptionKmL: number | null;
+}
+
 export interface JourneySavedRoute {
   id: string;
   clientId: string | null;
@@ -403,6 +430,17 @@ export const api = {
     endDate?: string;
     clientId?: string;
   }) => apiRequest("GET", `/api/raw-sensor-data?${buildQueryParams(filters)}`),
+
+  getMovementTripReports: (filters?: {
+    clientId?: string;
+    vehicleId?: string;
+    vehicleIds?: string[];
+    assetId?: number;
+    registrationNumber?: string;
+    startDate?: string;
+    endDate?: string;
+  }) =>
+    apiRequest("GET", `/api/reports/trip-reports?${buildQueryParams(filters)}`) as Promise<MovementTripReport[]>,
 
   getJourneyLocations: (filters?: { q?: string; clientId?: string }) =>
     apiRequest("GET", `/api/journey-intelligence/locations?${buildQueryParams(filters)}`) as Promise<JourneyLocationSuggestion[]>,

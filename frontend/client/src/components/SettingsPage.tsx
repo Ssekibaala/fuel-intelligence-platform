@@ -14,6 +14,10 @@ import { useGlobalFilter } from "./GlobalFilterContext";
 import { useAuth } from "./AuthProvider";
 import { api } from "@/lib/api";
 import { resolveBrandingClientId, setStoredBrandLogo } from "@/lib/branding";
+import {
+  EDGE_FUNCTION_MIN_REFRESH_INTERVAL_MS,
+  isEdgeFunctionApiBase,
+} from "@/lib/refreshInterval";
 
 interface SettingsData {
   fuelCostPerLiter: number;
@@ -69,6 +73,7 @@ export function SettingsPage({ pageId }: SettingsPageProps) {
   const { state: filterState, actions } = useGlobalFilter();
   const { clientIds, isAdmin } = useAuth();
   const queryClient = useQueryClient();
+  const usesEdgeFunctionApi = useMemo(() => isEdgeFunctionApiBase(), []);
   const brandingClientId = useMemo(
     () => resolveBrandingClientId(filterState.selectedClientId, clientIds),
     [filterState.selectedClientId, clientIds]
@@ -134,13 +139,24 @@ export function SettingsPage({ pageId }: SettingsPageProps) {
     { value: "alerts", label: "Alerts" }
   ];
 
-  const autoRefreshOptions = [
-    { value: 15000, label: "15 seconds" },
-    { value: 30000, label: "30 seconds" },
-    { value: 60000, label: "1 minute" },
-    { value: 300000, label: "5 minutes" },
-    { value: 0, label: "Disabled" },
-  ];
+  const autoRefreshOptions = useMemo(
+    () =>
+      usesEdgeFunctionApi
+        ? [
+            { value: EDGE_FUNCTION_MIN_REFRESH_INTERVAL_MS, label: "1 minute (recommended)" },
+            { value: 300000, label: "5 minutes" },
+            { value: 900000, label: "15 minutes" },
+            { value: 0, label: "Disabled" },
+          ]
+        : [
+            { value: 15000, label: "15 seconds" },
+            { value: 30000, label: "30 seconds" },
+            { value: 60000, label: "1 minute" },
+            { value: 300000, label: "5 minutes" },
+            { value: 0, label: "Disabled" },
+          ],
+    [usesEdgeFunctionApi]
+  );
 
   const handleSaveSettings = async () => {
     setIsSaving(true);
@@ -524,7 +540,9 @@ export function SettingsPage({ pageId }: SettingsPageProps) {
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Controls how often live data refreshes across dashboard, assets, alerts, and reports.
+                {usesEdgeFunctionApi
+                  ? "Background refresh pauses when the tab is hidden. Use 1 minute or slower on the edge-function API to reduce quota usage."
+                  : "Controls how often live data refreshes across dashboard, assets, alerts, and reports."}
               </p>
             </div>
 

@@ -84,7 +84,7 @@ export function DataVisualizationTables({ initialTab = "drains" }: DataVisualiza
       }),
     staleTime: 30 * 1000,
     refetchInterval: refreshIntervalMs,
-    refetchIntervalInBackground: true,
+    refetchIntervalInBackground: false,
   });
 
   const { data: fuelEventsData = [], isLoading: fuelEventsLoading } = useQuery({
@@ -92,7 +92,7 @@ export function DataVisualizationTables({ initialTab = "drains" }: DataVisualiza
     queryFn: () => api.getFuelEvents(filters),
     staleTime: 30 * 1000,
     refetchInterval: refreshIntervalMs,
-    refetchIntervalInBackground: true,
+    refetchIntervalInBackground: false,
   });
 
   const { data: dailyMetricsData = [], isLoading: dailyMetricsLoading } = useQuery({
@@ -100,7 +100,7 @@ export function DataVisualizationTables({ initialTab = "drains" }: DataVisualiza
     queryFn: () => api.getDailyMetrics(filters),
     staleTime: 30 * 1000,
     refetchInterval: refreshIntervalMs,
-    refetchIntervalInBackground: true,
+    refetchIntervalInBackground: false,
   });
 
   const isLoading = vehiclesLoading || fuelEventsLoading || dailyMetricsLoading;

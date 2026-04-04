@@ -70,6 +70,32 @@ function extractImeiFromPayload(payload: any): string | null {
   return null;
 }
 
+async function recordIngestionMetric(
+  supabaseAdmin: any,
+  options: {
+    receivedAt: string;
+    source: string;
+    reportType: string;
+    sourceImei: string | null;
+    outcome: "request" | "accepted" | "duplicate";
+  }
+) {
+  try {
+    const { error } = await supabaseAdmin.rpc("record_ingestion_request_metric", {
+      p_received_at: options.receivedAt,
+      p_source: options.source,
+      p_report_type: options.reportType,
+      p_source_imei: options.sourceImei,
+      p_outcome: options.outcome,
+    });
+    if (error) {
+      console.warn(`Ingestion metric skipped: ${error.message ?? error}`);
+    }
+  } catch (error: any) {
+    console.warn(`Ingestion metric skipped: ${error?.message ?? error}`);
+  }
+}
+
 serve(async (req: Request) => {
   const startTime = Date.now();
 
@@ -117,6 +143,7 @@ serve(async (req: Request) => {
     const reportName = typeof payload.report_name === "string" ? payload.report_name.trim() : null;
     const extractedSourceImei = extractImeiFromPayload(payload) || extractImeiFromReportName(reportName);
     const sourceImei = reportType === "137" ? null : extractedSourceImei;
+    const receivedAt = new Date().toISOString();
     const requestId = headers["x-request-id"] || headers["request-id"];
     const payloadHash = await getPayloadHash(payload);
 
@@ -125,7 +152,15 @@ serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    const { error } = await supabaseAdmin
+    await recordIngestionMetric(supabaseAdmin, {
+      receivedAt,
+      source,
+      reportType,
+      sourceImei,
+      outcome: "request",
+    });
+
+    const { data: insertedRow, error } = await supabaseAdmin
       .from("raw_telemetry_inbound")
       .insert({
         source,
@@ -140,10 +175,19 @@ serve(async (req: Request) => {
         signature_valid: isSecretValid,
         auth_method: secret ? "secret_header" : "none",
         status: "pending"
-      });
+      })
+      .select("id, received_at")
+      .single();
 
     if (error) {
       if (error.code === "23505") {
+        await recordIngestionMetric(supabaseAdmin, {
+          receivedAt,
+          source,
+          reportType,
+          sourceImei,
+          outcome: "duplicate",
+        });
         return new Response(JSON.stringify({ message: "Accepted (Duplicate)" }), {
           status: 202,
           headers: { "content-type": "application/json" }
@@ -152,6 +196,35 @@ serve(async (req: Request) => {
 
       throw error;
     }
+
+    if (reportType === "0" && sourceImei) {
+      const insertedReceivedAt =
+        insertedRow && typeof insertedRow === "object" && typeof (insertedRow as any).received_at === "string"
+          ? String((insertedRow as any).received_at)
+          : null;
+
+      if (insertedReceivedAt) {
+        const { error: coalesceError } = await supabaseAdmin
+          .from("raw_telemetry_inbound")
+          .delete()
+          .eq("report_type", "0")
+          .eq("source_imei", sourceImei)
+          .eq("status", "pending")
+          .lt("received_at", insertedReceivedAt);
+
+        if (coalesceError) {
+          console.warn(`Report0 pending coalesce skipped for IMEI ${sourceImei}: ${coalesceError.message}`);
+        }
+      }
+    }
+
+    await recordIngestionMetric(supabaseAdmin, {
+      receivedAt,
+      source,
+      reportType,
+      sourceImei,
+      outcome: "accepted",
+    });
 
     console.log(`Successfully staged ${source}/${reportType} in ${Date.now() - startTime}ms`);
     return new Response(JSON.stringify({ message: "Accepted only after the staging insert succeeds" }), {

@@ -56,7 +56,7 @@ export function AlertsPage({ pageId }: AlertsPageProps) {
       }),
     staleTime: 30 * 1000,
     refetchInterval: refreshIntervalMs,
-    refetchIntervalInBackground: true,
+    refetchIntervalInBackground: false,
   });
 
   const { data: fuelEvents = [] } = useQuery({
@@ -64,7 +64,7 @@ export function AlertsPage({ pageId }: AlertsPageProps) {
     queryFn: () => api.getFuelEvents(filterParams),
     staleTime: 10 * 1000,
     refetchInterval: refreshIntervalMs,
-    refetchIntervalInBackground: true,
+    refetchIntervalInBackground: false,
   });
 
   const vehicleLabelById = useMemo(() => {

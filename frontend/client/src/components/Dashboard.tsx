@@ -85,7 +85,7 @@ export function Dashboard({ selectedVehicle, pageId }: DashboardProps) {
     queryFn: async () => api.getDashboardKPIs(filterParams),
     staleTime: 30 * 1000, // 30 seconds
     refetchInterval: refreshIntervalMs,
-    refetchIntervalInBackground: true,
+    refetchIntervalInBackground: false,
   });
 
   const { data: vehicles = [] } = useQuery({
@@ -96,7 +96,7 @@ export function Dashboard({ selectedVehicle, pageId }: DashboardProps) {
       }),
     staleTime: 30 * 1000,
     refetchInterval: refreshIntervalMs,
-    refetchIntervalInBackground: true,
+    refetchIntervalInBackground: false,
   });
 
   const { data: fuelEventsData = [] } = useQuery({
@@ -104,7 +104,7 @@ export function Dashboard({ selectedVehicle, pageId }: DashboardProps) {
     queryFn: async () => api.getFuelEvents(filterParams),
     staleTime: 30 * 1000,
     refetchInterval: refreshIntervalMs,
-    refetchIntervalInBackground: true,
+    refetchIntervalInBackground: false,
   });
 
   const { data: dailyMetricsData = [] } = useQuery({
@@ -112,7 +112,7 @@ export function Dashboard({ selectedVehicle, pageId }: DashboardProps) {
     queryFn: async () => api.getDailyMetrics(filterParams),
     staleTime: 30 * 1000,
     refetchInterval: refreshIntervalMs,
-    refetchIntervalInBackground: true,
+    refetchIntervalInBackground: false,
   });
 
   const filteredVehicles = filterState.selectedVehicles.length > 0

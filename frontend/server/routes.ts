@@ -39,7 +39,97 @@ const ALLOWED_BRANDING_MIME_TYPES = new Set([
   "image/svg+xml",
 ]);
 
+const VEHICLES_CACHE_NAMESPACE = "vehicles";
+const FUEL_EVENTS_CACHE_NAMESPACE = "fuel-events";
+const DAILY_METRICS_CACHE_NAMESPACE = "daily-metrics";
+const DAILY_METRICS_AGG_CACHE_NAMESPACE = "daily-metrics-aggregated";
+const DASHBOARD_KPIS_CACHE_NAMESPACE = "dashboard-kpis";
+const API_RESPONSE_CACHE_MAX_ENTRIES = 500;
+const VEHICLES_CACHE_TTL_MS = 30 * 1000;
+const FUEL_EVENTS_CACHE_TTL_MS = 15 * 1000;
+const DAILY_METRICS_CACHE_TTL_MS = 30 * 1000;
+const DASHBOARD_KPIS_CACHE_TTL_MS = 15 * 1000;
+
+type ApiResponseCacheEntry = {
+  expiresAt: number;
+  value: unknown;
+};
+
+const apiResponseCache = new Map<string, ApiResponseCacheEntry>();
+
 let brandingBucketReady = false;
+
+function cloneCacheValue<T>(value: T): T {
+  return typeof structuredClone === "function"
+    ? structuredClone(value)
+    : JSON.parse(JSON.stringify(value));
+}
+
+function pruneApiResponseCache() {
+  const now = Date.now();
+  for (const [key, entry] of apiResponseCache.entries()) {
+    if (entry.expiresAt <= now) {
+      apiResponseCache.delete(key);
+    }
+  }
+
+  while (apiResponseCache.size > API_RESPONSE_CACHE_MAX_ENTRIES) {
+    const oldestKey = apiResponseCache.keys().next().value;
+    if (!oldestKey) break;
+    apiResponseCache.delete(oldestKey);
+  }
+}
+
+function getApiResponseCacheScope(req: Request) {
+  const userId = req.auth?.user?.id ?? "anonymous";
+  const role = req.auth?.profile?.role ?? "unknown";
+  const clientIds = Array.isArray(req.auth?.clientIds) ? [...req.auth.clientIds].sort().join(",") : "";
+  return `${userId}|${role}|${clientIds}`;
+}
+
+function getApiResponseCacheKey(req: Request, namespace: string) {
+  return `${namespace}|${getApiResponseCacheScope(req)}|${req.originalUrl}`;
+}
+
+function invalidateApiResponseCache(namespaces?: string[]) {
+  if (!namespaces || namespaces.length === 0) {
+    apiResponseCache.clear();
+    return;
+  }
+
+  const allowedPrefixes = namespaces.map((namespace) => `${namespace}|`);
+  for (const key of apiResponseCache.keys()) {
+    if (allowedPrefixes.some((prefix) => key.startsWith(prefix))) {
+      apiResponseCache.delete(key);
+    }
+  }
+}
+
+async function respondWithCachedJson<T>(
+  req: Request,
+  res: Response,
+  namespace: string,
+  ttlMs: number,
+  loader: () => Promise<T>
+) {
+  pruneApiResponseCache();
+
+  const cacheKey = getApiResponseCacheKey(req, namespace);
+  const now = Date.now();
+  const cached = apiResponseCache.get(cacheKey);
+  if (cached && cached.expiresAt > now) {
+    res.setHeader("X-Response-Cache", "HIT");
+    return res.json(cloneCacheValue(cached.value));
+  }
+
+  const value = await loader();
+  apiResponseCache.set(cacheKey, {
+    expiresAt: now + ttlMs,
+    value: cloneCacheValue(value),
+  });
+  res.setHeader("X-Response-Cache", "MISS");
+  return res.json(value);
+}
 
 function parseList(value: any): string[] {
   if (!value) return [];
@@ -1005,14 +1095,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const efficiencyRating = (req.query.efficiencyRating || req.query.efficiency_rating) as string | undefined;
       const driverName = (req.query.driverName || req.query.driver_name) as string | undefined;
 
-      const vehicles = await storage.getVehicles({
-        status: status && vehicleStatusEnum.safeParse(status).success ? (status as any) : undefined,
-        efficiencyRating,
-        driverName,
-        clientIds,
-      });
+      return respondWithCachedJson(req, res, VEHICLES_CACHE_NAMESPACE, VEHICLES_CACHE_TTL_MS, async () => {
+        const vehicles = await storage.getVehicles({
+          status: status && vehicleStatusEnum.safeParse(status).success ? (status as any) : undefined,
+          efficiencyRating,
+          driverName,
+          clientIds,
+        });
 
-      res.json(vehicles.filter(hasFuelTankCapacity));
+        return vehicles.filter(hasFuelTankCapacity);
+      });
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch vehicles" });
     }
@@ -1051,6 +1143,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const vehicle = await storage.createVehicle(validatedData);
+      invalidateApiResponseCache([VEHICLES_CACHE_NAMESPACE, DASHBOARD_KPIS_CACHE_NAMESPACE]);
       res.status(201).json(vehicle);
     } catch (error: any) {
       res.status(400).json({ error: "Invalid vehicle data", details: error.message });
@@ -1064,6 +1157,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!vehicle) {
         return res.status(404).json({ error: "Vehicle not found" });
       }
+      invalidateApiResponseCache([VEHICLES_CACHE_NAMESPACE, DASHBOARD_KPIS_CACHE_NAMESPACE]);
       res.json(vehicle);
     } catch (error: any) {
       res.status(400).json({ error: "Invalid vehicle data", details: error.message });
@@ -1076,6 +1170,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!success) {
         return res.status(404).json({ error: "Vehicle not found" });
       }
+      invalidateApiResponseCache([VEHICLES_CACHE_NAMESPACE, DASHBOARD_KPIS_CACHE_NAMESPACE]);
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ error: "Failed to delete vehicle" });
@@ -1096,14 +1191,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const vehicleIdsFilter = scoped.vehicleIds;
 
       const eventType = req.query.eventType || req.query.event_type;
-      const events = await storage.getFuelEvents({
-        vehicleIds: vehicleIdsFilter,
-        eventType: fuelEventTypeEnum.safeParse(eventType).success ? (eventType as any) : undefined,
-        startDate: parseDate(req.query.startDate || req.query.start_date),
-        endDate: parseDate(req.query.endDate || req.query.end_date),
+      return respondWithCachedJson(req, res, FUEL_EVENTS_CACHE_NAMESPACE, FUEL_EVENTS_CACHE_TTL_MS, async () => {
+        return storage.getFuelEvents({
+          vehicleIds: vehicleIdsFilter,
+          eventType: fuelEventTypeEnum.safeParse(eventType).success ? (eventType as any) : undefined,
+          startDate: parseDate(req.query.startDate || req.query.start_date),
+          endDate: parseDate(req.query.endDate || req.query.end_date),
+        });
       });
-
-      res.json(events);
     } catch (error) {
       console.error("GET /api/fuel-events failed", error);
       res.status(500).json({ error: "Failed to fetch fuel events" });
@@ -1114,6 +1209,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertFuelEventSchema.parse(req.body);
       const event = await storage.createFuelEvent(validatedData);
+      invalidateApiResponseCache([FUEL_EVENTS_CACHE_NAMESPACE, DASHBOARD_KPIS_CACHE_NAMESPACE]);
       res.status(201).json(event);
     } catch (error: any) {
       res.status(400).json({ error: "Invalid fuel event data", details: error.message });
@@ -1127,6 +1223,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!event) {
         return res.status(404).json({ error: "Fuel event not found" });
       }
+      invalidateApiResponseCache([FUEL_EVENTS_CACHE_NAMESPACE, DASHBOARD_KPIS_CACHE_NAMESPACE]);
       res.json(event);
     } catch (error: any) {
       res.status(400).json({ error: "Invalid fuel event data", details: error.message });
@@ -1139,6 +1236,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!success) {
         return res.status(404).json({ error: "Fuel event not found" });
       }
+      invalidateApiResponseCache([FUEL_EVENTS_CACHE_NAMESPACE, DASHBOARD_KPIS_CACHE_NAMESPACE]);
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ error: "Failed to delete fuel event" });
@@ -1158,15 +1256,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!scoped) return;
       const vehicleIdsFilter = scoped.vehicleIds;
 
-      const metrics = await storage.getDailyMetrics({
-        vehicleIds: vehicleIdsFilter,
-        startDate: parseDate(req.query.startDate || req.query.start_date),
-        endDate: parseDate(req.query.endDate || req.query.end_date),
-        startDay: parseDayKey(req.query.startDay || req.query.start_day),
-        endDay: parseDayKey(req.query.endDay || req.query.end_day),
+      return respondWithCachedJson(req, res, DAILY_METRICS_CACHE_NAMESPACE, DAILY_METRICS_CACHE_TTL_MS, async () => {
+        return storage.getDailyMetrics({
+          vehicleIds: vehicleIdsFilter,
+          startDate: parseDate(req.query.startDate || req.query.start_date),
+          endDate: parseDate(req.query.endDate || req.query.end_date),
+          startDay: parseDayKey(req.query.startDay || req.query.start_day),
+          endDay: parseDayKey(req.query.endDay || req.query.end_day),
+        });
       });
-
-      res.json(metrics);
     } catch (error) {
       console.error("GET /api/daily-metrics failed", error);
       res.status(500).json({ error: "Failed to fetch daily metrics" });
@@ -1177,6 +1275,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertDailyMetricsSchema.parse(req.body);
       const metric = await storage.createDailyMetric(validatedData);
+      invalidateApiResponseCache([
+        DAILY_METRICS_CACHE_NAMESPACE,
+        DAILY_METRICS_AGG_CACHE_NAMESPACE,
+        DASHBOARD_KPIS_CACHE_NAMESPACE,
+      ]);
       res.status(201).json(metric);
     } catch (error: any) {
       res.status(400).json({ error: "Invalid daily metric data", details: error.message });
@@ -1188,14 +1291,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const requestedVehicleIds = parseList(req.query.vehicleIds || req.query.vehicle_ids);
       const scoped = await getScopedVehicleIds(req, res, requestedVehicleIds);
       if (!scoped) return;
-      const aggregated = await storage.aggregateDailyMetrics({
-        vehicleIds: scoped.vehicleIds,
-        startDate: parseDate(req.query.startDate || req.query.start_date),
-        endDate: parseDate(req.query.endDate || req.query.end_date),
-        startDay: parseDayKey(req.query.startDay || req.query.start_day),
-        endDay: parseDayKey(req.query.endDay || req.query.end_day),
+      return respondWithCachedJson(req, res, DAILY_METRICS_AGG_CACHE_NAMESPACE, DAILY_METRICS_CACHE_TTL_MS, async () => {
+        return storage.aggregateDailyMetrics({
+          vehicleIds: scoped.vehicleIds,
+          startDate: parseDate(req.query.startDate || req.query.start_date),
+          endDate: parseDate(req.query.endDate || req.query.end_date),
+          startDay: parseDayKey(req.query.startDay || req.query.start_day),
+          endDay: parseDayKey(req.query.endDay || req.query.end_day),
+        });
       });
-      res.json(aggregated);
     } catch (error) {
       res.status(500).json({ error: "Failed to aggregate daily metrics" });
     }
@@ -1392,89 +1496,91 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!scope) return;
       const clientIds = scope.clientIds;
 
-      const requestedVehicleIds = parseList(req.query.vehicleIds || req.query.vehicle_ids);
-      let vehicleIdsFilter: string[] | undefined = requestedVehicleIds.length ? requestedVehicleIds : undefined;
+      return respondWithCachedJson(req, res, DASHBOARD_KPIS_CACHE_NAMESPACE, DASHBOARD_KPIS_CACHE_TTL_MS, async () => {
+        const requestedVehicleIds = parseList(req.query.vehicleIds || req.query.vehicle_ids);
+        let vehicleIdsFilter: string[] | undefined = requestedVehicleIds.length ? requestedVehicleIds : undefined;
 
-      if (clientIds && clientIds.length > 0) {
-        const vehicles = await storage.getVehicles({ clientIds });
-        const allowedIds = vehicles.filter(hasFuelTankCapacity).map((v) => v.id);
-        if (vehicleIdsFilter) {
-          vehicleIdsFilter = vehicleIdsFilter.filter((id) => allowedIds.includes(id));
-        } else {
-          vehicleIdsFilter = allowedIds;
+        if (clientIds && clientIds.length > 0) {
+          const vehicles = await storage.getVehicles({ clientIds });
+          const allowedIds = vehicles.filter(hasFuelTankCapacity).map((v) => v.id);
+          if (vehicleIdsFilter) {
+            vehicleIdsFilter = vehicleIdsFilter.filter((id) => allowedIds.includes(id));
+          } else {
+            vehicleIdsFilter = allowedIds;
+          }
         }
-      }
 
-      const vehicles = (await storage.getVehicles({ clientIds })).filter(hasFuelTankCapacity);
-      const scopedVehicles = vehicleIdsFilter?.length
-        ? vehicles.filter((v) => vehicleIdsFilter!.includes(v.id))
-        : vehicles;
+        const vehicles = (await storage.getVehicles({ clientIds })).filter(hasFuelTankCapacity);
+        const scopedVehicles = vehicleIdsFilter?.length
+          ? vehicles.filter((v) => vehicleIdsFilter!.includes(v.id))
+          : vehicles;
 
-      const totalVehicles = scopedVehicles.length;
-      const activeVehicles = scopedVehicles.filter((v) => v.status === "Moving" || v.status === "Idling").length;
+        const totalVehicles = scopedVehicles.length;
+        const activeVehicles = scopedVehicles.filter((v) => v.status === "Moving" || v.status === "Idling").length;
 
-      const fuelEvents = await storage.getFuelEvents({
-        vehicleIds: scopedVehicles.map((v) => v.id),
-        startDate: parseDate(req.query.startDate || req.query.start_date),
-        endDate: parseDate(req.query.endDate || req.query.end_date),
-      });
-
-      const totalRefills = fuelEvents.filter((e) => e.eventType === "refill").length;
-      const totalThefts = fuelEvents.filter((e) => e.eventType === "theft" || e.eventType === "leak" || e.eventType === "drain").length;
-      const startDate = parseDate(req.query.startDate || req.query.start_date);
-      const endDate = parseDate(req.query.endDate || req.query.end_date);
-      const startDay = parseDayKey(req.query.startDay || req.query.start_day) || (startDate ? getLocalDayKey(startDate) : undefined);
-      const endDay = parseDayKey(req.query.endDay || req.query.end_day) || (endDate ? getLocalDayKey(endDate) : undefined);
-      const todayKey = getLocalDayKey(new Date());
-      const isTodaySelected =
-        !!startDay &&
-        !!endDay &&
-        startDay === todayKey &&
-        endDay === todayKey;
-      const rangeIncludesToday = endDay === todayKey;
-
-      let totalFuelUsed = 0;
-      let totalDistance = 0;
-      let totalEngineHours = 0;
-
-      if (isTodaySelected || !startDate || !endDate) {
-        totalFuelUsed = scopedVehicles.reduce((sum, v) => sum + (v.totalFuelUsed ?? 0), 0);
-        totalDistance = scopedVehicles.reduce((sum, v) => sum + (v.totalDistance ?? 0), 0);
-        totalEngineHours = scopedVehicles.reduce((sum, v) => sum + (v.totalEngineHours ?? 0), 0);
-      } else {
-        const dailyMetrics = await storage.getDailyMetrics({
+        const fuelEvents = await storage.getFuelEvents({
           vehicleIds: scopedVehicles.map((v) => v.id),
-          startDate,
-          endDate,
-          startDay,
-          endDay,
+          startDate: parseDate(req.query.startDate || req.query.start_date),
+          endDate: parseDate(req.query.endDate || req.query.end_date),
         });
 
-        const filteredMetrics = rangeIncludesToday
-          ? dailyMetrics.filter((metric) => getLocalDayKey(metric.metricDate) !== todayKey)
-          : dailyMetrics;
+        const totalRefills = fuelEvents.filter((e) => e.eventType === "refill").length;
+        const totalThefts = fuelEvents.filter((e) => e.eventType === "theft" || e.eventType === "leak" || e.eventType === "drain").length;
+        const startDate = parseDate(req.query.startDate || req.query.start_date);
+        const endDate = parseDate(req.query.endDate || req.query.end_date);
+        const startDay = parseDayKey(req.query.startDay || req.query.start_day) || (startDate ? getLocalDayKey(startDate) : undefined);
+        const endDay = parseDayKey(req.query.endDay || req.query.end_day) || (endDate ? getLocalDayKey(endDate) : undefined);
+        const todayKey = getLocalDayKey(new Date());
+        const isTodaySelected =
+          !!startDay &&
+          !!endDay &&
+          startDay === todayKey &&
+          endDay === todayKey;
+        const rangeIncludesToday = endDay === todayKey;
 
-        totalFuelUsed = filteredMetrics.reduce((sum, metric) => sum + (metric.totalFuelConsumed ?? 0), 0);
-        totalDistance = filteredMetrics.reduce((sum, metric) => sum + (metric.totalDistanceTraveled ?? 0), 0);
-        totalEngineHours = filteredMetrics.reduce((sum, metric) => sum + (metric.totalEngineHours ?? 0), 0);
+        let totalFuelUsed = 0;
+        let totalDistance = 0;
+        let totalEngineHours = 0;
 
-        if (rangeIncludesToday) {
-          totalFuelUsed += scopedVehicles.reduce((sum, v) => sum + (v.totalFuelUsed ?? 0), 0);
-          totalDistance += scopedVehicles.reduce((sum, v) => sum + (v.totalDistance ?? 0), 0);
-          totalEngineHours += scopedVehicles.reduce((sum, v) => sum + (v.totalEngineHours ?? 0), 0);
+        if (isTodaySelected || !startDate || !endDate) {
+          totalFuelUsed = scopedVehicles.reduce((sum, v) => sum + (v.totalFuelUsed ?? 0), 0);
+          totalDistance = scopedVehicles.reduce((sum, v) => sum + (v.totalDistance ?? 0), 0);
+          totalEngineHours = scopedVehicles.reduce((sum, v) => sum + (v.totalEngineHours ?? 0), 0);
+        } else {
+          const dailyMetrics = await storage.getDailyMetrics({
+            vehicleIds: scopedVehicles.map((v) => v.id),
+            startDate,
+            endDate,
+            startDay,
+            endDay,
+          });
+
+          const filteredMetrics = rangeIncludesToday
+            ? dailyMetrics.filter((metric) => getLocalDayKey(metric.metricDate) !== todayKey)
+            : dailyMetrics;
+
+          totalFuelUsed = filteredMetrics.reduce((sum, metric) => sum + (metric.totalFuelConsumed ?? 0), 0);
+          totalDistance = filteredMetrics.reduce((sum, metric) => sum + (metric.totalDistanceTraveled ?? 0), 0);
+          totalEngineHours = filteredMetrics.reduce((sum, metric) => sum + (metric.totalEngineHours ?? 0), 0);
+
+          if (rangeIncludesToday) {
+            totalFuelUsed += scopedVehicles.reduce((sum, v) => sum + (v.totalFuelUsed ?? 0), 0);
+            totalDistance += scopedVehicles.reduce((sum, v) => sum + (v.totalDistance ?? 0), 0);
+            totalEngineHours += scopedVehicles.reduce((sum, v) => sum + (v.totalEngineHours ?? 0), 0);
+          }
         }
-      }
 
-      res.json({
-        totalVehicles,
-        activeVehicles,
-        totalRefills,
-        totalThefts,
-        totalFuelUsed,
-        totalDistance,
-        totalEngineHours,
-        fleetUtilization: Math.round((activeVehicles || 0) / (totalVehicles || 1) * 100),
-        lastUpdated: new Date().toISOString(),
+        return {
+          totalVehicles,
+          activeVehicles,
+          totalRefills,
+          totalThefts,
+          totalFuelUsed,
+          totalDistance,
+          totalEngineHours,
+          fleetUtilization: Math.round((activeVehicles || 0) / (totalVehicles || 1) * 100),
+          lastUpdated: new Date().toISOString(),
+        };
       });
     } catch (error) {
       console.error("GET /api/dashboard/kpis failed", error);
